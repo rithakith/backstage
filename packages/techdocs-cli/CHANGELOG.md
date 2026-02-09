@@ -1,5 +1,11 @@
 # @techdocs/cli
 
+## 1.10.5-next.1
+
+### Patch Changes
+
+- 508d127: Updated dependency `find-process` to `^2.0.0`.
+
 ## 1.10.5-next.0
 
 ### Patch Changes

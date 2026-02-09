@@ -1,5 +1,11 @@
 # @backstage/plugin-search-backend
 
+## 2.0.12-next.1
+
+### Patch Changes
+
+- 8148621: Moved `@backstage/backend-defaults` from `dependencies` to `devDependencies`.
+
 ## 2.0.11-next.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @backstage/plugin-kubernetes-backend
 
+## 0.21.1-next.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @backstage/catalog-client@1.12.2-next.0
+  - @backstage/plugin-catalog-node@1.21.0-next.1
+
 ## 0.21.1-next.1
 
 ### Patch Changes

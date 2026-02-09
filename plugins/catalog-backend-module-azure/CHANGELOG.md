@@ -1,5 +1,14 @@
 # @backstage/plugin-catalog-backend-module-azure
 
+## 0.3.14-next.2
+
+### Patch Changes
+
+- cc6206e: Added support for `{org}.visualstudio.com` domains used by Azure DevOps
+- Updated dependencies
+  - @backstage/integration@1.20.0-next.2
+  - @backstage/plugin-catalog-node@1.21.0-next.1
+
 ## 0.3.14-next.1
 
 ### Patch Changes

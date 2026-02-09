@@ -1,5 +1,14 @@
 # @backstage/cli
 
+## 0.35.4-next.2
+
+### Patch Changes
+
+- 6ce4a13: Removed `/alpha` from `scaffolderActionsExtensionPoint` import
+- 73351c2: Updated dependency `webpack` to `~5.104.0`.
+- Updated dependencies
+  - @backstage/integration@1.20.0-next.2
+
 ## 0.35.4-next.1
 
 ### Patch Changes

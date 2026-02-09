@@ -1,5 +1,15 @@
 # @backstage/plugin-scaffolder-backend
 
+## 3.1.3-next.2
+
+### Patch Changes
+
+- 8148621: Moved `@backstage/backend-defaults` from `dependencies` to `devDependencies`.
+- Updated dependencies
+  - @backstage/integration@1.20.0-next.2
+  - @backstage/plugin-auth-node@0.6.13-next.1
+  - @backstage/plugin-catalog-node@1.21.0-next.1
+
 ## 3.1.3-next.1
 
 ### Patch Changes
