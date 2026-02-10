@@ -15,9 +15,9 @@
  */
 
 /**
- * The my-scaffolder-backend-module module for @backstage/plugin-scaffolder-backend.
+ * The my-scaffolder-backend-module module for @backstage/plugin-catalog-backend.
  *
  * @packageDocumentation
  */
 
-export { scaffolderModule as default } from './module';
+export { catalogModuleMyCatalogProvider as default } from './module';

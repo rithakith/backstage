@@ -13,23 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { createBackendModule } from '@backstage/backend-plugin-api';
-import { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node/alpha';
-import { createExampleAction } from './actions/example';
+import {
+  coreServices,
+  createBackendModule,
+} from '@backstage/backend-plugin-api';
+import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node';
+import { MyCatalogProviderModuleProvider } from './providers/MyCatalogProviderModuleProvider';
 
 /**
- * A backend module that registers the action into the scaffolder
+ * A backend module that registers a mock catalog entity provider.
  */
-export const scaffolderModule = createBackendModule({
-  moduleId: 'example-action',
-  pluginId: 'scaffolder',
-  register({ registerInit }) {
-    registerInit({
+export const catalogModuleMyCatalogProvider = createBackendModule({
+  pluginId: 'catalog',
+  moduleId: 'my-catalog-provider-module',
+  register(reg) {
+    reg.registerInit({
       deps: {
-        scaffolderActions: scaffolderActionsExtensionPoint,
+        catalog: catalogProcessingExtensionPoint,
+        config: coreServices.rootConfig,
+        logger: coreServices.logger,
+        scheduler: coreServices.scheduler,
       },
-      async init({ scaffolderActions }) {
-        scaffolderActions.addActions(createExampleAction());
+      async init({ catalog, config, logger, scheduler }) {
+        const provider = MyCatalogProviderModuleProvider.fromConfig(config, {
+          logger,
+          scheduler,
+        });
+
+        catalog.addEntityProvider(provider);
       },
     });
   },
