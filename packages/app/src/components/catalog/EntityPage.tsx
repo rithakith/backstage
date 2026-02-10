@@ -80,6 +80,7 @@ import {
   LightBox,
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
+import { EntityWso2ApiManagerCard } from '@internal/plugin-wso2-api-manager';
 
 const customEntityFilterKind = ['Component', 'API', 'System'];
 
@@ -320,6 +321,10 @@ const apiPage = (
           <EntityApiDefinitionCard />
         </Grid>
       </Grid>
+    </EntityLayout.Route>
+
+    <EntityLayout.Route path="/wso2" title="WSO2">
+      <EntityWso2ApiManagerCard />
     </EntityLayout.Route>
   </EntityLayoutWrapper>
 );

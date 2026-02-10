@@ -48,6 +48,7 @@ import BuildIcon from '@material-ui/icons/Build';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 import UpdateIcon from '@material-ui/icons/Update';
 import CategoryIcon from '@material-ui/icons/Category';
+import CloudQueueIcon from '@material-ui/icons/CloudQueue';
 
 const useSidebarLogoStyles = makeStyles({
   root: {
@@ -140,6 +141,12 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
           icon={useApp().getSystemIcon('kind:api')!}
           to="api-docs"
           text="APIs"
+        />
+        <SidebarItem icon={CloudQueueIcon} to="wso2" text="WSO2 APIM" />
+        <SidebarItem
+          icon={CloudQueueIcon}
+          to="wso2-publisher"
+          text="WSO2 Publisher"
         />
         <SidebarItem
           icon={useApp().getSystemIcon('docs')!}

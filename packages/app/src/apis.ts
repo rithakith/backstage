@@ -33,6 +33,10 @@ import { DefaultScaffolderFormDecoratorsApi } from '@backstage/plugin-scaffolder
 import { mockDecorator } from './components/scaffolder/decorators';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import { ScaffolderClient } from '@backstage/plugin-scaffolder';
+import {
+  Wso2ApiManagerClient,
+  wso2ApiManagerApiRef,
+} from '@internal/plugin-wso2-api-manager';
 
 export const apis: AnyApiFactory[] = [
   createApiFactory({
@@ -71,6 +75,16 @@ export const apis: AnyApiFactory[] = [
       DefaultScaffolderFormDecoratorsApi.create({
         decorators: [mockDecorator],
       }),
+  }),
+
+  createApiFactory({
+    api: wso2ApiManagerApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      fetchApi: fetchApiRef,
+    },
+    factory: ({ discoveryApi, fetchApi }) =>
+      new Wso2ApiManagerClient({ discoveryApi, fetchApi }),
   }),
 
   ScmAuth.createDefaultApiFactory(),

@@ -76,6 +76,20 @@ proxy:
       headers:
         Authorization: Token token=${PAGERDUTY_TOKEN}
 
+wso2ApiManager:
+  baseUrl: https://localhost:9443
+  devportalBasePath: /api/am/devportal/v3
+  publisherBasePath: /api/am/publisher/v4
+  tls:
+    rejectUnauthorized: false
+  auth:
+    tokenUrl: https://localhost:9443/oauth2/token
+    grantType: password
+    username: admin
+    password: admin
+    clientId: Jnb4BXCE6sHayUP_cPm_Gv8IL9Ya
+    clientSecret: v8nXxbu40CAyycIuRj7Tm9bMRRAa
+
 organization:
   name: My Company
 

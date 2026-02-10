@@ -1,0 +1,207 @@
+import { useMemo, useState } from 'react';
+import { useAsyncRetry } from 'react-use';
+import Grid from '@material-ui/core/Grid';
+import Dialog from '@material-ui/core/Dialog';
+import DialogActions from '@material-ui/core/DialogActions';
+import DialogContent from '@material-ui/core/DialogContent';
+import DialogTitle from '@material-ui/core/DialogTitle';
+import TextField from '@material-ui/core/TextField';
+import Button from '@material-ui/core/Button';
+import {
+  Content,
+  ContentHeader,
+  Header,
+  InfoCard,
+  Page,
+  Progress,
+  Table,
+  TableColumn,
+  WarningPanel,
+  SupportButton,
+} from '@backstage/core-components';
+import { useApi } from '@backstage/core-plugin-api';
+import { Wso2ApiSummary, wso2ApiManagerApiRef } from '../../api';
+
+export const Wso2PublisherPage = () => {
+  const apiClient = useApi(wso2ApiManagerApiRef);
+  const [isDialogOpen, setDialogOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | undefined>();
+
+  const apiListState = useAsyncRetry(async () => {
+    return apiClient.listPublisherApis({ limit: 50, offset: 0 });
+  }, [apiClient]);
+
+  const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
+    () => [
+      { title: 'Name', field: 'name' },
+      { title: 'Version', field: 'version' },
+      { title: 'Provider', field: 'provider' },
+      { title: 'Lifecycle', field: 'lifeCycleStatus' },
+      { title: 'Context', field: 'context' },
+    ],
+    [],
+  );
+
+  const handleCreate = async (input: CreateApiInput) => {
+    setCreateError(undefined);
+    try {
+      await apiClient.createPublisherApi(input);
+      setDialogOpen(false);
+      apiListState.retry();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setCreateError(message);
+    }
+  };
+
+  return (
+    <Page themeId="tool">
+      <Header
+        title="WSO2 Publisher"
+        subtitle="Manage APIs in WSO2 API Manager"
+      />
+      <Content>
+        <ContentHeader title="Publisher APIs">
+          <SupportButton>
+            List and create APIs using the WSO2 Publisher API.
+          </SupportButton>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setDialogOpen(true)}
+          >
+            Create API
+          </Button>
+        </ContentHeader>
+
+        {apiListState.loading && <Progress />}
+        {apiListState.error && (
+          <WarningPanel
+            title="Failed to load publisher APIs"
+            message={apiListState.error.message}
+          />
+        )}
+        {apiListState.value && (
+          <Table
+            options={{ paging: false, search: true }}
+            columns={columns}
+            data={apiListState.value.apis}
+          />
+        )}
+      </Content>
+
+      <CreateApiDialog
+        open={isDialogOpen}
+        errorMessage={createError}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={handleCreate}
+      />
+    </Page>
+  );
+};
+
+type CreateApiInput = {
+  name: string;
+  context: string;
+  version: string;
+  endpointUrl: string;
+  description?: string;
+};
+
+const CreateApiDialog = (props: {
+  open: boolean;
+  errorMessage?: string;
+  onClose: () => void;
+  onSubmit: (input: CreateApiInput) => void;
+}) => {
+  const [formState, setFormState] = useState<CreateApiInput>({
+    name: '',
+    context: '',
+    version: '1.0.0',
+    endpointUrl: '',
+    description: '',
+  });
+
+  const updateField = (field: keyof CreateApiInput, value: string) => {
+    setFormState(current => ({ ...current, [field]: value }));
+  };
+
+  const isValid =
+    formState.name.trim() &&
+    formState.context.trim() &&
+    formState.version.trim() &&
+    formState.endpointUrl.trim();
+
+  return (
+    <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Create API</DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <TextField
+              label="Name"
+              value={formState.name}
+              onChange={event => updateField('name', event.target.value)}
+              fullWidth
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Context"
+              value={formState.context}
+              onChange={event => updateField('context', event.target.value)}
+              fullWidth
+              helperText="Example: /order-service"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Version"
+              value={formState.version}
+              onChange={event => updateField('version', event.target.value)}
+              fullWidth
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Endpoint URL"
+              value={formState.endpointUrl}
+              onChange={event => updateField('endpointUrl', event.target.value)}
+              fullWidth
+              helperText="Example: https://api.example.com"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              label="Description"
+              value={formState.description}
+              onChange={event => updateField('description', event.target.value)}
+              fullWidth
+              multiline
+              minRows={2}
+            />
+          </Grid>
+          {props.errorMessage && (
+            <Grid item xs={12}>
+              <WarningPanel
+                title="Create API failed"
+                message={props.errorMessage}
+              />
+            </Grid>
+          )}
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={props.onClose}>Cancel</Button>
+        <Button
+          color="primary"
+          variant="contained"
+          onClick={() => props.onSubmit(formState)}
+          disabled={!isValid}
+        >
+          Create
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
