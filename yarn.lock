@@ -6807,6 +6807,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module@workspace:^, @backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module@workspace:plugins/scaffolder-backend-module-my-scaffolder-backend-module":
+  version: 0.0.0-use.local
+  resolution: "@backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module@workspace:plugins/scaffolder-backend-module-my-scaffolder-backend-module"
+  dependencies:
+    "@backstage/backend-plugin-api": "workspace:^"
+    "@backstage/backend-test-utils": "workspace:^"
+    "@backstage/cli": "workspace:^"
+    "@backstage/plugin-scaffolder-node": "workspace:^"
+    "@backstage/plugin-scaffolder-node-test-utils": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@backstage/plugin-scaffolder-backend-module-notifications@workspace:^, @backstage/plugin-scaffolder-backend-module-notifications@workspace:plugins/scaffolder-backend-module-notifications":
   version: 0.0.0-use.local
   resolution: "@backstage/plugin-scaffolder-backend-module-notifications@workspace:plugins/scaffolder-backend-module-notifications"
@@ -31138,6 +31150,7 @@ __metadata:
     "@backstage/plugin-proxy-backend": "workspace:^"
     "@backstage/plugin-scaffolder-backend": "workspace:^"
     "@backstage/plugin-scaffolder-backend-module-github": "workspace:^"
+    "@backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module": "workspace:^"
     "@backstage/plugin-scaffolder-backend-module-notifications": "workspace:^"
     "@backstage/plugin-search-backend": "workspace:^"
     "@backstage/plugin-search-backend-module-catalog": "workspace:^"
