@@ -1,1 +1,2 @@
-yarn lint-staged
+export PATH="$PATH:/c/Users/ritzy/AppData/Roaming/npm:/c/Program Files/nodejs"
+cmd.exe /c yarn lint-staged

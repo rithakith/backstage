@@ -43,6 +43,8 @@ const searchLoader = createBackendFeatureLoader({
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('./authModuleGithubProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-oauth2-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-oidc-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-openshift-provider'));
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-unprocessed'));
@@ -68,7 +70,7 @@ backend.add(
 );
 backend.add(searchLoader);
 backend.add(import('@backstage/plugin-techdocs-backend'));
-backend.add(import('@backstage/plugin-signals-backend'));
+// backend.add(import('@backstage/plugin-signals-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(rootSystemMetadataServiceFactory);
 backend.add(import('@internal/plugin-wso2-api-manager-backend'));

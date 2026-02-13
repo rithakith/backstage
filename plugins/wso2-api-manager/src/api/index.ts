@@ -1,4 +1,4 @@
-import { createApiRef } from '@backstage/core-plugin-api';
+import { createApiRef, OAuthApi } from '@backstage/core-plugin-api';
 import {
   Wso2ApiDetail,
   Wso2ApiDocumentsResponse,
@@ -10,13 +10,15 @@ export interface Wso2ApiManagerApi {
     limit?: number;
     offset?: number;
     query?: string;
+    token?: string;
   }): Promise<Wso2ApiListResponse>;
-  getApi(apiId: string): Promise<Wso2ApiDetail>;
-  listDocuments(apiId: string): Promise<Wso2ApiDocumentsResponse>;
+  getApi(apiId: string, token?: string): Promise<Wso2ApiDetail>;
+  listDocuments(apiId: string, token?: string): Promise<Wso2ApiDocumentsResponse>;
   listPublisherApis(options?: {
     limit?: number;
     offset?: number;
     query?: string;
+    token?: string;
   }): Promise<Wso2ApiListResponse>;
   createPublisherApi(input: {
     name: string;
@@ -24,11 +26,20 @@ export interface Wso2ApiManagerApi {
     version: string;
     endpointUrl: string;
     description?: string;
+    token?: string;
   }): Promise<Wso2ApiDetail>;
 }
 
 export const wso2ApiManagerApiRef = createApiRef<Wso2ApiManagerApi>({
   id: 'plugin.wso2-api-manager.service',
+});
+
+export const wso2AuthApiRef = createApiRef<OAuthApi>({
+  id: 'plugin.wso2-api-manager.auth',
+});
+
+export const thunderAuthApiRef = createApiRef<OAuthApi>({
+  id: 'auth.thunder-auth',
 });
 
 export { Wso2ApiManagerClient } from './Wso2ApiManagerClient';

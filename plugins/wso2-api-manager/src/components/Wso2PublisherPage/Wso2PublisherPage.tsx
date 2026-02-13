@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useAsyncRetry } from 'react-use';
+import { useAsync, useAsyncRetry } from 'react-use';
 import Grid from '@material-ui/core/Grid';
 import Dialog from '@material-ui/core/Dialog';
 import DialogActions from '@material-ui/core/DialogActions';
@@ -7,11 +7,11 @@ import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import TextField from '@material-ui/core/TextField';
 import Button from '@material-ui/core/Button';
+import { makeStyles } from '@material-ui/core/styles';
 import {
   Content,
   ContentHeader,
   Header,
-  InfoCard,
   Page,
   Progress,
   Table,
@@ -20,15 +20,59 @@ import {
   SupportButton,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Wso2ApiSummary, wso2ApiManagerApiRef } from '../../api';
+import { Wso2ApiSummary, wso2ApiManagerApiRef, thunderAuthApiRef } from '../../api';
+
+// WSO2 Theme Colors
+const useStyles = makeStyles(theme => ({
+  root: {
+    '& .MuiButton-containedPrimary': {
+      backgroundColor: '#ff5000', // WSO2 Orange
+      color: '#fff',
+      '&:hover': {
+        backgroundColor: '#e04600',
+      },
+    },
+  },
+}));
 
 export const Wso2PublisherPage = () => {
+  const classes = useStyles();
   const apiClient = useApi(wso2ApiManagerApiRef);
+  const oauthApi = useApi(thunderAuthApiRef);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
+  const [authCreds, setAuthCreds] = useState<{ token: string } | undefined>(undefined);
 
+  const getAccessToken = async () => {
+    const token = await oauthApi.getAccessToken([
+      'openid',
+      'profile',
+      'email',
+      'apim:api_create',
+      'apim:api_publish',
+    ]);
+    return token;
+  };
+
+  const handleCreateLogin = async () => {
+    try {
+      const token = await getAccessToken();
+      if (token) {
+        setAuthCreds({ token });
+        setDialogOpen(true);
+      }
+    } catch (e) {
+      setCreateError('Authentication failed: ' + e);
+    }
+  };
+
+  // We assume default listing doesn't require user token if using backend service creds,
+  // or it will fail and show empty. If we need user token for listing, we'd need to trigger login on load.
   const apiListState = useAsyncRetry(async () => {
-    return apiClient.listPublisherApis({ limit: 50, offset: 0 });
+    return apiClient.listPublisherApis({
+      limit: 50,
+      offset: 0,
+    });
   }, [apiClient]);
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
@@ -44,8 +88,16 @@ export const Wso2PublisherPage = () => {
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
+    if (!authCreds?.token) {
+      setCreateError("Not authenticated");
+      return;
+    }
+
     try {
-      await apiClient.createPublisherApi(input);
+      await apiClient.createPublisherApi({
+        ...input,
+        token: authCreds.token,
+      });
       setDialogOpen(false);
       apiListState.retry();
     } catch (error) {
@@ -55,7 +107,7 @@ export const Wso2PublisherPage = () => {
   };
 
   return (
-    <Page themeId="tool">
+    <Page themeId="tool" className={classes.root}>
       <Header
         title="WSO2 Publisher"
         subtitle="Manage APIs in WSO2 API Manager"
@@ -68,11 +120,19 @@ export const Wso2PublisherPage = () => {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => setDialogOpen(true)}
+            onClick={handleCreateLogin}
           >
             Create API
           </Button>
         </ContentHeader>
+
+        {createError && (
+          <WarningPanel
+            title="Action Failed"
+            message={createError}
+            severity="error" // Ensure red color
+          />
+        )}
 
         {apiListState.loading && <Progress />}
         {apiListState.error && (

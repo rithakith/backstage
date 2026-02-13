@@ -77,18 +77,18 @@ proxy:
         Authorization: Token token=${PAGERDUTY_TOKEN}
 
 wso2ApiManager:
-  baseUrl: https://localhost:9443
+  baseUrl: https://127.0.0.1:9445
   devportalBasePath: /api/am/devportal/v3
   publisherBasePath: /api/am/publisher/v4
   tls:
     rejectUnauthorized: false
   auth:
-    tokenUrl: https://localhost:9443/oauth2/token
+    tokenUrl: https://127.0.0.1:9445/oauth2/token
     grantType: password
     username: admin
     password: admin
-    clientId: Jnb4BXCE6sHayUP_cPm_Gv8IL9Ya
-    clientSecret: v8nXxbu40CAyycIuRj7Tm9bMRRAa
+    clientId: ajZ6_i6rLSHkpGMb1RgxdS7WAFAa
+    clientSecret: VcqTHMNu3CFvtm30lQqOX0lSBd0a
 
 organization:
   name: My Company
@@ -229,7 +229,7 @@ scaffolder:
 
 auth:
   experimentalDynamicClientRegistration:
-    enabled: true
+    enabled: false
     allowedRedirectUriPatterns:
       - cursor://*
 
@@ -244,8 +244,8 @@ auth:
 
   environment: development
   ### Providing an auth.session.secret will enable session support in the auth-backend
-  # session:
-  #   secret: custom session secret
+  session:
+    secret: super-long-random-string-at-least-32-characters-123456
   providers:
     google:
       development:
@@ -262,7 +262,7 @@ auth:
         clientSecret: ${AUTH_GITLAB_CLIENT_SECRET}
         audience: ${GITLAB_BASE_URL}
     saml:
-      entryPoint: 'http://localhost:7001/'
+      entryPoint: 'http://127.0.0.1:7001/'
       issuer: 'passport-saml'
       cert: 'fake-cert-base64'
     okta:
@@ -272,28 +272,18 @@ auth:
         audience: ${AUTH_OKTA_AUDIENCE}
     oauth2:
       development:
-        clientId: ${AUTH_OAUTH2_CLIENT_ID}
-        clientSecret: ${AUTH_OAUTH2_CLIENT_SECRET}
-        authorizationUrl: ${AUTH_OAUTH2_AUTH_URL}
-        tokenUrl: ${AUTH_OAUTH2_TOKEN_URL}
-        ###
-        # provide a list of scopes as needed for your OAuth2 Server:
-        #
-        # scope: saml-login-selector openid profile email
+        clientId: ajZ6_i6rLSHkpGMb1RgxdS7WAFAa
+        clientSecret: VcqTHMNu3CFvtm30lQqOX0lSBd0a
+        authorizationUrl: https://127.0.0.1:9445/oauth2/authorize
+        tokenUrl: https://127.0.0.1:9445/oauth2/token
+        scope: openid profile email apim:api_create apim:api_publish
     oidc:
-      # Note that you must define a session secret (see above) since the oidc provider requires session support.
-      # Note that by default, this provider will use the 'none' prompt which assumes that your are already logged on in the IDP.
-      # You should set prompt to:
-      # - auto: will let the IDP decide if you need to log on or if you can skip login when you have an active SSO session
-      # - login: will force the IDP to always present a login form to the user
       development:
-        metadataUrl: ${AUTH_OIDC_METADATA_URL}
-        clientId: ${AUTH_OIDC_CLIENT_ID}
-        clientSecret: ${AUTH_OIDC_CLIENT_SECRET}
-        tokenEndpointAuthMethod: ${AUTH_OIDC_TOKEN_ENDPOINT_AUTH_METHOD} # default='client_secret_basic'
-        tokenSignedResponseAlg: ${AUTH_OIDC_TOKEN_SIGNED_RESPONSE_ALG} # default='RS256'
-        scope: ${AUTH_OIDC_SCOPE} # default='openid profile email'
-        prompt: ${AUTH_OIDC_PROMPT} # default=none (allowed values: auto, none, consent, login)
+        clientId: FF1Ta0Ik9HoU18TbC8G_fOsQPBYa
+        clientSecret: UU0FWPdhvMf6PaDIxwU5zxiw3G5I0oMflKpf9ruQ6Zca
+        additionalScopes: 'apim:api_create apim:api_publish'
+        metadataUrl: https://api.asgardeo.io/t/backstageplugin/oauth2/token/.well-known/openid-configuration
+        prompt: auto
     auth0:
       development:
         clientId: ${AUTH_AUTH0_CLIENT_ID}

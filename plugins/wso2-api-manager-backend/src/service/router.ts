@@ -34,26 +34,36 @@ export async function createRouter(
     res.json({ status: 'ok' });
   });
 
+  const getCredentials = (req: express.Request) => {
+    const token = req.headers['x-wso2-access-token'] as string | undefined;
+    const username = req.headers['x-wso2-username'] as string | undefined;
+    const password = req.headers['x-wso2-password'] as string | undefined;
+    return { token, username, password };
+  };
+
   router.get('/apis', async (req, res) => {
     await httpAuth.credentials(req, { allow: ['user'] });
     const limit = readNumber(req.query.limit, 50);
     const offset = readNumber(req.query.offset, 0);
     const query = readString(req.query.query);
-    const result = await client.listApis({ limit, offset, query });
+    const credentials = getCredentials(req);
+    const result = await client.listApis({ limit, offset, query, credentials });
     res.json(result);
   });
 
   router.get('/apis/:apiId', async (req, res) => {
     await httpAuth.credentials(req, { allow: ['user'] });
     const apiId = req.params.apiId;
-    const result = await client.getApi(apiId);
+    const credentials = getCredentials(req);
+    const result = await client.getApi(apiId, credentials);
     res.json(result);
   });
 
   router.get('/apis/:apiId/documents', async (req, res) => {
     await httpAuth.credentials(req, { allow: ['user'] });
     const apiId = req.params.apiId;
-    const result = await client.listDocuments(apiId);
+    const credentials = getCredentials(req);
+    const result = await client.listDocuments(apiId, credentials);
     res.json(result);
   });
 
@@ -62,14 +72,16 @@ export async function createRouter(
     const limit = readNumber(req.query.limit, 50);
     const offset = readNumber(req.query.offset, 0);
     const query = readString(req.query.query);
-    const result = await client.listPublisherApis({ limit, offset, query });
+    const credentials = getCredentials(req);
+    const result = await client.listPublisherApis({ limit, offset, query, credentials });
     res.json(result);
   });
 
   router.post('/publisher/apis', async (req, res) => {
     await httpAuth.credentials(req, { allow: ['user'] });
     const payload = readCreatePublisherApiRequest(req.body);
-    const result = await client.createPublisherApi(payload);
+    const credentials = getCredentials(req);
+    const result = await client.createPublisherApi({ ...payload, credentials });
     res.json(result);
   });
 

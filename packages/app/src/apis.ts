@@ -26,6 +26,7 @@ import {
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
+  oauthRequestApiRef,
 } from '@backstage/core-plugin-api';
 import { AuthProxyDiscoveryApi } from './AuthProxyDiscoveryApi';
 import { formDecoratorsApiRef } from '@backstage/plugin-scaffolder/alpha';
@@ -33,9 +34,12 @@ import { DefaultScaffolderFormDecoratorsApi } from '@backstage/plugin-scaffolder
 import { mockDecorator } from './components/scaffolder/decorators';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import { ScaffolderClient } from '@backstage/plugin-scaffolder';
+import { OAuth2 } from '@backstage/core-app-api';
 import {
   Wso2ApiManagerClient,
   wso2ApiManagerApiRef,
+  wso2AuthApiRef,
+  thunderAuthApiRef,
 } from '@internal/plugin-wso2-api-manager';
 
 export const apis: AnyApiFactory[] = [
@@ -85,6 +89,48 @@ export const apis: AnyApiFactory[] = [
     },
     factory: ({ discoveryApi, fetchApi }) =>
       new Wso2ApiManagerClient({ discoveryApi, fetchApi }),
+  }),
+
+  createApiFactory({
+    api: wso2AuthApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      oauthRequestApi: oauthRequestApiRef,
+      configApi: configApiRef,
+    },
+    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
+      OAuth2.create({
+        discoveryApi,
+        oauthRequestApi,
+        provider: {
+          id: 'oidc',
+          title: 'Asgardeo Auth',
+          icon: () => null,
+        },
+        environment: configApi.getOptionalString('auth.environment'),
+        defaultScopes: ['openid', 'profile', 'email'],
+      }),
+  }),
+
+  createApiFactory({
+    api: thunderAuthApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      oauthRequestApi: oauthRequestApiRef,
+      configApi: configApiRef,
+    },
+    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
+      OAuth2.create({
+        discoveryApi,
+        oauthRequestApi,
+        provider: {
+          id: 'oidc',
+          title: 'Thunder Auth',
+          icon: () => null,
+        },
+        environment: configApi.getOptionalString('auth.environment'),
+        defaultScopes: ['openid', 'profile', 'email'],
+      }),
   }),
 
   ScmAuth.createDefaultApiFactory(),
