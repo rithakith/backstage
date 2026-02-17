@@ -20,7 +20,7 @@ import {
   SupportButton,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { Wso2ApiSummary, wso2ApiManagerApiRef, thunderAuthApiRef } from '../../api';
+import { Wso2ApiSummary, wso2ApiManagerApiRef, wso2AuthApiRef } from '../../api';
 
 // WSO2 Theme Colors
 const useStyles = makeStyles(theme => ({
@@ -38,27 +38,29 @@ const useStyles = makeStyles(theme => ({
 export const Wso2PublisherPage = () => {
   const classes = useStyles();
   const apiClient = useApi(wso2ApiManagerApiRef);
-  const oauthApi = useApi(thunderAuthApiRef);
+  const oauthApi = useApi(wso2AuthApiRef);
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
-  const [authCreds, setAuthCreds] = useState<{ token: string } | undefined>(undefined);
+  const [token, setToken] = useState<string | undefined>();
 
-  const getAccessToken = async () => {
-    const token = await oauthApi.getAccessToken([
-      'openid',
-      'profile',
-      'email',
-      'apim:api_create',
-      'apim:api_publish',
-    ]);
-    return token;
-  };
+  // Try to silently get the token on mount to synchronize login
+  useAsync(async () => {
+    try {
+      // Use the configured scopes + additional scopes needed for APIM
+      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish'], { optional: true });
+      if (t) {
+        setToken(t);
+      }
+    } catch (e) {
+      // Ignore silent failures
+    }
+  }, [oauthApi]);
 
   const handleCreateLogin = async () => {
     try {
-      const token = await getAccessToken();
-      if (token) {
-        setAuthCreds({ token });
+      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
+      if (t) {
+        setToken(t);
         setDialogOpen(true);
       }
     } catch (e) {
@@ -66,14 +68,22 @@ export const Wso2PublisherPage = () => {
     }
   };
 
-  // We assume default listing doesn't require user token if using backend service creds,
-  // or it will fail and show empty. If we need user token for listing, we'd need to trigger login on load.
+  const handleCreateButtonClick = () => {
+    if (token) {
+      setDialogOpen(true);
+    } else {
+      handleCreateLogin();
+    }
+  };
+
+  // List using token if available
   const apiListState = useAsyncRetry(async () => {
     return apiClient.listPublisherApis({
       limit: 50,
       offset: 0,
+      token: token
     });
-  }, [apiClient]);
+  }, [apiClient, token]);
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
     () => [
@@ -88,7 +98,7 @@ export const Wso2PublisherPage = () => {
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
-    if (!authCreds?.token) {
+    if (!token) {
       setCreateError("Not authenticated");
       return;
     }
@@ -96,7 +106,7 @@ export const Wso2PublisherPage = () => {
     try {
       await apiClient.createPublisherApi({
         ...input,
-        token: authCreds.token,
+        token: token,
       });
       setDialogOpen(false);
       apiListState.retry();
@@ -120,7 +130,7 @@ export const Wso2PublisherPage = () => {
           <Button
             variant="contained"
             color="primary"
-            onClick={handleCreateLogin}
+            onClick={handleCreateButtonClick}
           >
             Create API
           </Button>

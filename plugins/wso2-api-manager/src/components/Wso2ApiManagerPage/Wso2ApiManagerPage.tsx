@@ -59,23 +59,29 @@ export const Wso2ApiManagerPage = () => {
   const classes = useStyles();
   const apiClient = useApi(wso2ApiManagerApiRef);
   const oauthApi = useApi(wso2AuthApiRef);
+  const [token, setToken] = useState<string | undefined>();
   const [selectedApiId, setSelectedApiId] = useState<string | undefined>();
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
 
-  const [authCreds, setAuthCreds] = useState<{ token: string } | undefined>(undefined);
-
-  const getAccessToken = async () => {
-    // Request a token for the 'wso2' provider
-    const token = await oauthApi.getAccessToken(['openid', 'profile', 'email']);
-    return token;
-  };
+  // Try to silently get the token on mount to synchronize login
+  useAsync(async () => {
+    try {
+      // Use the configured scopes + additional scopes needed for APIM
+      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish'], { optional: true });
+      if (t) {
+        setToken(t);
+      }
+    } catch (e) {
+      // Ignore silent failures
+    }
+  }, [oauthApi]);
 
   const handleCreateLogin = async () => {
     try {
-      const token = await getAccessToken();
-      if (token) {
-        setAuthCreds({ token });
+      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
+      if (t) {
+        setToken(t);
         setDialogOpen(true);
       }
     } catch (e) {
@@ -83,30 +89,39 @@ export const Wso2ApiManagerPage = () => {
     }
   };
 
+  const handleCreateButtonClick = () => {
+    if (token) {
+      setDialogOpen(true);
+    } else {
+      handleCreateLogin();
+    }
+  };
+
   const apiListState = useAsyncRetry(async () => {
-    // For listing, we try to fetch without user credentials first (public/configured credentials in backend)
-    // If that fails, or if we want user-specific APIs, we'd need auth.
-    // Assuming retrieving all APIs from DevPortal is public or uses system creds.
-    return apiClient.listApis({ limit: 50, offset: 0 });
-  }, [apiClient]);
+    return apiClient.listApis({
+      limit: 50,
+      offset: 0,
+      token: token
+    });
+  }, [apiClient, token]);
 
   const apiDetailState = useAsync(async () => {
     if (!selectedApiId) {
       return undefined;
     }
-    return apiClient.getApi(selectedApiId);
-  }, [apiClient, selectedApiId]);
+    return apiClient.getApi(selectedApiId, token);
+  }, [apiClient, selectedApiId, token]);
 
   const apiDocumentsState = useAsync(async () => {
     if (!selectedApiId) {
       return undefined;
     }
-    return apiClient.listDocuments(selectedApiId);
-  }, [apiClient, selectedApiId]);
+    return apiClient.listDocuments(selectedApiId, token);
+  }, [apiClient, selectedApiId, token]);
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
-    if (!authCreds?.token) {
+    if (!token) {
       setCreateError("Not authenticated");
       return;
     }
@@ -114,7 +129,7 @@ export const Wso2ApiManagerPage = () => {
     try {
       await apiClient.createPublisherApi({
         ...input,
-        token: authCreds.token,
+        token: token,
       });
       setDialogOpen(false);
       apiListState.retry();
@@ -149,7 +164,7 @@ export const Wso2ApiManagerPage = () => {
           <Button
             variant="contained"
             color="primary"
-            onClick={handleCreateLogin}
+            onClick={handleCreateButtonClick}
           >
             Create API
           </Button>
