@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useAsync, useAsyncRetry } from 'react-use';
-import Grid from '@material-ui/core/Grid';
-import TextField from '@material-ui/core/TextField';
-import Button from '@material-ui/core/Button';
-import Dialog from '@material-ui/core/Dialog';
-import DialogActions from '@material-ui/core/DialogActions';
-import DialogContent from '@material-ui/core/DialogContent';
-import DialogTitle from '@material-ui/core/DialogTitle';
-import Box from '@material-ui/core/Box';
-import Typography from '@material-ui/core/Typography';
-import { makeStyles } from '@material-ui/core/styles';
+import {
+  Grid,
+  TextField,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Box,
+  Typography,
+  makeStyles,
+} from '@material-ui/core';
 import {
   Content,
   ContentHeader,
@@ -76,6 +78,17 @@ export const Wso2ApiManagerPage = () => {
       // Ignore silent failures
     }
   }, [oauthApi]);
+
+  const handleSignIn = async () => {
+    try {
+      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
+      if (t) {
+        setToken(t);
+      }
+    } catch (e) {
+      setCreateError('Authentication failed: ' + e);
+    }
+  };
 
   const handleCreateLogin = async () => {
     try {
@@ -157,10 +170,20 @@ export const Wso2ApiManagerPage = () => {
     <Page themeId="tool" className={classes.root}>
       <Header title="WSO2 API Manager" subtitle="Browse APIs and details" />
       <Content>
-        <ContentHeader title="DevPortal APIs">
+        <ContentHeader title="">
           <SupportButton>
             This view lists APIs from WSO2 API Manager.
           </SupportButton>
+          <Box mr={2} display="inline">
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleSignIn}
+              disabled={!!token}
+            >
+              {token ? 'Signed In ✓' : 'SIGN IN'}
+            </Button>
+          </Box>
           <Button
             variant="contained"
             color="primary"
