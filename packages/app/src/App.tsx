@@ -74,10 +74,7 @@ import {
 import { CustomizableHomePage } from './components/home/CustomizableHomePage';
 import { HomePage } from './components/home/HomePage';
 import { BuiThemerPage } from '@backstage/plugin-mui-to-bui';
-import {
-  Wso2ApiManagerPage,
-  Wso2PublisherPage,
-} from '@internal/plugin-wso2-api-manager';
+import { Wso2ApiManagerPage } from '@internal/plugin-wso2-api-manager';
 
 const app = createApp({
   apis,
@@ -196,7 +193,7 @@ const routes = (
 
     <Route path="/api-docs" element={<ApiExplorerPage />} />
     <Route path="/wso2" element={<Wso2ApiManagerPage />} />
-    <Route path="/wso2-publisher" element={<Wso2PublisherPage />} />
+
     <Route path="/search" element={<SearchPage />}>
       {searchPage}
     </Route>

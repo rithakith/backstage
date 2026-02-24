@@ -143,11 +143,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
           text="APIs"
         />
         <SidebarItem icon={CloudQueueIcon} to="wso2" text="WSO2 APIM" />
-        <SidebarItem
-          icon={CloudQueueIcon}
-          to="wso2-publisher"
-          text="WSO2 Publisher"
-        />
+
         <SidebarItem
           icon={useApp().getSystemIcon('docs')!}
           to="docs"

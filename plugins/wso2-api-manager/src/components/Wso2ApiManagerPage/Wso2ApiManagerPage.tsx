@@ -66,10 +66,17 @@ export const Wso2ApiManagerPage = () => {
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
 
+  const hasPublisherAccess = (_tokenStr: string) => {
+    // NOTE: Asgardeo issues opaque (non-JWT) access tokens, so we cannot
+    // decode them client-side. Authorization is enforced by WSO2 APIM itself
+    // when we make the request — it will return 401/403 if the user lacks the
+    // publisher role. We surface that as a friendly error in the UI.
+    return true;
+  };
+
   // Try to silently get the token on mount to synchronize login
   useAsync(async () => {
     try {
-      // Use the configured scopes + additional scopes needed for APIM
       const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish'], { optional: true });
       if (t) {
         setToken(t);
@@ -95,7 +102,7 @@ export const Wso2ApiManagerPage = () => {
       const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
       if (t) {
         setToken(t);
-        setDialogOpen(true);
+        setDialogOpen(true);  // Let WSO2 APIM enforce the role on submission
       }
     } catch (e) {
       setCreateError('Authentication failed: ' + e);
