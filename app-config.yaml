@@ -168,6 +168,8 @@ catalog:
         - System
         - Domain
         - Location
+        - User
+        - Group
   providers:
     azureBlob:
       accountName: ${ACCOUNT_NAME}
@@ -228,88 +230,20 @@ scaffolder:
       environment: ${NODE_ENV}
 
 auth:
-  experimentalDynamicClientRegistration:
-    enabled: false
-    allowedRedirectUriPatterns:
-      - cursor://*
-
-  ### Add auth.keyStore.provider to more granularly control how to store JWK data when running
-  # the auth-backend.
-  #
-  # keyStore:
-  #  provider: firestore
-  #  firestore:
-  #    projectId: my-project
-  #    path: my-sessions
-
   environment: development
-  ### Providing an auth.session.secret will enable session support in the auth-backend
   session:
     secret: super-long-random-string-at-least-32-characters-123456
   providers:
-    google:
-      development:
-        clientId: ${AUTH_GOOGLE_CLIENT_ID}
-        clientSecret: ${AUTH_GOOGLE_CLIENT_SECRET}
-    github:
-      development:
-        clientId: ${AUTH_GITHUB_CLIENT_ID}
-        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
-        enterpriseInstanceUrl: ${AUTH_GITHUB_ENTERPRISE_INSTANCE_URL}
-    gitlab:
-      development:
-        clientId: ${AUTH_GITLAB_CLIENT_ID}
-        clientSecret: ${AUTH_GITLAB_CLIENT_SECRET}
-        audience: ${GITLAB_BASE_URL}
-    saml:
-      entryPoint: 'http://127.0.0.1:7001/'
-      issuer: 'passport-saml'
-      cert: 'fake-cert-base64'
-    okta:
-      development:
-        clientId: ${AUTH_OKTA_CLIENT_ID}
-        clientSecret: ${AUTH_OKTA_CLIENT_SECRET}
-        audience: ${AUTH_OKTA_AUDIENCE}
-    oauth2:
-      development:
-        clientId: ajZ6_i6rLSHkpGMb1RgxdS7WAFAa
-        clientSecret: VcqTHMNu3CFvtm30lQqOX0lSBd0a
-        authorizationUrl: https://127.0.0.1:9445/oauth2/authorize
-        tokenUrl: https://127.0.0.1:9445/oauth2/token
-        scope: openid profile email apim:api_create apim:api_publish
     oidc:
       development:
         clientId: FF1Ta0Ik9HoU18TbC8G_fOsQPBYa
         clientSecret: UU0FWPdhvMf6PaDIxwU5zxiw3G5I0oMflKpf9ruQ6Zca
-        additionalScopes: 'apim:api_create apim:api_publish'
         metadataUrl: https://api.asgardeo.io/t/backstageplugin/oauth2/token/.well-known/openid-configuration
-        prompt: auto
-    auth0:
-      development:
-        clientId: ${AUTH_AUTH0_CLIENT_ID}
-        clientSecret: ${AUTH_AUTH0_CLIENT_SECRET}
-        domain: ${AUTH_AUTH0_DOMAIN}
-    microsoft:
-      development:
-        clientId: ${AUTH_MICROSOFT_CLIENT_ID}
-        clientSecret: ${AUTH_MICROSOFT_CLIENT_SECRET}
-        tenantId: ${AUTH_MICROSOFT_TENANT_ID}
-    onelogin:
-      development:
-        clientId: ${AUTH_ONELOGIN_CLIENT_ID}
-        clientSecret: ${AUTH_ONELOGIN_CLIENT_SECRET}
-        issuer: ${AUTH_ONELOGIN_ISSUER}
-    bitbucket:
-      development:
-        clientId: ${AUTH_BITBUCKET_CLIENT_ID}
-        clientSecret: ${AUTH_BITBUCKET_CLIENT_SECRET}
-    atlassian:
-      development:
-        clientId: ${AUTH_ATLASSIAN_CLIENT_ID}
-        clientSecret: ${AUTH_ATLASSIAN_CLIENT_SECRET}
-        scope: ${AUTH_ATLASSIAN_SCOPES}
-    myproxy: {}
-    guest: {}
+        additionalScopes: 'apim:api_create apim:api_publish'
+        prompt: login
+        signIn:
+          resolvers:
+            - resolver: emailMatchingUserEntityProfileEmail
 
 permission:
   enabled: true

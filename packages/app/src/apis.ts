@@ -21,12 +21,18 @@ import {
 } from '@backstage/integration-react';
 import {
   AnyApiFactory,
+  ApiRef,
+  BackstageIdentityApi,
   configApiRef,
   createApiFactory,
+  createApiRef,
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
   oauthRequestApiRef,
+  OpenIdConnectApi,
+  ProfileInfoApi,
+  SessionApi,
 } from '@backstage/core-plugin-api';
 import { AuthProxyDiscoveryApi } from './AuthProxyDiscoveryApi';
 import { formDecoratorsApiRef } from '@backstage/plugin-scaffolder/alpha';
@@ -41,6 +47,12 @@ import {
   wso2AuthApiRef,
   thunderAuthApiRef,
 } from '@internal/plugin-wso2-api-manager';
+
+export const asgardeoAuthApiRef: ApiRef<
+  OpenIdConnectApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
+> = createApiRef({
+  id: 'auth.asgardeo',
+});
 
 export const apis: AnyApiFactory[] = [
   createApiFactory({
@@ -89,6 +101,27 @@ export const apis: AnyApiFactory[] = [
     },
     factory: ({ discoveryApi, fetchApi }) =>
       new Wso2ApiManagerClient({ discoveryApi, fetchApi }),
+  }),
+
+  createApiFactory({
+    api: asgardeoAuthApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      oauthRequestApi: oauthRequestApiRef,
+      configApi: configApiRef,
+    },
+    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
+      OAuth2.create({
+        discoveryApi,
+        oauthRequestApi,
+        provider: {
+          id: 'oidc',
+          title: 'Asgardeo',
+          icon: () => null,
+        },
+        environment: configApi.getOptionalString('auth.environment'),
+        defaultScopes: ['openid', 'profile', 'email'],
+      }),
   }),
 
   createApiFactory({
