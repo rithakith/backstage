@@ -14,28 +14,67 @@ import {
   Wso2ApiDetail,
   Wso2ApiDocument,
   wso2ApiManagerApiRef,
+  wso2AuthApiRef,
 } from '../../api';
+
+// @ts-ignore
+import SwaggerUI from 'swagger-ui-react';
+import 'swagger-ui-react/swagger-ui.css';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 
 export const EntityWso2ApiManagerCard = () => {
   const { entity } = useEntity();
   const apiClient = useApi(wso2ApiManagerApiRef);
+  const oauthApi = useApi(wso2AuthApiRef);
   const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
+
+  // Get the user's Asgardeo OAuth token from existing session
+  const tokenState = useAsync(async () => {
+    console.log('🔑 [WSO2-EntityCard] Attempting to retrieve Asgardeo OAuth token from session...');
+    try {
+      const token = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_view', 'apim:subscribe'],
+        { optional: true },
+      );
+      if (token) {
+        console.log('✅ [WSO2-EntityCard] Asgardeo OAuth token retrieved from session');
+        console.log(`📊 [WSO2-EntityCard] Token length: ${token.length} characters`);
+      } else {
+        console.warn('⚠️ [WSO2-EntityCard] No OAuth token in session');
+      }
+      return token;
+    } catch (error) {
+      console.error('❌ [WSO2-EntityCard] Failed to get Asgardeo OAuth token:', error);
+      return undefined;
+    }
+  }, [oauthApi]);
 
   const apiDetailState = useAsync(async () => {
     if (!apiId) {
       return undefined;
     }
-    return apiClient.getApi(apiId);
-  }, [apiClient, apiId]);
+    return apiClient.getApi(apiId, tokenState.value);
+  }, [apiClient, apiId, tokenState.value]);
 
   const apiDocumentsState = useAsync(async () => {
     if (!apiId) {
       return undefined;
     }
-    return apiClient.listDocuments(apiId);
-  }, [apiClient, apiId]);
+    return apiClient.listDocuments(apiId, tokenState.value);
+  }, [apiClient, apiId, tokenState.value]);
+
+  const apiDefinitionState = useAsync(async () => {
+    if (!apiId) return undefined;
+    try {
+      return await apiClient.getApiDefinition(apiId, tokenState.value);
+    } catch (e: any) {
+      if (e.message && e.message.includes('404')) {
+        return null;
+      }
+      throw e;
+    }
+  }, [apiClient, apiId, tokenState.value]);
 
   if (!apiId) {
     return (
@@ -91,6 +130,29 @@ export const EntityWso2ApiManagerCard = () => {
           )}
           {!apiDocumentsState.loading && !apiDocumentsState.error && (
             <DocumentsTable documents={documents} />
+          )}
+        </InfoCard>
+      </Grid>
+      <Grid item xs={12}>
+        <InfoCard title="API Definition (Swagger)">
+          {apiDefinitionState.loading && <Progress />}
+          {apiDefinitionState.error && (
+            <WarningPanel
+              title="Failed to load API Definition"
+              message={apiDefinitionState.error.message}
+            />
+          )}
+          {!apiDefinitionState.loading && apiDefinitionState.value === null && (
+            <EmptyState
+              title="No Definition"
+              missing="info"
+              description="This API does not have an OpenAPI/Swagger definition available."
+            />
+          )}
+          {apiDefinitionState.value && (
+            <div style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '4px' }}>
+              <SwaggerUI spec={apiDefinitionState.value} />
+            </div>
           )}
         </InfoCard>
       </Grid>

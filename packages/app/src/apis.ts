@@ -124,6 +124,8 @@ export const apis: AnyApiFactory[] = [
       }),
   }),
 
+  // WSO2 API Manager auth - uses the same Asgardeo/OIDC session as Backstage login
+  // The Asgardeo token is forwarded to WSO2 APIM (requires WSO2 to trust Asgardeo as IdP)
   createApiFactory({
     api: wso2AuthApiRef,
     deps: {
@@ -136,11 +138,12 @@ export const apis: AnyApiFactory[] = [
         discoveryApi,
         oauthRequestApi,
         provider: {
-          id: 'oidc',
-          title: 'Asgardeo Auth',
+          id: 'oidc',  // Use the same OIDC provider as Backstage login (Asgardeo)
+          title: 'Asgardeo',
           icon: () => null,
         },
         environment: configApi.getOptionalString('auth.environment'),
+        // Request API Manager scopes - these must be configured in Asgardeo app
         defaultScopes: ['openid', 'profile', 'email'],
       }),
   }),

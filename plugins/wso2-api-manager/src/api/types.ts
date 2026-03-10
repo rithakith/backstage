@@ -22,6 +22,8 @@ export type Wso2ApiDocument = {
   name: string;
   summary?: string;
   sourceType?: string;
+  sourceUrl?: string;
+  documentId?: string;
   type?: string;
 };
 

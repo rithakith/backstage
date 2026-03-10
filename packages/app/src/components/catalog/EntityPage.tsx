@@ -80,7 +80,7 @@ import {
   LightBox,
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
-import { EntityWso2ApiManagerCard } from '@internal/plugin-wso2-api-manager';
+import { EntityWso2ApiManagerCard, EntityWso2ApiDocumentsCard } from '@internal/plugin-wso2-api-manager';
 
 const customEntityFilterKind = ['Component', 'API', 'System'];
 
@@ -301,6 +301,9 @@ const apiPage = (
         </Grid>
         <Grid item md={6} xs={12}>
           <EntityCatalogGraphCard variant="gridItem" height={400} />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <EntityWso2ApiDocumentsCard />
         </Grid>
         <Grid item xs={12}>
           <Grid container>

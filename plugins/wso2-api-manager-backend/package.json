@@ -39,8 +39,11 @@
   "dependencies": {
     "@backstage/backend-plugin-api": "workspace:^",
     "@backstage/errors": "workspace:^",
+    "@backstage/plugin-permission-common": "workspace:^",
     "express": "^4.22.0",
-    "express-promise-router": "^4.1.0"
+    "express-promise-router": "^4.1.0",
+    "jose": "^5.10.0",
+    "undici": "^6.11.1"
   },
   "devDependencies": {
     "@backstage/backend-defaults": "workspace:^",

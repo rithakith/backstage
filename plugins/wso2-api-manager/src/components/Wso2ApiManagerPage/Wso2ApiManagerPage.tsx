@@ -26,7 +26,8 @@ import {
   TableColumn,
   WarningPanel,
 } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import Link from '@material-ui/core/Link';
 import {
   Wso2ApiDetail,
   Wso2ApiDocument,
@@ -34,6 +35,10 @@ import {
   wso2ApiManagerApiRef,
   wso2AuthApiRef,
 } from '../../api';
+
+// @ts-ignore
+import SwaggerUI from 'swagger-ui-react';
+import 'swagger-ui-react/swagger-ui.css';
 
 // WSO2 Theme Colors
 const useStyles = makeStyles(theme => ({
@@ -62,94 +67,102 @@ export const Wso2ApiManagerPage = () => {
   const apiClient = useApi(wso2ApiManagerApiRef);
   const oauthApi = useApi(wso2AuthApiRef);
   const [token, setToken] = useState<string | undefined>();
+  const [tokenLoading, setTokenLoading] = useState(true);
   const [selectedApiId, setSelectedApiId] = useState<string | undefined>();
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
 
-  const hasPublisherAccess = (_tokenStr: string) => {
-    // NOTE: Asgardeo issues opaque (non-JWT) access tokens, so we cannot
-    // decode them client-side. Authorization is enforced by WSO2 APIM itself
-    // when we make the request — it will return 401/403 if the user lacks the
-    // publisher role. We surface that as a friendly error in the UI.
-    return true;
-  };
-
-  // Try to silently get the token on mount to synchronize login
+  // Get the user's Asgardeo OAuth access token from the existing login session
+  // This token contains the user's identity and WSO2 APIM scopes
+  // The backend will use jwt-bearer grant to exchange it for a WSO2 APIM token
   useAsync(async () => {
+    console.log('🔑 [WSO2-Frontend] Attempting to retrieve Asgardeo OAuth token from session...');
     try {
-      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish'], { optional: true });
+      // Get token from existing OIDC session (no popup if already authenticated)
+      // Must include WSO2 APIM scopes that were requested during login
+      const t = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish', 'apim:subscribe', 'apim:api_view'],
+        { optional: true }, // Don't prompt - use existing session
+      );
       if (t) {
+        console.log('✅ [WSO2-Frontend] Asgardeo OAuth token retrieved from session');
+        console.log(`📊 [WSO2-Frontend] Token length: ${t.length} characters`);
+        console.log(`🔍 [WSO2-Frontend] Token preview: ${t.substring(0, 50)}...`);
         setToken(t);
+      } else {
+        console.warn('⚠️ [WSO2-Frontend] No OAuth token in session - user may need to re-authenticate');
       }
-    } catch (e) {
-      // Ignore silent failures
+    } catch (error) {
+      // Token unavailable - backend will fall back to client_credentials grant
+      console.error('❌ [WSO2-Frontend] Failed to get Asgardeo OAuth token:', error);
+    } finally {
+      setTokenLoading(false);
     }
   }, [oauthApi]);
 
-  const handleSignIn = async () => {
-    try {
-      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
-      if (t) {
-        setToken(t);
-      }
-    } catch (e) {
-      setCreateError('Authentication failed: ' + e);
-    }
-  };
-
-  const handleCreateLogin = async () => {
-    try {
-      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
-      if (t) {
-        setToken(t);
-        setDialogOpen(true);  // Let WSO2 APIM enforce the role on submission
-      }
-    } catch (e) {
-      setCreateError('Authentication failed: ' + e);
-    }
-  };
-
   const handleCreateButtonClick = () => {
-    if (token) {
-      setDialogOpen(true);
-    } else {
-      handleCreateLogin();
+    if (!token) {
+      setCreateError('Not authenticated — please sign in to Backstage first.');
+      return;
     }
+    setDialogOpen(true);
   };
 
   const apiListState = useAsyncRetry(async () => {
+    // Wait for token loading to complete before making API calls
+    if (tokenLoading) {
+      console.log('⏳ [WSO2-Frontend] Waiting for Asgardeo OAuth token to load...');
+      return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
+    }
+
+    // Pass the user's Asgardeo OAuth token so the backend can use jwt-bearer grant
+    // This ensures WSO2 APIM filters APIs based on the user's actual roles
+    console.log(`📡 [WSO2-Frontend] Calling listApis with Asgardeo OAuth token: ${token ? 'YES' : 'NO'}`);
+    if (token) {
+      console.log(`🎫 [WSO2-Frontend] Token will be sent in X-WSO2-Access-Token header`);
+    } else {
+      console.warn('⚠️ [WSO2-Frontend] No OAuth token available - backend will fallback to client_credentials');
+    }
     return apiClient.listApis({
       limit: 50,
       offset: 0,
-      token: token
+      token, // User's Asgardeo token from Backstage authentication session
     });
-  }, [apiClient, token]);
+  }, [apiClient, token, tokenLoading]);
 
   const apiDetailState = useAsync(async () => {
-    if (!selectedApiId) {
-      return undefined;
-    }
+    if (!selectedApiId || !token) return undefined;
     return apiClient.getApi(selectedApiId, token);
   }, [apiClient, selectedApiId, token]);
 
   const apiDocumentsState = useAsync(async () => {
-    if (!selectedApiId) {
-      return undefined;
-    }
+    if (!selectedApiId || !token) return undefined;
     return apiClient.listDocuments(selectedApiId, token);
+  }, [apiClient, selectedApiId, token]);
+
+  const apiDefinitionState = useAsync(async () => {
+    if (!selectedApiId || !token) return undefined;
+    try {
+      return await apiClient.getApiDefinition(selectedApiId, token);
+    } catch (e: any) {
+      if (e.message && e.message.includes('404')) {
+        return null; // Handle 404 gracefully
+      }
+      throw e;
+    }
   }, [apiClient, selectedApiId, token]);
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
     if (!token) {
-      setCreateError("Not authenticated");
+      setCreateError('Not authenticated');
       return;
     }
 
     try {
       await apiClient.createPublisherApi({
         ...input,
-        token: token,
+        token,
       });
       setDialogOpen(false);
       apiListState.retry();
@@ -181,16 +194,6 @@ export const Wso2ApiManagerPage = () => {
           <SupportButton>
             This view lists APIs from WSO2 API Manager.
           </SupportButton>
-          <Box mr={2} display="inline">
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSignIn}
-              disabled={!!token}
-            >
-              {token ? 'Signed In ✓' : 'SIGN IN'}
-            </Button>
-          </Box>
           <Button
             variant="contained"
             color="primary"
@@ -264,9 +267,34 @@ export const Wso2ApiManagerPage = () => {
               {selectedApiId &&
                 !apiDocumentsState.loading &&
                 !apiDocumentsState.error && (
-                  <DocumentsTable documents={documents} />
+                  <DocumentsTable documents={documents} apiId={selectedApiId} />
                 )}
             </InfoCard>
+          </Grid>
+          <Grid item xs={12}>
+            {selectedApiId && (
+              <InfoCard title="API Definition (Swagger)">
+                {apiDefinitionState.loading && <Progress />}
+                {apiDefinitionState.error && (
+                  <WarningPanel
+                    title="Failed to load API Definition"
+                    message={apiDefinitionState.error.message}
+                  />
+                )}
+                {!apiDefinitionState.loading && apiDefinitionState.value === null && (
+                  <EmptyState
+                    title="No Definition"
+                    missing="info"
+                    description="This API does not have an OpenAPI/Swagger definition available."
+                  />
+                )}
+                {apiDefinitionState.value && (
+                  <div style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '4px' }}>
+                    <SwaggerUI spec={apiDefinitionState.value} />
+                  </div>
+                )}
+              </InfoCard>
+            )}
           </Grid>
         </Grid>
       </Content>
@@ -308,7 +336,66 @@ const ApiDetails = ({ details }: { details: Wso2ApiDetail }) => {
   return <StructuredMetadataTable metadata={metadata} />;
 };
 
-const DocumentsTable = ({ documents }: { documents: Wso2ApiDocument[] }) => {
+const DocumentsTable = ({ documents, apiId }: { documents: Wso2ApiDocument[], apiId: string }) => {
+  const config = useApi(configApiRef);
+  const { fetch } = useApi(fetchApiRef);
+  const backendUrl = config.getString('backend.baseUrl');
+
+  const handleDownload = async (rowData: any) => {
+    const { documentId, name, sourceType, sourceUrl } = rowData;
+    const docId = documentId || rowData.id;
+
+    if (sourceType === 'URL') {
+      window.open(sourceUrl || '#', '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+      const response = await fetch(url, { method: 'GET' });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+
+      let filename = name;
+      let extensionAdded = false;
+
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+          extensionAdded = true;
+        }
+      }
+
+      if (!extensionAdded) {
+        if (sourceType === 'MARKDOWN') {
+          filename = `${name}.md`;
+        } else if (sourceType === 'INLINE') {
+          filename = `${name}.txt`;
+        }
+      }
+
+      link.setAttribute('download', filename);
+
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      console.error('Failed to download document content', e);
+      alert('Failed to download document content. Check console for details.');
+    }
+  };
+
   if (!documents.length) {
     return (
       <EmptyState
@@ -323,7 +410,22 @@ const DocumentsTable = ({ documents }: { documents: Wso2ApiDocument[] }) => {
     <Table
       options={{ paging: false, search: false }}
       columns={[
-        { title: 'Name', field: 'name' },
+        {
+          title: 'Name',
+          field: 'name',
+          render: (rowData: any) => (
+            <Link
+              href="#"
+              onClick={(e: React.MouseEvent) => {
+                e.preventDefault();
+                handleDownload(rowData);
+              }}
+              style={{ color: '#0A66C2', textDecoration: 'underline', cursor: 'pointer' }}
+            >
+              {rowData.name}
+            </Link>
+          )
+        },
         { title: 'Type', field: 'type' },
         { title: 'Source', field: 'sourceType' },
         { title: 'Summary', field: 'summary' },

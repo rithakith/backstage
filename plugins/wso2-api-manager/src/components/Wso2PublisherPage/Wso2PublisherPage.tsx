@@ -44,54 +44,53 @@ export const Wso2PublisherPage = () => {
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
   const [token, setToken] = useState<string | undefined>();
+  const [tokenLoading, setTokenLoading] = useState(true);
 
-  const hasPublisherAccess = (_tokenStr: string) => {
-    // NOTE: Asgardeo issues opaque (non-JWT) access tokens — we cannot decode
-    // them client-side. WSO2 APIM enforces the publisher role on the API call
-    // and returns 401/403 if the user lacks it. We show that as an error.
-    return true;
-  };
-
-  // Try to silently get the token on mount to synchronize login
+  // Get the user's Asgardeo OAuth access token from the existing login session
   useAsync(async () => {
+    console.log('🔑 [WSO2-Publisher] Attempting to retrieve Asgardeo OAuth token from session...');
     try {
-      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish'], { optional: true });
+      const t = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish', 'apim:subscribe', 'apim:api_view'],
+        { optional: true },
+      );
       if (t) {
+        console.log('✅ [WSO2-Publisher] Asgardeo OAuth token retrieved from session');
+        console.log(`📊 [WSO2-Publisher] Token length: ${t.length} characters`);
         setToken(t);
+      } else {
+        console.warn('⚠️ [WSO2-Publisher] No OAuth token in session');
       }
-    } catch (e) {
-      // Ignore silent failures
+    } catch (error) {
+      console.error('❌ [WSO2-Publisher] Failed to get Asgardeo OAuth token:', error);
+    } finally {
+      setTokenLoading(false);
     }
   }, [oauthApi]);
 
-  const handleCreateLogin = async () => {
-    try {
-      const t = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish']);
-      if (t) {
-        setToken(t);
-        setDialogOpen(true); // WSO2 APIM will reject if the user lacks the role
-      }
-    } catch (e) {
-      setCreateError('Authentication failed: ' + e);
-    }
-  };
-
   const handleCreateButtonClick = () => {
-    if (token) {
-      setDialogOpen(true);
-    } else {
-      handleCreateLogin();
+    if (!token) {
+      setCreateError('Not authenticated — please sign in to Backstage first.');
+      return;
     }
+    setDialogOpen(true);
   };
 
-  // List using token if available
   const apiListState = useAsyncRetry(async () => {
+    // Wait for token loading to complete before making API calls
+    if (tokenLoading) {
+      console.log('⏳ [WSO2-Publisher] Waiting for Asgardeo OAuth token to load...');
+      return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
+    }
+    
+    // Pass the user's Asgardeo OAuth token for jwt-bearer grant
+    console.log(`📡 [WSO2-Publisher] Calling listPublisherApis with Asgardeo OAuth token: ${token ? 'YES' : 'NO'}`);
     return apiClient.listPublisherApis({
       limit: 50,
       offset: 0,
-      token: token
+      token,
     });
-  }, [apiClient, token]);
+  }, [apiClient, token, tokenLoading]);
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
     () => [
@@ -107,14 +106,14 @@ export const Wso2PublisherPage = () => {
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
     if (!token) {
-      setCreateError("Not authenticated");
+      setCreateError('Not authenticated');
       return;
     }
 
     try {
       await apiClient.createPublisherApi({
         ...input,
-        token: token,
+        token,
       });
       setDialogOpen(false);
       apiListState.retry();

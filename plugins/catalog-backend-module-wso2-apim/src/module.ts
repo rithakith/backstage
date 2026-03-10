@@ -1,10 +1,10 @@
 import { createBackendModule, coreServices } from '@backstage/backend-plugin-api';
 import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node/alpha';
-import { AsgardeoEntityProvider } from './providers/AsgardeoEntityProvider';
+import { Wso2ApiEntityProvider } from './providers/Wso2ApiEntityProvider';
 
-export const catalogModuleAsgardeoEntityProvider = createBackendModule({
+export const catalogModuleWso2Apim = createBackendModule({
     pluginId: 'catalog',
-    moduleId: 'asgardeo-entity-provider',
+    moduleId: 'wso2-apim',
     register(reg) {
         reg.registerInit({
             deps: {
@@ -14,28 +14,37 @@ export const catalogModuleAsgardeoEntityProvider = createBackendModule({
                 scheduler: coreServices.scheduler,
             },
             async init({ catalog, config, logger, scheduler }) {
-                logger.info('Initializing Asgardeo User/Group Provider...');
-                const provider = new AsgardeoEntityProvider({
-                    id: 'asgardeo',
+                logger.info('Initializing WSO2 API Catalog Module');
+
+                // Instantiate the provider
+                const provider = new Wso2ApiEntityProvider({
+                    id: 'wso2-publisher-apis',
                     config,
                     logger,
                 });
-                catalog.addEntityProvider(provider);
-                logger.info('Asgardeo Provider added. Scheduling sync...');
 
-                const taskRunner = scheduler.createScheduledTaskRunner({
-                    frequency: { minutes: 30 },
+                // Add the provider to the catalog
+                catalog.addEntityProvider(provider);
+
+                // Schedule the provider to run periodically
+                const schedule = scheduler.createScheduledTaskRunner({
+                    frequency: { minutes: 1 }, // Run every 1 minute for testing/demo purposes; usually { hours: 1 }
                     timeout: { minutes: 5 },
-                    initialDelay: { seconds: 5 },
+                    initialDelay: { seconds: 15 }, // Wait a bit before first run
                 });
 
-                taskRunner.run({
+                // Run the scheduled task
+                schedule.run({
                     id: provider.getProviderName(),
                     fn: async () => {
                         await provider.run();
                     },
                 });
+
+                logger.info('WSO2 API Catalog Module Initialized Successfully');
             },
         });
     },
 });
+
+export default catalogModuleWso2Apim;

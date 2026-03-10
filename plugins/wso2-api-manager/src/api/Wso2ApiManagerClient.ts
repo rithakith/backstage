@@ -40,9 +40,13 @@ export class Wso2ApiManagerClient {
 
     const headers: Record<string, string> = {};
     if (options?.token) {
+      console.log('🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to listApis request');
       headers['X-WSO2-Access-Token'] = options.token;
+    } else {
+      console.log('⚠️ [WSO2-APIClient] No token provided to listApis - header will not be added');
     }
 
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis?${params.toString()}`);
     const response = await this.fetchApi.fetch(
       `${baseUrl}/apis?${params.toString()}`,
       { headers },
@@ -59,8 +63,12 @@ export class Wso2ApiManagerClient {
     const baseUrl = await this.getBaseUrl();
     const headers: Record<string, string> = {};
     if (token) {
+      console.log(`🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to getApi request for ${apiId}`);
       headers['X-WSO2-Access-Token'] = token;
+    } else {
+      console.log(`⚠️ [WSO2-APIClient] No token provided to getApi for ${apiId}`);
     }
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis/${apiId}`);
     const response = await this.fetchApi.fetch(
       `${baseUrl}/apis/${apiId}`,
       { headers },
@@ -75,8 +83,12 @@ export class Wso2ApiManagerClient {
     const baseUrl = await this.getBaseUrl();
     const headers: Record<string, string> = {};
     if (token) {
+      console.log(`🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to listDocuments request for ${apiId}`);
       headers['X-WSO2-Access-Token'] = token;
+    } else {
+      console.log(`⚠️ [WSO2-APIClient] No token provided to listDocuments for ${apiId}`);
     }
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis/${apiId}/documents`);
     const response = await this.fetchApi.fetch(
       `${baseUrl}/apis/${apiId}/documents`,
       { headers },
@@ -85,6 +97,26 @@ export class Wso2ApiManagerClient {
       throw new Error(`Failed to list documents, status ${response.status}`);
     }
     return (await response.json()) as Wso2ApiDocumentsResponse;
+  }
+
+  async getApiDefinition(apiId: string, token?: string): Promise<any> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) {
+      console.log(`🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to getApiDefinition request for ${apiId}`);
+      headers['X-WSO2-Access-Token'] = token;
+    } else {
+      console.log(`⚠️ [WSO2-APIClient] No token provided to getApiDefinition for ${apiId}`);
+    }
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis/${apiId}/definition`);
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/apis/${apiId}/definition`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch API definition, status ${response.status}`);
+    }
+    return await response.json();
   }
 
   async listPublisherApis(options?: {
@@ -107,9 +139,13 @@ export class Wso2ApiManagerClient {
 
     const headers: Record<string, string> = {};
     if (options?.token) {
+      console.log('🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to listPublisherApis request');
       headers['X-WSO2-Access-Token'] = options.token;
+    } else {
+      console.log('⚠️ [WSO2-APIClient] No token provided to listPublisherApis');
     }
 
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/publisher/apis?${params.toString()}`);
     const response = await this.fetchApi.fetch(
       `${baseUrl}/publisher/apis?${params.toString()}`,
       { headers },
@@ -136,9 +172,13 @@ export class Wso2ApiManagerClient {
       'Content-Type': 'application/json',
     };
     if (input.token) {
+      console.log('🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to createPublisherApi request');
       headers['X-WSO2-Access-Token'] = input.token;
+    } else {
+      console.log('⚠️ [WSO2-APIClient] No token provided to createPublisherApi');
     }
 
+    console.log(`🌐 [WSO2-APIClient] Creating API: ${baseUrl}/publisher/apis`);
     const response = await this.fetchApi.fetch(`${baseUrl}/publisher/apis`, {
       method: 'POST',
       headers,

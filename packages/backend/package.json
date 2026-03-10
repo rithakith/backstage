@@ -70,6 +70,7 @@
     "@backstage/plugin-signals-backend": "workspace:^",
     "@backstage/plugin-techdocs-backend": "workspace:^",
     "@internal/catalog-backend-module-asgardeo": "workspace:^",
+    "@internal/catalog-backend-module-wso2-apim": "workspace:^",
     "@internal/plugin-wso2-api-manager-backend": "workspace:^",
     "@opentelemetry/auto-instrumentations-node": "^0.67.0",
     "@opentelemetry/exporter-prometheus": "^0.211.0",

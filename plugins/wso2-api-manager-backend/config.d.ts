@@ -8,12 +8,6 @@ export interface Config {
     };
     auth: {
       tokenUrl?: string;
-      grantType?: 'client_credentials' | 'password';
-      scopes?: string[];
-      /** @visibility secret */
-      username?: string;
-      /** @visibility secret */
-      password?: string;
       /** @visibility secret */
       clientId: string;
       /** @visibility secret */

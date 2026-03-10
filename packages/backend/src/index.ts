@@ -1,4 +1,6 @@
 /*
+ * Hot reload trigger - fetching WSO2 documents
+ *
  * Copyright 2022 The Backstage Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +46,7 @@ backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('./authModuleGithubProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-oauth2-provider'));
-backend.add(import('@backstage/plugin-auth-backend-module-oidc-provider'));
+backend.add(import('./authModuleOidcProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-openshift-provider'));
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-unprocessed'));
@@ -56,7 +58,7 @@ backend.add(import('@backstage/plugin-events-backend'));
 backend.add(import('@backstage/plugin-devtools-backend'));
 backend.add(import('@backstage/plugin-kubernetes-backend'));
 backend.add(
-  import('@backstage/plugin-permission-backend-module-allow-all-policy'),
+  import('./plugins/customPermissionPolicy'),
 );
 backend.add(import('@backstage/plugin-permission-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
@@ -75,6 +77,7 @@ backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(rootSystemMetadataServiceFactory);
 backend.add(import('@internal/plugin-wso2-api-manager-backend'));
 backend.add(import('@internal/catalog-backend-module-asgardeo'));
+backend.add(import('@internal/catalog-backend-module-wso2-apim'));
 
 backend.add(import('@backstage/plugin-events-backend-module-google-pubsub'));
 backend.add(import('@backstage/plugin-mcp-actions-backend'));
