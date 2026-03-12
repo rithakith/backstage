@@ -17,6 +17,7 @@ import {
   wso2ApiReadPermission,
   wso2PublisherReadPermission,
   wso2PublisherCreatePermission,
+  wso2PublisherUpdatePermission,
 } from '../permissions';
 
 export interface RouterOptions {
@@ -192,6 +193,19 @@ export async function createRouter(
     const payload = readCreatePublisherApiRequest(req.body);
     const result = await client.createPublisherApi({ ...payload });
     res.json(result);
+  });
+
+  // Update swagger/OpenAPI definition for a specific API
+  // Requires write/update permission - write group members only
+  router.put('/publisher/apis/:apiId/definition', async (req, res) => {
+    await requirePermission(req, wso2PublisherUpdatePermission);
+    const { apiId } = req.params;
+    const { definition } = req.body as { definition?: string };
+    if (!definition || typeof definition !== 'string') {
+      throw new InputError('Missing or invalid "definition" field in request body');
+    }
+    await client.updateApiDefinition(apiId, definition);
+    res.json({ message: 'API definition updated successfully' });
   });
 
   // SCIM2 endpoint - Get user attributes including custom claims like asgardeo_role

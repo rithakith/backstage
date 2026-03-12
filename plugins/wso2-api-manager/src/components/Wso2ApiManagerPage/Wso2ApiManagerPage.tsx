@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAsync, useAsyncRetry } from 'react-use';
+import { createPermission } from '@backstage/plugin-permission-common';
 import {
   Grid,
   TextField,
@@ -10,8 +11,16 @@ import {
   DialogTitle,
   Box,
   Typography,
+  Tabs,
+  Tab,
+  Tooltip,
+  CircularProgress,
   makeStyles,
 } from '@material-ui/core';
+import EditIcon from '@material-ui/icons/Edit';
+import SaveIcon from '@material-ui/icons/Save';
+import CancelIcon from '@material-ui/icons/Cancel';
+import CheckCircleOutlineIcon from '@material-ui/icons/CheckCircleOutline';
 import {
   Content,
   ContentHeader,
@@ -27,6 +36,7 @@ import {
   WarningPanel,
 } from '@backstage/core-components';
 import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { usePermission } from '@backstage/plugin-permission-react';
 import Link from '@material-ui/core/Link';
 import {
   Wso2ApiDetail,
@@ -35,33 +45,324 @@ import {
   wso2ApiManagerApiRef,
   wso2AuthApiRef,
 } from '../../api';
-
 // @ts-ignore
 import SwaggerUI from 'swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
 
-// WSO2 Theme Colors
+// Inline permission definitions (must match names in backend customPermissions.ts / packages/app/src/customPermissions.ts)
+const apiWritePermission = createPermission({
+  name: 'api.write',
+  attributes: { action: 'create' },
+});
+
+// Removes the "Try it out" button entirely from the render tree
+const DisableTryItOutPlugin = () => ({
+  components: {
+    TryItOutButton: () => null,
+  },
+});
+
+// ─── Styles ────────────────────────────────────────────────────────────────
 const useStyles = makeStyles(theme => ({
   root: {
     '& .MuiButton-containedPrimary': {
-      backgroundColor: '#ff5000', // WSO2 Orange
+      backgroundColor: '#ff5000',
       color: '#fff',
       '&:hover': {
         backgroundColor: '#e04600',
       },
     },
-    '& .MuiTypography-h4': {
-      color: '#222',
+  },
+  editorContainer: {
+    position: 'relative',
+    borderRadius: 6,
+    overflow: 'hidden',
+    border: '1px solid #3c3c3c',
+    backgroundColor: '#1e1e1e',
+  },
+  editorHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '6px 12px',
+    backgroundColor: '#2d2d2d',
+    borderBottom: '1px solid #3c3c3c',
+  },
+  editorLang: {
+    color: '#9d9d9d',
+    fontSize: 11,
+    fontFamily: '"Consolas", "SF Mono", "Menlo", monospace',
+    letterSpacing: 1,
+  },
+  editorActions: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+  },
+  monacoTextarea: {
+    width: '100%',
+    minHeight: 500,
+    backgroundColor: '#1e1e1e',
+    color: '#d4d4d4',
+    fontFamily: '"Consolas", "SF Mono", "Menlo", "Courier New", monospace',
+    fontSize: 13,
+    lineHeight: 1.6,
+    padding: '16px',
+    border: 'none',
+    outline: 'none',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+    tabSize: 2,
+    '&:read-only': {
+      cursor: 'default',
+      opacity: 0.85,
     },
   },
-  headerBox: {
-    backgroundColor: '#1d2127', // WSO2 Dark Header
+  lineNumbers: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 40,
+    backgroundColor: '#1e1e1e',
+    color: '#858585',
+    fontFamily: '"Consolas", "SF Mono", monospace',
+    fontSize: 13,
+    lineHeight: 1.6,
+    textAlign: 'right',
+    padding: '16px 6px 16px 0',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    borderRight: '1px solid #333',
+  },
+  editBtn: {
+    backgroundColor: '#0e639c',
     color: '#fff',
-    padding: theme.spacing(2),
-    marginBottom: theme.spacing(2),
+    textTransform: 'none',
+    fontWeight: 600,
+    '&:hover': {
+      backgroundColor: '#1177bb',
+    },
+  },
+  saveBtn: {
+    backgroundColor: '#28a745',
+    color: '#fff',
+    textTransform: 'none',
+    fontWeight: 600,
+    '&:hover': {
+      backgroundColor: '#22863a',
+    },
+  },
+  cancelBtn: {
+    textTransform: 'none',
+    color: '#9d9d9d',
+    borderColor: '#555',
+    '&:hover': {
+      borderColor: '#888',
+    },
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 8px',
+    borderRadius: 3,
+    fontSize: 11,
+    fontFamily: 'monospace',
+    fontWeight: 600,
+    letterSpacing: 0.5,
+  },
+  readOnlyBadge: {
+    backgroundColor: '#2a2a2a',
+    color: '#858585',
+    border: '1px solid #444',
+  },
+  editingBadge: {
+    backgroundColor: '#0e639c22',
+    color: '#4dc3f7',
+    border: '1px solid #0e639c66',
+  },
+  savedBadge: {
+    backgroundColor: '#28a74522',
+    color: '#85e89d',
+    border: '1px solid #28a74566',
+  },
+  tabRoot: {
+    minWidth: 120,
+    textTransform: 'none',
+    fontWeight: 600,
+  },
+  successAlert: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 12px',
+    borderRadius: 4,
+    backgroundColor: '#1a3a2a',
+    border: '1px solid #28a745',
+    color: '#85e89d',
+    marginBottom: theme.spacing(1),
+    fontSize: 13,
+  },
+  errorAlert: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 12px',
+    borderRadius: 4,
+    backgroundColor: '#3a1a1a',
+    border: '1px solid #e74c3c',
+    color: '#f97171',
+    marginBottom: theme.spacing(1),
+    fontSize: 13,
   },
 }));
 
+// ─── VSCode-like JSON/YAML Editor ──────────────────────────────────────────
+interface SwaggerEditorProps {
+  value: string;
+  readOnly: boolean;
+  onChange?: (val: string) => void;
+  isEditing: boolean;
+  isSaving: boolean;
+  saveSuccess: boolean;
+  saveError?: string;
+  hasWritePermission: boolean;
+  onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+const SwaggerEditorPanel = ({
+  value,
+  readOnly,
+  onChange,
+  isEditing,
+  isSaving,
+  saveSuccess,
+  saveError,
+  hasWritePermission,
+  onEdit,
+  onSave,
+  onCancel,
+}: SwaggerEditorProps) => {
+  const classes = useStyles();
+
+  // Detect if content looks like YAML or JSON
+  const lang = value.trimStart().startsWith('{') ? 'JSON' : 'YAML';
+
+  // Status badge
+  const badge = saveSuccess
+    ? <span className={`${classes.badge} ${classes.savedBadge}`}>✓ Saved</span>
+    : isEditing
+      ? <span className={`${classes.badge} ${classes.editingBadge}`}>● EDITING</span>
+      : <span className={`${classes.badge} ${classes.readOnlyBadge}`}>READ ONLY</span>;
+
+  return (
+    <div className={classes.editorContainer}>
+      {/* VS Code-style title bar */}
+      <div className={classes.editorHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Typography className={classes.editorLang}>
+            swagger.{lang.toLowerCase()}
+          </Typography>
+          {badge}
+        </div>
+        <div className={classes.editorActions}>
+          {/* Save success/error feedback */}
+          {saveSuccess && !isEditing && (
+            <span style={{ color: '#85e89d', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircleOutlineIcon style={{ fontSize: 14 }} /> Definition updated
+            </span>
+          )}
+
+          {/* Edit mode buttons */}
+          {isEditing && (
+            <>
+              <Button
+                id="swagger-cancel-btn"
+                size="small"
+                variant="outlined"
+                startIcon={<CancelIcon />}
+                onClick={onCancel}
+                className={classes.cancelBtn}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                id="swagger-save-btn"
+                size="small"
+                variant="contained"
+                startIcon={isSaving ? <CircularProgress size={14} style={{ color: '#fff' }} /> : <SaveIcon />}
+                onClick={onSave}
+                className={classes.saveBtn}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </>
+          )}
+
+          {/* Edit button — only for write users in read-only mode */}
+          {!isEditing && hasWritePermission && (
+            <Tooltip title="Edit swagger definition and update in WSO2 Publisher">
+              <Button
+                id="swagger-edit-btn"
+                size="small"
+                variant="contained"
+                startIcon={<EditIcon />}
+                onClick={onEdit}
+                className={classes.editBtn}
+              >
+                Edit
+              </Button>
+            </Tooltip>
+          )}
+        </div>
+      </div>
+
+      {/* Error alert below header */}
+      {saveError && (
+        <div className={classes.errorAlert}>
+          <span>⚠</span> {saveError}
+        </div>
+      )}
+
+      {/* The editor itself */}
+      <textarea
+        id="swagger-editor-textarea"
+        className={classes.monacoTextarea}
+        value={value}
+        readOnly={readOnly}
+        onChange={e => onChange?.(e.target.value)}
+        spellCheck={false}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        style={{
+          cursor: readOnly ? 'default' : 'text',
+          opacity: readOnly ? 0.85 : 1,
+        }}
+      />
+
+      {/* Bottom status bar like VS Code */}
+      <div style={{
+        backgroundColor: isEditing ? '#0e639c' : '#007acc',
+        color: '#fff',
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '2px 12px',
+        fontSize: 11,
+        fontFamily: 'monospace',
+      }}>
+        <span>{lang} · OpenAPI · {value.split('\n').length} lines</span>
+        <span>{isEditing ? 'Editing — changes not yet saved' : hasWritePermission ? 'Click Edit to modify' : 'Read-only access'}</span>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────
 export const Wso2ApiManagerPage = () => {
   const classes = useStyles();
   const apiClient = useApi(wso2ApiManagerApiRef);
@@ -72,28 +373,32 @@ export const Wso2ApiManagerPage = () => {
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
 
+  // Editor state
+  const [activeTab, setActiveTab] = useState(0); // 0=Swagger UI, 1=Source
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | undefined>();
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Permission check
+  const { allowed: hasWritePermission } = usePermission({ permission: apiWritePermission });
+
   // Get the user's Asgardeo OAuth access token from the existing login session
-  // This token contains the user's identity and WSO2 APIM scopes
-  // The backend will use jwt-bearer grant to exchange it for a WSO2 APIM token
   useAsync(async () => {
     console.log('🔑 [WSO2-Frontend] Attempting to retrieve Asgardeo OAuth token from session...');
     try {
-      // Get token from existing OIDC session (no popup if already authenticated)
-      // Must include WSO2 APIM scopes that were requested during login
       const t = await oauthApi.getAccessToken(
         ['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish', 'apim:subscribe', 'apim:api_view'],
-        { optional: true }, // Don't prompt - use existing session
+        { optional: true },
       );
       if (t) {
         console.log('✅ [WSO2-Frontend] Asgardeo OAuth token retrieved from session');
-        console.log(`📊 [WSO2-Frontend] Token length: ${t.length} characters`);
-        console.log(`🔍 [WSO2-Frontend] Token preview: ${t.substring(0, 50)}...`);
         setToken(t);
       } else {
-        console.warn('⚠️ [WSO2-Frontend] No OAuth token in session - user may need to re-authenticate');
+        console.warn('⚠️ [WSO2-Frontend] No OAuth token in session');
       }
     } catch (error) {
-      // Token unavailable - backend will fall back to client_credentials grant
       console.error('❌ [WSO2-Frontend] Failed to get Asgardeo OAuth token:', error);
     } finally {
       setTokenLoading(false);
@@ -109,25 +414,8 @@ export const Wso2ApiManagerPage = () => {
   };
 
   const apiListState = useAsyncRetry(async () => {
-    // Wait for token loading to complete before making API calls
-    if (tokenLoading) {
-      console.log('⏳ [WSO2-Frontend] Waiting for Asgardeo OAuth token to load...');
-      return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
-    }
-
-    // Pass the user's Asgardeo OAuth token so the backend can use jwt-bearer grant
-    // This ensures WSO2 APIM filters APIs based on the user's actual roles
-    console.log(`📡 [WSO2-Frontend] Calling listApis with Asgardeo OAuth token: ${token ? 'YES' : 'NO'}`);
-    if (token) {
-      console.log(`🎫 [WSO2-Frontend] Token will be sent in X-WSO2-Access-Token header`);
-    } else {
-      console.warn('⚠️ [WSO2-Frontend] No OAuth token available - backend will fallback to client_credentials');
-    }
-    return apiClient.listApis({
-      limit: 50,
-      offset: 0,
-      token, // User's Asgardeo token from Backstage authentication session
-    });
+    if (tokenLoading) return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
+    return apiClient.listApis({ limit: 50, offset: 0, token });
   }, [apiClient, token, tokenLoading]);
 
   const apiDetailState = useAsync(async () => {
@@ -140,17 +428,68 @@ export const Wso2ApiManagerPage = () => {
     return apiClient.listDocuments(selectedApiId, token);
   }, [apiClient, selectedApiId, token]);
 
-  const apiDefinitionState = useAsync(async () => {
+  const apiDefinitionState = useAsyncRetry(async () => {
     if (!selectedApiId || !token) return undefined;
     try {
       return await apiClient.getApiDefinition(selectedApiId, token);
     } catch (e: any) {
       if (e.message && e.message.includes('404')) {
-        return null; // Handle 404 gracefully
+        return null;
       }
       throw e;
     }
   }, [apiClient, selectedApiId, token]);
+
+  // Sync editor content when definition loads or API changes
+  useEffect(() => {
+    if (apiDefinitionState.value) {
+      const content = JSON.stringify(apiDefinitionState.value, null, 2);
+      setEditContent(content);
+      setIsEditing(false);
+      setSaveError(undefined);
+      setSaveSuccess(false);
+    }
+  }, [apiDefinitionState.value]);
+
+  // Reset editor state when selecting a different API
+  useEffect(() => {
+    setIsEditing(false);
+    setSaveError(undefined);
+    setSaveSuccess(false);
+    setActiveTab(0);
+  }, [selectedApiId]);
+
+  const handleEdit = () => {
+    setSaveSuccess(false);
+    setSaveError(undefined);
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    // Revert to the original definition
+    if (apiDefinitionState.value) {
+      setEditContent(JSON.stringify(apiDefinitionState.value, null, 2));
+    }
+    setIsEditing(false);
+    setSaveError(undefined);
+  };
+
+  const handleSave = async () => {
+    if (!selectedApiId) return;
+    setIsSaving(true);
+    setSaveError(undefined);
+    try {
+      await apiClient.updateApiDefinition(selectedApiId, editContent, token);
+      setIsEditing(false);
+      setSaveSuccess(true);
+      // Refresh the definition
+      apiDefinitionState.retry();
+    } catch (e: any) {
+      setSaveError(e.message || 'Failed to update definition');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
@@ -158,12 +497,8 @@ export const Wso2ApiManagerPage = () => {
       setCreateError('Not authenticated');
       return;
     }
-
     try {
-      await apiClient.createPublisherApi({
-        ...input,
-        token,
-      });
+      await apiClient.createPublisherApi({ ...input, token });
       setDialogOpen(false);
       apiListState.retry();
     } catch (error) {
@@ -207,7 +542,6 @@ export const Wso2ApiManagerPage = () => {
           <WarningPanel
             title="Action Failed"
             message={createError}
-            severity="error" // Ensure red color
           />
         )}
 
@@ -271,9 +605,18 @@ export const Wso2ApiManagerPage = () => {
                 )}
             </InfoCard>
           </Grid>
+
+          {/* ── API Definition Card ─────────────────────────────────────── */}
           <Grid item xs={12}>
             {selectedApiId && (
-              <InfoCard title="API Definition (Swagger)">
+              <InfoCard
+                title="API Definition (OpenAPI / Swagger)"
+                subheader={
+                  hasWritePermission
+                    ? 'You have write access — use the Edit button in the editor to modify this definition'
+                    : 'You have read-only access to this API definition'
+                }
+              >
                 {apiDefinitionState.loading && <Progress />}
                 {apiDefinitionState.error && (
                   <WarningPanel
@@ -288,10 +631,50 @@ export const Wso2ApiManagerPage = () => {
                     description="This API does not have an OpenAPI/Swagger definition available."
                   />
                 )}
+
                 {apiDefinitionState.value && (
-                  <div style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '4px' }}>
-                    <SwaggerUI spec={apiDefinitionState.value} />
-                  </div>
+                  <>
+                    {/* Tab bar: Swagger UI / Source */}
+                    <Box borderBottom={1} borderColor="divider" mb={2}>
+                      <Tabs
+                        value={activeTab}
+                        onChange={(_, v) => setActiveTab(v)}
+                        indicatorColor="primary"
+                        textColor="primary"
+                      >
+                        <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
+                        <Tab id="tab-source" label="Source Editor" className={classes.tabRoot} />
+                      </Tabs>
+                    </Box>
+
+                    {/* Tab 0: SwaggerUI rendered view */}
+                    {activeTab === 0 && (
+                      <div style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '4px' }}>
+                        <SwaggerUI
+                          spec={apiDefinitionState.value}
+                          supportedSubmitMethods={[]}
+                          plugins={[DisableTryItOutPlugin]}
+                        />
+                      </div>
+                    )}
+
+                    {/* Tab 1: VSCode-like editor */}
+                    {activeTab === 1 && (
+                      <SwaggerEditorPanel
+                        value={editContent}
+                        readOnly={!isEditing}
+                        onChange={setEditContent}
+                        isEditing={isEditing}
+                        isSaving={isSaving}
+                        saveSuccess={saveSuccess}
+                        saveError={saveError}
+                        hasWritePermission={hasWritePermission}
+                        onEdit={handleEdit}
+                        onSave={handleSave}
+                        onCancel={handleCancel}
+                      />
+                    )}
+                  </>
                 )}
               </InfoCard>
             )}
@@ -309,33 +692,23 @@ export const Wso2ApiManagerPage = () => {
   );
 };
 
+// ─── ApiDetails ────────────────────────────────────────────────────────────
 const ApiDetails = ({ details }: { details: Wso2ApiDetail }) => {
   const metadata: Record<string, string> = {
     Name: details.name,
   };
 
-  if (details.version) {
-    metadata.Version = details.version;
-  }
-  if (details.provider) {
-    metadata.Provider = details.provider;
-  }
-  if (details.context) {
-    metadata.Context = details.context;
-  }
-  if (details.lifeCycleStatus) {
-    metadata.Status = details.lifeCycleStatus;
-  }
-  if (details.type) {
-    metadata.Type = details.type;
-  }
-  if (details.description) {
-    metadata.Description = details.description;
-  }
+  if (details.version) metadata.Version = details.version;
+  if (details.provider) metadata.Provider = details.provider;
+  if (details.context) metadata.Context = details.context;
+  if (details.lifeCycleStatus) metadata.Status = details.lifeCycleStatus;
+  if (details.type) metadata.Type = details.type;
+  if (details.description) metadata.Description = details.description;
 
   return <StructuredMetadataTable metadata={metadata} />;
 };
 
+// ─── DocumentsTable ────────────────────────────────────────────────────────
 const DocumentsTable = ({ documents, apiId }: { documents: Wso2ApiDocument[], apiId: string }) => {
   const config = useApi(configApiRef);
   const { fetch } = useApi(fetchApiRef);
@@ -377,15 +750,11 @@ const DocumentsTable = ({ documents, apiId }: { documents: Wso2ApiDocument[], ap
       }
 
       if (!extensionAdded) {
-        if (sourceType === 'MARKDOWN') {
-          filename = `${name}.md`;
-        } else if (sourceType === 'INLINE') {
-          filename = `${name}.txt`;
-        }
+        if (sourceType === 'MARKDOWN') filename = `${name}.md`;
+        else if (sourceType === 'INLINE') filename = `${name}.txt`;
       }
 
       link.setAttribute('download', filename);
-
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
@@ -435,6 +804,7 @@ const DocumentsTable = ({ documents, apiId }: { documents: Wso2ApiDocument[], ap
   );
 };
 
+// ─── CreateApiDialog ───────────────────────────────────────────────────────
 type CreateApiInput = {
   name: string;
   context: string;

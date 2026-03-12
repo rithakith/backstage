@@ -277,6 +277,47 @@ export class Wso2ApiManagerClient {
     return data;
   }
 
+  /**
+   * Updates the swagger/OpenAPI definition for an API on the WSO2 Publisher Portal.
+   * Sends a PUT request to /apis/{apiId}/swagger with the definition as multipart/form-data.
+   * WSO2 Publisher v4 expects the definition in the `apiDefinition` form field.
+   */
+  async updateApiDefinition(apiId: string, definition: string): Promise<void> {
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger`;
+
+    // Build multipart/form-data body manually for compatibility
+    const boundary = `----FormBoundary${Date.now()}`;
+    const body =
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="apiDefinition"\r\n\r\n` +
+      `${definition}\r\n` +
+      `--${boundary}--\r\n`;
+
+    this.logger.info(`Updating API definition for ${apiId} via PUT ${url}`);
+
+    const response = await undiciFetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      this.logger.error(
+        `Failed to update API definition ${response.status} ${response.statusText}: ${errBody}`,
+      );
+      throw new Error(
+        `Failed to update API definition, status ${response.status}: ${errBody}`,
+      );
+    }
+    this.logger.info(`Successfully updated API definition for ${apiId}`);
+  }
+
   async listDocuments(apiId: string): Promise<Wso2ApiDocumentsResponse> {
     const data = await this.requestPublisher<{ list?: unknown[] }>(
       `/apis/${apiId}/documents`

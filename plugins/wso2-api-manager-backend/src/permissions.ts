@@ -47,6 +47,16 @@ export const wso2PublisherCreatePermission = createPermission({
 });
 
 /**
+ * Permission to update (modify) the swagger/OpenAPI definition of an existing API
+ * in the WSO2 API Manager Publisher Portal. Requires write-level access.
+ * @public
+ */
+export const wso2PublisherUpdatePermission = createPermission({
+  name: 'wso2.publisher.update',
+  attributes: { action: 'update' },
+});
+
+/**
  * All WSO2 API Manager permissions for export.
  * @public
  */
@@ -54,4 +64,5 @@ export const wso2ApiManagerPermissions = [
   wso2ApiReadPermission,
   wso2PublisherReadPermission,
   wso2PublisherCreatePermission,
+  wso2PublisherUpdatePermission,
 ];

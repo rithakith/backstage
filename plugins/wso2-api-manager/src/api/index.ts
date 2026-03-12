@@ -14,6 +14,8 @@ export interface Wso2ApiManagerApi {
   }): Promise<Wso2ApiListResponse>;
   getApi(apiId: string, token?: string): Promise<Wso2ApiDetail>;
   listDocuments(apiId: string, token?: string): Promise<Wso2ApiDocumentsResponse>;
+  getApiDefinition(apiId: string, token?: string): Promise<any>;
+  updateApiDefinition(apiId: string, definition: string, token?: string): Promise<void>;
   listPublisherApis(options?: {
     limit?: number;
     offset?: number;

@@ -35,6 +35,8 @@ backend:
   #   keys:
   #     - secret: ${BACKEND_SECRET}
 
+  logLevel: debug
+
   # Used for testing rate limiting locally
   # rateLimit:
   #   windowMs: 1m
@@ -51,7 +53,8 @@ backend:
     port: 7007
   database:
     client: better-sqlite3
-    connection: ':memory:'
+    connection:
+      directory: ./.backstage-data
   cors:
     origin: http://localhost:3000
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
@@ -77,18 +80,19 @@ proxy:
         Authorization: Token token=${PAGERDUTY_TOKEN}
 
 wso2ApiManager:
-  baseUrl: https://127.0.0.1:9445
+  baseUrl: https://localhost:9447
   devportalBasePath: /api/am/devportal/v3
   publisherBasePath: /api/am/publisher/v4
   tls:
     rejectUnauthorized: false
   auth:
-    tokenUrl: https://127.0.0.1:9445/oauth2/token
-    grantType: password
-    username: admin
-    password: admin
-    clientId: ajZ6_i6rLSHkpGMb1RgxdS7WAFAa
-    clientSecret: VcqTHMNu3CFvtm30lQqOX0lSBd0a
+    clientId: QEJhb4NYrsYQmkTk_dNP46pUxkYa
+    clientSecret: Zc9n5JjEk6vqNxVwyou7M6p5TZoa
+    # Use jwt-bearer grant - exchanges Asgardeo token for WSO2 APIM token
+    # The user's Asgardeo token is forwarded from Backstage frontend
+    # WSO2 APIM must be configured to trust Asgardeo as a federated IdP
+    tokenUrl: https://localhost:9447/oauth2/token
+    grantType: jwt-bearer
 
 organization:
   name: My Company
@@ -179,6 +183,10 @@ catalog:
         frequency: { minutes: 30 }
         # supports ISO duration, "human duration" as used in code
         timeout: { minutes: 3 }
+    wso2Apim:
+      baseUrl: https://localhost:9447
+      username: subadmin  
+      password: subadmin
     backstageOpenapi:
       plugins:
         - catalog
@@ -196,6 +204,10 @@ catalog:
     #
     # File locations are relative to the current working directory of the
     # backend, for example packages/backend/.
+
+    # Your company's catalog (teams, users, APIs, systems, components)
+    - type: file
+      target: ../../catalog/all.yaml
 
     # Backstage example entities
     - type: file
@@ -241,9 +253,17 @@ auth:
         metadataUrl: https://api.asgardeo.io/t/backstageplugin/oauth2/token/.well-known/openid-configuration
         additionalScopes: 'apim:api_create apim:api_publish'
         prompt: login
-        signIn:
-          resolvers:
-            - resolver: emailMatchingUserEntityProfileEmail
+    # WSO2 API Manager OAuth provider - for accessing DevPortal APIs with user identity
+    wso2apim:
+      development:
+        clientId: ${WSO2_APIM_CLIENT_ID}
+        clientSecret: ${WSO2_APIM_CLIENT_SECRET}
+        metadataUrl: https://localhost:9447/oauth2/token/.well-known/openid-configuration
+        additionalScopes: 'apim:subscribe apim:api_view'
+        prompt: login
+#        signIn:
+#          resolvers:
+#            - resolver: emailMatchingUserEntityProfileEmail
 
 permission:
   enabled: true

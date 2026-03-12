@@ -119,6 +119,33 @@ export class Wso2ApiManagerClient {
     return await response.json();
   }
 
+  async updateApiDefinition(apiId: string, definition: string, token?: string): Promise<void> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      console.log(`🎫 [WSO2-APIClient] Adding X-WSO2-Access-Token header to updateApiDefinition request for ${apiId}`);
+      headers['X-WSO2-Access-Token'] = token;
+    } else {
+      console.log(`⚠️ [WSO2-APIClient] No token provided to updateApiDefinition for ${apiId}`);
+    }
+    console.log(`🌐 [WSO2-APIClient] Updating definition: PUT ${baseUrl}/publisher/apis/${apiId}/definition`);
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/publisher/apis/${apiId}/definition`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ definition }),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Failed to update API definition, status ${response.status}: ${body}`);
+    }
+  }
+
+
   async listPublisherApis(options?: {
     limit?: number;
     offset?: number;
