@@ -3,12 +3,15 @@ import {
   createRoutableExtension,
 } from '@backstage/core-plugin-api';
 
-import { rootRouteRef } from './routes';
+import { rootRouteRef, viewTechDocRouteRef } from './routes';
 
 export const wso2ApiManagerPlugin = createPlugin({
   id: 'wso2-api-manager',
   routes: {
     root: rootRouteRef,
+  },
+  externalRoutes: {
+    viewTechDoc: viewTechDocRouteRef,
   },
 });
 

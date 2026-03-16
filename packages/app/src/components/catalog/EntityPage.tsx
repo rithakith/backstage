@@ -23,6 +23,7 @@ import {
   RELATION_HAS_PART,
   RELATION_PART_OF,
   RELATION_PROVIDES_API,
+  Entity,
 } from '@backstage/catalog-model';
 import { EmptyState } from '@backstage/core-components';
 import {
@@ -55,6 +56,8 @@ import {
   hasRelationWarnings,
   EntityRelationWarning,
 } from '@backstage/plugin-catalog';
+const isWso2Api = (entity: Entity) => Boolean(entity.metadata.annotations?.['wso2.com/api-id']);
+
 import {
   Direction,
   EntityCatalogGraphCard,
@@ -80,7 +83,11 @@ import {
   LightBox,
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
-import { EntityWso2ApiManagerCard, EntityWso2ApiDocumentsCard } from '@internal/plugin-wso2-api-manager';
+import {
+  EntityWso2ApiManagerCard, EntityWso2ApiDocumentsCard,
+  EntityWso2AboutCard,
+  EntityWso2ApiDefinitionCard,
+} from '@internal/plugin-wso2-api-manager';
 
 const customEntityFilterKind = ['Component', 'API', 'System'];
 
@@ -297,13 +304,17 @@ const apiPage = (
       <Grid container spacing={3}>
         {entityWarningContent}
         <Grid item md={6} xs={12}>
-          <EntityAboutCard />
+          <EntitySwitch>
+            <EntitySwitch.Case if={isWso2Api}>
+              <EntityWso2AboutCard />
+            </EntitySwitch.Case>
+            <EntitySwitch.Case>
+              <EntityAboutCard />
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
         <Grid item md={6} xs={12}>
           <EntityCatalogGraphCard variant="gridItem" height={400} />
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <EntityWso2ApiDocumentsCard />
         </Grid>
         <Grid item xs={12}>
           <Grid container>
@@ -321,12 +332,19 @@ const apiPage = (
     <EntityLayout.Route path="/definition" title="Definition">
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <EntityApiDefinitionCard />
+          <EntitySwitch>
+            <EntitySwitch.Case if={isWso2Api}>
+              <EntityWso2ApiDefinitionCard />
+            </EntitySwitch.Case>
+            <EntitySwitch.Case>
+              <EntityApiDefinitionCard />
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/wso2" title="WSO2">
+    <EntityLayout.Route if={isWso2Api} path="/wso2" title="WSO2">
       <EntityWso2ApiManagerCard />
     </EntityLayout.Route>
   </EntityLayoutWrapper>

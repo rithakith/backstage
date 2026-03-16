@@ -86,7 +86,7 @@ export const EntityWso2ApiDocumentsCard = () => {
 
     if (!apimDocs || apimDocs.length === 0) {
         return (
-            <InfoCard title="WSO2 Documents">
+            <InfoCard title="WSO2 Documents" variant="gridItem">
                 <EmptyState
                     title="No documents"
                     missing="info"
@@ -124,7 +124,7 @@ export const EntityWso2ApiDocumentsCard = () => {
     ];
 
     return (
-        <InfoCard title="WSO2 Documents">
+        <InfoCard title="WSO2 Documents" variant="gridItem">
             <Table
                 options={{ paging: apimDocs.length > 5, search: false }}
                 columns={columns}

@@ -8,7 +8,8 @@ import {
   Table,
   WarningPanel,
 } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import Link from '@material-ui/core/Link';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
   Wso2ApiDetail,
@@ -17,17 +18,77 @@ import {
   wso2AuthApiRef,
 } from '../../api';
 
-// @ts-ignore
-import SwaggerUI from 'swagger-ui-react';
-import 'swagger-ui-react/swagger-ui.css';
+import { makeStyles } from '@material-ui/core/styles';
+
+const useStyles = makeStyles(_theme => ({
+}));
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 
 export const EntityWso2ApiManagerCard = () => {
+  const classes = useStyles();
   const { entity } = useEntity();
   const apiClient = useApi(wso2ApiManagerApiRef);
   const oauthApi = useApi(wso2AuthApiRef);
   const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
+  const config = useApi(configApiRef);
+  const { fetch } = useApi(fetchApiRef);
+  const backendUrl = config.getString('backend.baseUrl');
+
+  const handleDownload = async (rowData: Wso2ApiDocument) => {
+    const { name, sourceType, sourceUrl, id: docId } = rowData;
+
+    if (sourceType === 'URL') {
+      window.open(sourceUrl || '#', '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+      const response = await fetch(url, { method: 'GET' });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+
+      let filename = name;
+      let extensionAdded = false;
+
+      // Attempt to extract real filename from content-disposition
+      const disposition = response.headers.get('content-disposition');
+      if (disposition && disposition.indexOf('attachment') !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+          extensionAdded = true;
+        }
+      }
+
+      if (!extensionAdded) {
+        if (sourceType === 'MARKDOWN') {
+          filename = `${name}.md`;
+        } else if (sourceType === 'INLINE') {
+          filename = `${name}.txt`;
+        }
+      }
+
+      link.setAttribute('download', filename);
+
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      console.error('Failed to download document content', e);
+      alert('Failed to download document content. Check console for details.');
+    }
+  };
 
   // Get the user's Asgardeo OAuth token from existing session
   const tokenState = useAsync(async () => {
@@ -64,17 +125,7 @@ export const EntityWso2ApiManagerCard = () => {
     return apiClient.listDocuments(apiId, tokenState.value);
   }, [apiClient, apiId, tokenState.value]);
 
-  const apiDefinitionState = useAsync(async () => {
-    if (!apiId) return undefined;
-    try {
-      return await apiClient.getApiDefinition(apiId, tokenState.value);
-    } catch (e: any) {
-      if (e.message && e.message.includes('404')) {
-        return null;
-      }
-      throw e;
-    }
-  }, [apiClient, apiId, tokenState.value]);
+  const documents = apiDocumentsState.value?.documents ?? [];
 
   if (!apiId) {
     return (
@@ -100,7 +151,6 @@ export const EntityWso2ApiManagerCard = () => {
   }
 
   const details = apiDetailState.value;
-  const documents = apiDocumentsState.value?.documents ?? [];
 
   if (!details) {
     return (
@@ -129,30 +179,7 @@ export const EntityWso2ApiManagerCard = () => {
             />
           )}
           {!apiDocumentsState.loading && !apiDocumentsState.error && (
-            <DocumentsTable documents={documents} />
-          )}
-        </InfoCard>
-      </Grid>
-      <Grid item xs={12}>
-        <InfoCard title="API Definition (Swagger)">
-          {apiDefinitionState.loading && <Progress />}
-          {apiDefinitionState.error && (
-            <WarningPanel
-              title="Failed to load API Definition"
-              message={apiDefinitionState.error.message}
-            />
-          )}
-          {!apiDefinitionState.loading && apiDefinitionState.value === null && (
-            <EmptyState
-              title="No Definition"
-              missing="info"
-              description="This API does not have an OpenAPI/Swagger definition available."
-            />
-          )}
-          {apiDefinitionState.value && (
-            <div style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '4px' }}>
-              <SwaggerUI spec={apiDefinitionState.value} />
-            </div>
+            <DocumentsTable documents={documents} onDownload={handleDownload} />
           )}
         </InfoCard>
       </Grid>
@@ -187,7 +214,13 @@ const ApiDetails = ({ details }: { details: Wso2ApiDetail }) => {
   return <StructuredMetadataTable metadata={metadata} />;
 };
 
-const DocumentsTable = ({ documents }: { documents: Wso2ApiDocument[] }) => {
+const DocumentsTable = ({
+  documents,
+  onDownload
+}: {
+  documents: Wso2ApiDocument[];
+  onDownload: (doc: Wso2ApiDocument) => void;
+}) => {
   if (!documents.length) {
     return (
       <EmptyState
@@ -202,7 +235,22 @@ const DocumentsTable = ({ documents }: { documents: Wso2ApiDocument[] }) => {
     <Table
       options={{ paging: false, search: false }}
       columns={[
-        { title: 'Name', field: 'name' },
+        {
+          title: 'Name',
+          field: 'name',
+          render: (rowData: Wso2ApiDocument) => (
+            <Link
+              href="#"
+              onClick={(e: React.MouseEvent) => {
+                e.preventDefault();
+                onDownload(rowData);
+              }}
+              style={{ color: '#0A66C2', textDecoration: 'underline', cursor: 'pointer' }}
+            >
+              {rowData.name}
+            </Link>
+          )
+        },
         { title: 'Type', field: 'type' },
         { title: 'Source', field: 'sourceType' },
         { title: 'Summary', field: 'summary' },

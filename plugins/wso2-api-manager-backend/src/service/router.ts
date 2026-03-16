@@ -31,7 +31,7 @@ export interface RouterOptions {
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, config, permissions, userInfo } = options;
+  const { logger, httpAuth, config, permissions } = options;
   const wso2Config = readWso2ApiManagerConfig(config);
   const client = new Wso2ApiManagerClient({
     config: wso2Config,
@@ -80,6 +80,17 @@ export async function createRouter(
     const apiId = req.params.apiId;
     const result = await client.getApi(apiId);
     res.json(result);
+  });
+
+  router.post('/apis/:apiId/generate-key', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    try {
+      const result = await client.generateApiKey(apiId);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
 
   router.get('/apis/:apiId/documents', async (req, res) => {

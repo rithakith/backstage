@@ -269,6 +269,17 @@ export class Wso2ApiManagerClient {
     return mapApiDetail(data);
   }
 
+  async generateApiKey(apiId: string): Promise<Record<string, unknown>> {
+    const data = await this.requestPublisher<Record<string, unknown>>(`/apis/${apiId}/generate-key`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return data;
+  }
+
   async getApiDefinition(apiId: string): Promise<any> {
     // Attempt to fetch swagger definition
     // Usually available at `/apis/{apiId}/swagger` in DevPortal/Publisher APIs

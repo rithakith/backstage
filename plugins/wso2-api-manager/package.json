@@ -40,8 +40,12 @@
   "dependencies": {
     "@backstage/core-components": "workspace:^",
     "@backstage/core-plugin-api": "workspace:^",
+    "@backstage/integration-react": "workspace:^",
     "@backstage/plugin-auth-react": "workspace:^",
+    "@backstage/plugin-catalog": "workspace:^",
     "@backstage/plugin-catalog-react": "workspace:^",
+    "@backstage/plugin-techdocs-common": "workspace:^",
+    "@backstage/plugin-techdocs-react": "workspace:^",
     "@backstage/plugin-permission-common": "workspace:^",
     "@backstage/plugin-permission-react": "workspace:^",
     "@material-ui/core": "^4.12.2",
