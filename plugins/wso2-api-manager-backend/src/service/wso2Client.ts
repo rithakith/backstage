@@ -161,6 +161,23 @@ export type Wso2UserPermissions = {
   rolePermissions: Wso2RolePermissions[];
 };
 
+export type Wso2ApiRevision = {
+  id: string;
+  displayName: string;
+  description?: string;
+  createdTime?: string;
+  deploymentInfo?: Array<{
+    name: string;
+    type: string;
+    deployedTime: string;
+  }>;
+};
+
+export type Wso2ApiRevisionsResponse = {
+  count: number;
+  list: Wso2ApiRevision[];
+};
+
 export type Wso2ApiManagerConfig = {
   baseUrl: string;
   devportalBasePath: string;
@@ -277,6 +294,7 @@ export class Wso2ApiManagerClient {
         'Content-Type': 'application/json',
       },
     });
+    this.logger.info(`🗝️ [WSO2-Client] Generate-key response for ${apiId}: ${JSON.stringify(data).substring(0, 1000)}`);
     return data;
   }
 
@@ -337,6 +355,20 @@ export class Wso2ApiManagerClient {
     return {
       documents: (data.list ?? []).map(mapApiDocument),
     };
+  }
+
+  async getRevisions(
+    apiId: string,
+    options?: { query?: string },
+  ): Promise<Wso2ApiRevisionsResponse> {
+    const params = new URLSearchParams();
+    if (options?.query) {
+      params.set('query', options.query);
+    }
+    const data = await this.requestPublisher<Wso2ApiRevisionsResponse>(
+      `/apis/${apiId}/revisions?${params.toString()}`,
+    );
+    return data;
   }
 
   async getDocument(apiId: string, documentId: string): Promise<any> {
@@ -696,7 +728,7 @@ export class Wso2ApiManagerClient {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('scope', 'apim:api_view apim:subscribe apim:api_create apim:api_publish');
+    params.append('scope', 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key');
 
     this.logger.info('Requesting WSO2 access token via client_credentials grant');
 

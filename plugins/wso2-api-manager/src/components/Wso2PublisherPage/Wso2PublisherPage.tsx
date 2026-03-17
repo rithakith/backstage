@@ -82,7 +82,7 @@ export const Wso2PublisherPage = () => {
       console.log('⏳ [WSO2-Publisher] Waiting for Asgardeo OAuth token to load...');
       return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
     }
-    
+
     // Pass the user's Asgardeo OAuth token for jwt-bearer grant
     console.log(`📡 [WSO2-Publisher] Calling listPublisherApis with Asgardeo OAuth token: ${token ? 'YES' : 'NO'}`);
     return apiClient.listPublisherApis({
@@ -158,7 +158,7 @@ export const Wso2PublisherPage = () => {
             message={apiListState.error.message}
           />
         )}
-        {apiListState.value && (
+        {apiListState.value?.apis && (
           <Table
             options={{ paging: false, search: true }}
             columns={columns}

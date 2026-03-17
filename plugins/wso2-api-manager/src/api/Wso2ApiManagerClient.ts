@@ -3,6 +3,7 @@ import {
   Wso2ApiDetail,
   Wso2ApiDocumentsResponse,
   Wso2ApiListResponse,
+  Wso2ApiRevisionsResponse,
 } from './types';
 
 
@@ -141,6 +142,33 @@ export class Wso2ApiManagerClient {
       throw new Error(`Failed to fetch API definition, status ${response.status}`);
     }
     return await response.json();
+  }
+
+  async getRevisions(
+    apiId: string,
+    options?: { query?: string; token?: string },
+  ): Promise<Wso2ApiRevisionsResponse> {
+    const baseUrl = await this.getBaseUrl();
+    const params = new URLSearchParams();
+    if (options?.query) {
+      params.append('query', options.query);
+    }
+
+    const headers: Record<string, string> = {};
+    if (options?.token) {
+      headers['X-WSO2-Access-Token'] = options.token;
+    }
+
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/apis/${apiId}/revisions?${params.toString()}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch API revisions, status ${response.status}`);
+    }
+
+    return (await response.json()) as Wso2ApiRevisionsResponse;
   }
 
   async updateApiDefinition(apiId: string, definition: string, token?: string): Promise<void> {

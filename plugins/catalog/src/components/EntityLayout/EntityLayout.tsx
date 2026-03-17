@@ -116,9 +116,8 @@ function headerProps(
     entity?.metadata.title ?? paramName ?? entity?.metadata.name ?? '';
 
   return {
-    headerTitle: `${name}${
-      namespace && namespace !== DEFAULT_NAMESPACE ? ` in ${namespace}` : ''
-    }`,
+    headerTitle: `${name}${namespace && namespace !== DEFAULT_NAMESPACE ? ` in ${namespace}` : ''
+      }`,
     headerType: (() => {
       let t = kind.toLocaleLowerCase('en-US');
       if (entity && entity.spec && 'type' in entity.spec) {
@@ -134,9 +133,13 @@ function EntityLabels(props: { entity: Entity }) {
   const { entity } = props;
   const ownedByRelations = getEntityRelations(entity, RELATION_OWNED_BY);
   const { t } = useTranslationRef(catalogTranslationRef);
+
+  const isWso2Api = !!entity.metadata.annotations?.['wso2.com/api-id'];
+  const wso2Status = entity.metadata.annotations?.['wso2.com/api-lifecycle-status'];
+
   return (
     <>
-      {ownedByRelations.length > 0 && (
+      {ownedByRelations.length > 0 && !isWso2Api && (
         <HeaderLabel
           label={t('entityLabels.ownerLabel')}
           contentTypograpyRootComponent="p"
@@ -149,10 +152,10 @@ function EntityLabels(props: { entity: Entity }) {
           }
         />
       )}
-      {entity.spec?.lifecycle && (
+      {(entity.spec?.lifecycle || (isWso2Api && wso2Status)) && (
         <HeaderLabel
           label={t('entityLabels.lifecycleLabel')}
-          value={entity.spec.lifecycle?.toString()}
+          value={(isWso2Api && wso2Status) || entity.spec.lifecycle?.toString()}
         />
       )}
     </>

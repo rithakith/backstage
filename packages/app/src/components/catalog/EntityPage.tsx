@@ -57,6 +57,10 @@ import {
   EntityRelationWarning,
 } from '@backstage/plugin-catalog';
 const isWso2Api = (entity: Entity) => Boolean(entity.metadata.annotations?.['wso2.com/api-id']);
+const hasMultipleComponentRelations = (entity: Entity) => {
+  const componentRelations = entity.relations?.filter(r => r.type.includes('api') && r.targetRef.startsWith('component:')) || [];
+  return componentRelations.length > 1;
+};
 
 import {
   Direction,
@@ -153,7 +157,7 @@ const entityWarningContent = (
     </EntitySwitch>
 
     <EntitySwitch>
-      <EntitySwitch.Case if={hasRelationWarnings}>
+      <EntitySwitch.Case if={(e, context) => await hasRelationWarnings(e, context) && !isWso2Api(e)}>
         <Grid item xs={12}>
           <EntityRelationWarning />
         </Grid>
@@ -303,28 +307,52 @@ const apiPage = (
     <EntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3}>
         {entityWarningContent}
-        <Grid item md={6} xs={12}>
+        <Grid item xs={12}>
           <EntitySwitch>
             <EntitySwitch.Case if={isWso2Api}>
-              <EntityWso2AboutCard />
+              <EntitySwitch>
+                <EntitySwitch.Case if={e => hasMultipleComponentRelations(e)}>
+                  <Grid container spacing={3}>
+                    <Grid item md={6} xs={12}>
+                      <EntityWso2AboutCard />
+                    </Grid>
+                    <Grid item md={6} xs={12}>
+                      <EntityCatalogGraphCard variant="gridItem" height={400} />
+                    </Grid>
+                  </Grid>
+                </EntitySwitch.Case>
+                <EntitySwitch.Case>
+                  <Grid item xs={12}>
+                    <EntityWso2AboutCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
             </EntitySwitch.Case>
             <EntitySwitch.Case>
-              <EntityAboutCard />
+              <Grid container spacing={3}>
+                <Grid item md={6} xs={12}>
+                  <EntityAboutCard />
+                </Grid>
+                <Grid item md={6} xs={12}>
+                  <EntityCatalogGraphCard variant="gridItem" height={400} />
+                </Grid>
+              </Grid>
             </EntitySwitch.Case>
           </EntitySwitch>
         </Grid>
-        <Grid item md={6} xs={12}>
-          <EntityCatalogGraphCard variant="gridItem" height={400} />
-        </Grid>
         <Grid item xs={12}>
-          <Grid container>
-            <Grid item xs={12} md={6}>
-              <EntityProvidingComponentsCard />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <EntityConsumingComponentsCard />
-            </Grid>
-          </Grid>
+          <EntitySwitch>
+            <EntitySwitch.Case if={e => !isWso2Api(e)}>
+              <Grid container>
+                <Grid item xs={12} md={6}>
+                  <EntityProvidingComponentsCard />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <EntityConsumingComponentsCard />
+                </Grid>
+              </Grid>
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
       </Grid>
     </EntityLayout.Route>

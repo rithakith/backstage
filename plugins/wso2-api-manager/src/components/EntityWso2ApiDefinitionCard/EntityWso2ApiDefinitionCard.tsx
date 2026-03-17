@@ -5,8 +5,9 @@ import {
     Progress,
     WarningPanel,
     EmptyState,
+    Link,
 } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, alertApiRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { usePermission } from '@backstage/plugin-permission-react';
 import { createPermission } from '@backstage/plugin-permission-common';
@@ -15,6 +16,7 @@ import {
     Tabs,
     Tab,
     Button,
+    TextField,
 } from '@material-ui/core';
 import {
     wso2ApiManagerApiRef,
@@ -207,8 +209,12 @@ export const EntityWso2ApiDefinitionCard = () => {
     const { entity } = useEntity();
     const apiClient = useApi(wso2ApiManagerApiRef);
     const oauthApi = useApi(wso2AuthApiRef);
+    const alertApi = useApi(alertApiRef);
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const apiKeyRef = useRef<string | null>(null);
+    const [apiKey, setApiKey] = useState<string | null>(null);
+    const [expiresIn, setExpiresIn] = useState<number | null>(null);
+    const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
 
     // Get the user's Asgardeo OAuth token from existing session
     // Get the user's Asgardeo OAuth token from existing session
@@ -314,24 +320,37 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiClient, apiId, tokenState.value, tokenState.loading]);
 
-    // Update the ref whenever the key changes
+    // Update the ref and state whenever the key changes
     useEffect(() => {
         if (generateKeyState.value) {
             const keyData = generateKeyState.value;
-            const key = keyData.apikey
-                || keyData.apiKey
-                || keyData.token
+            const key = keyData.token
                 || keyData.InternalKey
                 || keyData.internalKey
+                || keyData.apikey
+                || keyData.apiKey
                 || (keyData.token && typeof keyData.token === 'object' ? keyData.token.accessToken : undefined)
                 || (typeof keyData === 'string' ? keyData : '');
 
+            const isInitial = apiKeyRef.current === null;
             apiKeyRef.current = key || null;
-            console.log('🗝️ [WSO2-Auth] API Key Ref updated:', key ? 'READY' : 'EMPTY');
-        } else {
+            setApiKey(key || null);
+            setLastUpdated(Date.now());
+
+            const validity = keyData.validityPeriod || keyData.expires_in;
+            if (validity) {
+                setExpiresIn(Number(validity));
+            }
+
+            if (!isInitial && key) {
+                alertApi.post({ message: 'Internal API Key refreshed', severity: 'success' });
+            }
+            console.log('🗝️ [WSO2-Auth] API Key Ref and State updated:', key ? 'READY' : 'EMPTY');
+        } else if (generateKeyState.error) {
             apiKeyRef.current = null;
+            setApiKey(null);
         }
-    }, [generateKeyState.value]);
+    }, [generateKeyState.value, generateKeyState.error, alertApi]);
 
     // Calculate the Gateway URL base
     const gatewayUrlBase = useMemo(() => {
@@ -345,6 +364,21 @@ export const EntityWso2ApiDefinitionCard = () => {
         const hostname = window.location.hostname || 'localhost';
         return `https://${hostname}:8247${context}`;
     }, [apiDetailState.value]);
+
+    // Check if API is deployed
+    const revisionsState = useAsync(async () => {
+        if (!apiId || tokenState.loading) return undefined;
+        try {
+            return await apiClient.getRevisions(apiId, { query: 'deployed:true', token: tokenState.value });
+        } catch (e: any) {
+            console.error('[WSO2-DefinitionCard] Failed to fetch revisions:', e.message);
+            return null;
+        }
+    }, [apiClient, apiId, tokenState.value, tokenState.loading]);
+
+    const isDeployed = useMemo(() => {
+        return (revisionsState.value?.list?.length ?? 0) > 0;
+    }, [revisionsState.value]);
 
     // Dynamically rewrite the Swagger/OpenAPI spec URL to hit the API Gateway directly (e.g. 8247)
     const swaggerSpec = useMemo(() => {
@@ -442,23 +476,68 @@ export const EntityWso2ApiDefinitionCard = () => {
                     {/* Tab 0: SwaggerUI rendered view */}
                     {activeTab === 0 && (
                         <div className={classes.root}>
+                            {/* Discreet SSL troubleshooting link */}
+                            <Box display="flex" justifyContent="flex-end" px={2} pt={1}>
+                                <Link
+                                    href={gatewayUrlBase}
+                                    target="_blank"
+                                    style={{ fontSize: '0.75rem', opacity: 0.7 }}
+                                >
+                                    Troubleshoot Gateway Connection (SSL)
+                                </Link>
+                            </Box>
+
+                            {/* Internal API Key Display and Regeneration */}
+                            {isDeployed && (
+                                <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
+                                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                                        <TextField
+                                            label="Internal API Key"
+                                            value={generateKeyState.loading ? 'Generating...' : (apiKey || 'No key available')}
+                                            variant="outlined"
+                                            size="small"
+                                            InputProps={{
+                                                readOnly: true,
+                                                style: { fontFamily: 'monospace', fontSize: '0.875rem' }
+                                            }}
+                                            fullWidth
+                                        />
+                                        <Box ml={2}>
+                                            <Button
+                                                variant="contained"
+                                                color="primary"
+                                                onClick={() => generateKeyState.retry()}
+                                                disabled={generateKeyState.loading}
+                                                size="small"
+                                            >
+                                                {generateKeyState.loading ? 'Generating...' : 'Generate'}
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                    <Box mt={1}>
+                                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                                            Expires in {expiresIn ? Math.round(expiresIn / 3600) : 1} hour(s)
+                                        </span>
+                                    </Box>
+                                </Box>
+                            )}
+
                             <div style={{ padding: '16px', borderRadius: '4px' }}>
                                 <SwaggerUI
-                                    key={`swagger-ui-${generateKeyState.loading ? 'loading' : (!!generateKeyState.value)}`}
+                                    key={`swagger-ui-${lastUpdated}`}
                                     spec={swaggerSpec}
-                                    supportedSubmitMethods={['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']}
+                                    supportedSubmitMethods={isDeployed ? ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] : []}
                                     requestInterceptor={(req: any) => {
-                                        const currentKey = apiKeyRef.current;
-                                        if (currentKey) {
-                                            console.log('🚀 [WSO2-Auth] Injecting tokens into request:', req.url);
+                                        // Set credentials to 'omit' to avoid CORS issues with wildcard origins
+                                        req.credentials = 'omit';
+
+                                        if (apiKey) {
+                                            console.log('🚀 [WSO2-Auth] Injecting Internal-Key into request:', req.url);
                                             // WSO2 Gateway expects testing keys in 'Internal-Key' header
-                                            req.headers['Internal-Key'] = currentKey;
+                                            req.headers['Internal-Key'] = apiKey;
                                         } else {
                                             // Diagnostic log for debugging missing tokens
-                                            console.warn('[WSO2-Auth] No key in Ref at request time. State:', {
-                                                hasTokenState: !!tokenState.value,
-                                                keyDataReady: !!generateKeyState.value,
-                                            });
+                                            console.warn('[WSO2-Auth] No Internal-Key in state at request time.');
                                         }
                                         return req;
                                     }}

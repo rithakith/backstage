@@ -171,7 +171,7 @@ export const Wso2ApiManagerPage = () => {
             message={apiListState.error.message}
           />
         )}
-        {apiListState.value && (
+        {apiListState.value?.apis && (
           <Table
             options={{ paging: false, search: true }}
             columns={columns}

@@ -60,7 +60,7 @@ export async function createRouter(
   }
 
   const router = Router();
-  router.use(express.json());
+  router.use(express.json({ limit: '10mb' }));
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -112,6 +112,18 @@ export async function createRouter(
       } else {
         res.status(500).json({ message: error.message });
       }
+    }
+  });
+
+  router.get('/apis/:apiId/revisions', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    const query = readString(req.query.query);
+    try {
+      const result = await client.getRevisions(apiId, { query });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
     }
   });
 

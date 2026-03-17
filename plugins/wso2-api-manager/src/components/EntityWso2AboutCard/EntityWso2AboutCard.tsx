@@ -73,19 +73,21 @@ export const EntityWso2AboutCard = () => {
         name: entity.metadata.name,
     })}/wso2`;
 
-    const links: IconLinkVerticalProps[] = [
-        {
+    const links: IconLinkVerticalProps[] = [];
+
+    if (entitySourceLocation) {
+        links.push({
             label: 'View Source',
             icon: <ScmIntegrationIcon type={entitySourceLocation?.integrationType} />,
             href: entitySourceLocation?.locationTargetUrl ?? '#',
-            disabled: !entitySourceLocation,
-        },
-        {
-            label: 'View TechDocs',
-            icon: <DescriptionIcon />,
-            href: wso2TabUrl,
-        }
-    ];
+        });
+    }
+
+    links.push({
+        label: 'View TechDocs',
+        icon: <DescriptionIcon />,
+        href: wso2TabUrl,
+    });
 
     const annotations = entity.metadata.annotations || {};
     const gridSizes = { xs: 12, sm: 6, lg: 4 };
@@ -118,28 +120,22 @@ export const EntityWso2AboutCard = () => {
                 </>
             }
         >
-            <AboutContent entity={entity} />
-
-            <Divider style={{ margin: '16px 0' }} />
-
             <Grid container>
+                <AboutField label="Name" value={entity.metadata.name} gridSizes={gridSizes} />
+                <AboutField label="Display Name" value={entity.metadata.title || entity.metadata.name} gridSizes={gridSizes} />
+                {annotations['wso2.com/api-lifecycle-status'] && (
+                    <AboutField label="Lifecycle" value={annotations['wso2.com/api-lifecycle-status']} gridSizes={gridSizes} />
+                )}
                 {annotations['wso2.com/api-context'] && (
                     <AboutField label="Context" value={annotations['wso2.com/api-context']} gridSizes={gridSizes} />
                 )}
                 {annotations['wso2.com/api-version'] && (
                     <AboutField label="Version" value={annotations['wso2.com/api-version']} gridSizes={gridSizes} />
                 )}
-                {annotations['wso2.com/api-lifecycle-status'] && (
-                    <AboutField label="WSO2 Status" value={annotations['wso2.com/api-lifecycle-status']} gridSizes={gridSizes} />
-                )}
-                {annotations['wso2.com/api-type'] && (
-                    <AboutField label="Type" value={annotations['wso2.com/api-type']} gridSizes={gridSizes} />
-                )}
-                {annotations['wso2.com/api-business-owner'] && (
-                    <AboutField label="Business Owner" value={annotations['wso2.com/api-business-owner']} gridSizes={gridSizes} />
-                )}
-                {annotations['wso2.com/api-technical-owner'] && (
-                    <AboutField label="Technical Owner" value={annotations['wso2.com/api-technical-owner']} gridSizes={gridSizes} />
+                {entity.metadata.description && (
+                    <Grid item xs={12}>
+                        <AboutField label="Description" value={entity.metadata.description} />
+                    </Grid>
                 )}
             </Grid>
         </InfoCard>

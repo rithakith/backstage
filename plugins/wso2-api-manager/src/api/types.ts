@@ -39,3 +39,20 @@ export type Wso2ApiListResponse = {
 export type Wso2ApiDocumentsResponse = {
   documents: Wso2ApiDocument[];
 };
+
+export type Wso2ApiRevision = {
+  id: string;
+  displayName: string;
+  description?: string;
+  createdTime?: string;
+  deploymentInfo?: Array<{
+    name: string;
+    type: string;
+    deployedTime: string;
+  }>;
+};
+
+export type Wso2ApiRevisionsResponse = {
+  count: number;
+  list: Wso2ApiRevision[];
+};
