@@ -19,7 +19,7 @@ I cannot provide internal chain-of-thought. This document focuses on what the co
 ### Main Exports
 - Wso2ApiManagerPage: Page that lists APIs from WSO2 and shows details + documents (plugins/wso2-api-manager/src/components/Wso2ApiManagerPage/Wso2ApiManagerPage.tsx).
 - Wso2PublisherPage: Page that lists Publisher APIs and allows creating a new API (plugins/wso2-api-manager/src/components/Wso2PublisherPage/Wso2PublisherPage.tsx).
-- EntityWso2ApiManagerCard: Entity card that renders API details/documents for a catalog entity (plugins/wso2-api-manager/src/components/EntityWso2ApiManagerCard/EntityWso2ApiManagerCard.tsx).
+- EntityWso2ApiOverviewCard: Entity card that renders API details/documents for a catalog entity (plugins/wso2-api-manager/src/components/EntityWso2ApiOverviewCard/EntityWso2ApiOverviewCard.tsx).
 - wso2ApiManagerApiRef + Wso2ApiManagerClient: Frontend API client for the backend routes (plugins/wso2-api-manager/src/api/index.ts, plugins/wso2-api-manager/src/api/Wso2ApiManagerClient.ts).
 
 ### UI Components
@@ -30,7 +30,7 @@ I cannot provide internal chain-of-thought. This document focuses on what the co
 - Wso2PublisherPage:
   - Loads publisher API list from backend.
   - Provides a dialog to create a new API (name, context, version, endpoint URL, description).
-- EntityWso2ApiManagerCard:
+- EntityWso2ApiOverviewCard:
   - Reads a catalog entity annotation: wso2.com/api-id.
   - If present, fetches API details + documents and renders them in cards.
 
@@ -108,7 +108,7 @@ graph TD
         subgraph "UI Components"
             MgrPage["Wso2ApiManagerPage"]
             PubPage["Wso2PublisherPage"]
-            EntityCard["EntityWso2ApiManagerCard"]
+            EntityCard["EntityWso2ApiOverviewCard"]
         end
         FE_Client["Wso2ApiManagerClient<br/>(Frontend API Wrapper)"]
         
@@ -171,7 +171,7 @@ Frontend:
   - plugins/wso2-api-manager/src/components/Wso2ApiManagerPage/Wso2ApiManagerPage.tsx
   - plugins/wso2-api-manager/src/components/Wso2PublisherPage/Wso2PublisherPage.tsx
 - Entity card:
-  - plugins/wso2-api-manager/src/components/EntityWso2ApiManagerCard/EntityWso2ApiManagerCard.tsx
+  - plugins/wso2-api-manager/src/components/EntityWso2ApiOverviewCard/EntityWso2ApiOverviewCard.tsx
 
 Backend:
 - Plugin registration: plugins/wso2-api-manager-backend/src/plugin.ts
