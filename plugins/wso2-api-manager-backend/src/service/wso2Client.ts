@@ -253,6 +253,26 @@ export class Wso2ApiManagerClient {
     }
   }
 
+  /**
+   * Helper to extract a user-friendly error message from a WSO2 response.
+   */
+  private async extractWso2ErrorMessage(response: any): Promise<string> {
+    try {
+      const body = await response.text();
+      try {
+        const json = JSON.parse(body);
+        if (json.message && json.description) {
+          return `${json.message}: ${json.description}`;
+        }
+        return json.message || json.description || body;
+      } catch (e) {
+        return body || response.statusText || `Status ${response.status}`;
+      }
+    } catch (e) {
+      return response.statusText || `Status ${response.status}`;
+    }
+  }
+
   async listApis(options: {
     limit: number;
     offset: number;
@@ -299,11 +319,86 @@ export class Wso2ApiManagerClient {
   }
 
   async getApiDefinition(apiId: string): Promise<any> {
-    // Attempt to fetch swagger definition
-    // Usually available at `/apis/{apiId}/swagger` in DevPortal/Publisher APIs
-    // Return raw JSON response for Swagger UI
-    const data = await this.requestPublisher<any>(`/apis/${apiId}/swagger`);
-    return data;
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger?cache_bust=${Date.now()}_${Math.random()}`;
+
+    const response = await undiciFetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      this.logger.error(`WSO2 Publisher request failed ${response.status} ${response.statusText}: ${body}`);
+      throw new Error(`WSO2 Publisher request failed, status ${response.status}`);
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      // Return as raw string if not JSON (e.g. YAML)
+      return text;
+    }
+  }
+
+  async getGraphqlSchema(apiId: string): Promise<string> {
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
+
+    this.logger.info(`[WSO2-Client] Fetching GraphQL schema for ${apiId} from ${url}`);
+
+    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: '*/*',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      this.logger.error(`Failed to fetch GraphQL schema ${response.status}: ${errBody}`);
+      throw new Error(`Failed to fetch GraphQL schema, status ${response.status}`);
+    }
+
+    return await response.text();
+  }
+
+  async getAsyncApiDefinition(apiId: string): Promise<string> {
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
+
+    this.logger.info(`[WSO2-Client] Fetching AsyncAPI definition for ${apiId} from ${url}`);
+
+    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: '*/*',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const message = await this.extractWso2ErrorMessage(response);
+      this.logger.error(
+        `Failed to fetch AsyncAPI definition ${response.status} ${response.statusText}: ${message}`,
+      );
+      throw new Error(message);
+    }
+
+    return await response.text();
   }
 
   /**
@@ -316,10 +411,16 @@ export class Wso2ApiManagerClient {
     const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger`;
 
     // Build multipart/form-data body manually for compatibility
+    // WSO2 Publisher v4 expects the definition in the `file` form field.
+    const isJson = definition.trim().startsWith('{');
+    const contentType = isJson ? 'application/json' : 'application/yaml';
+    const filename = isJson ? 'swagger.json' : 'swagger.yaml';
+
     const boundary = `----FormBoundary${Date.now()}`;
     const body =
       `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="apiDefinition"\r\n\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+      `Content-Type: ${contentType}\r\n\r\n` +
       `${definition}\r\n` +
       `--${boundary}--\r\n`;
 
@@ -336,15 +437,83 @@ export class Wso2ApiManagerClient {
     });
 
     if (!response.ok) {
-      const errBody = await response.text();
+      const message = await this.extractWso2ErrorMessage(response);
       this.logger.error(
-        `Failed to update API definition ${response.status} ${response.statusText}: ${errBody}`,
+        `Failed to update API definition ${response.status} ${response.statusText}: ${message}`,
       );
-      throw new Error(
-        `Failed to update API definition, status ${response.status}: ${errBody}`,
-      );
+      throw new Error(message);
     }
     this.logger.info(`Successfully updated API definition for ${apiId}`);
+  }
+
+  async updateGraphqlSchema(apiId: string, schema: string): Promise<void> {
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
+
+    // Build multipart/form-data body manually
+    const boundary = `----FormBoundary${Date.now()}`;
+    const body =
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="schemaDefinition"; filename="schema.graphql"\r\n` +
+      `Content-Type: application/graphql\r\n\r\n` +
+      `${schema}\r\n` +
+      `--${boundary}--\r\n`;
+
+    this.logger.info(`Updating GraphQL schema for ${apiId} via PUT ${url}`);
+
+    const response = await undiciFetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const message = await this.extractWso2ErrorMessage(response);
+      this.logger.error(
+        `Failed to update GraphQL schema ${response.status} ${response.statusText}: ${message}`,
+      );
+      throw new Error(message);
+    }
+    this.logger.info(`Successfully updated GraphQL schema for ${apiId}`);
+  }
+
+  async updateAsyncApiDefinition(apiId: string, definition: string): Promise<void> {
+    const accessToken = await this.resolveAccessToken();
+    const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
+
+    // Build multipart/form-data body manually
+    const boundary = `----FormBoundary${Date.now()}`;
+    const body =
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="asyncapi.yaml"\r\n` +
+      `Content-Type: application/yaml\r\n\r\n` +
+      `${definition}\r\n` +
+      `--${boundary}--\r\n`;
+
+    this.logger.info(`Updating AsyncAPI definition for ${apiId} via PUT ${url}`);
+
+    const response = await undiciFetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+      body,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const message = await this.extractWso2ErrorMessage(response);
+      this.logger.error(
+        `Failed to update AsyncAPI definition ${response.status} ${response.statusText}: ${message}`,
+      );
+      throw new Error(message);
+    }
+    this.logger.info(`Successfully updated AsyncAPI definition for ${apiId}`);
   }
 
   async listDocuments(apiId: string): Promise<Wso2ApiDocumentsResponse> {
@@ -385,10 +554,12 @@ export class Wso2ApiManagerClient {
     this.logger.info(`Fetching document content: ${url}`);
 
     // Do a raw fetch
-    const response = await undiciFetch(url, {
+    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
       },
       dispatcher: this.dispatcher,
     });
@@ -779,6 +950,8 @@ export class Wso2ApiManagerClient {
       method: options?.method ?? 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
         ...(options?.headers ?? {}),
       },
       body: options?.body,

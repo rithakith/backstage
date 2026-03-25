@@ -133,15 +133,51 @@ export class Wso2ApiManagerClient {
     } else {
       console.log(`⚠️ [WSO2-APIClient] No token provided to getApiDefinition for ${apiId}`);
     }
-    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis/${apiId}/definition`);
+    console.log(`🌐 [WSO2-APIClient] Fetching: ${baseUrl}/apis/${apiId}/swagger`);
     const response = await this.fetchApi.fetch(
-      `${baseUrl}/apis/${apiId}/definition`,
+      `${baseUrl}/apis/${apiId}/swagger?t=${Date.now()}`,
       { headers },
     );
     if (!response.ok) {
       throw new Error(`Failed to fetch API definition, status ${response.status}`);
     }
     return await response.json();
+  }
+
+  async getGraphqlSchema(apiId: string, token?: string): Promise<string> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+
+    const response = await this.fetchApi.fetch(`${baseUrl}/apis/${apiId}/graphql-schema?t=${Date.now()}`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch GraphQL schema, status ${response.status}`);
+    }
+
+    return await response.text();
+  }
+
+  async getAsyncApiDefinition(apiId: string, token?: string): Promise<string> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+
+    const response = await this.fetchApi.fetch(`${baseUrl}/apis/${apiId}/asyncapi?t=${Date.now()}`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch AsyncAPI definition, status ${response.status}`);
+    }
+
+    return await response.text();
   }
 
   async getRevisions(
@@ -182,9 +218,9 @@ export class Wso2ApiManagerClient {
     } else {
       console.log(`⚠️ [WSO2-APIClient] No token provided to updateApiDefinition for ${apiId}`);
     }
-    console.log(`🌐 [WSO2-APIClient] Updating definition: PUT ${baseUrl}/publisher/apis/${apiId}/definition`);
+    console.log(`🌐 [WSO2-APIClient] Updating definition: PUT ${baseUrl}/publisher/apis/${apiId}/swagger`);
     const response = await this.fetchApi.fetch(
-      `${baseUrl}/publisher/apis/${apiId}/definition`,
+      `${baseUrl}/publisher/apis/${apiId}/swagger`,
       {
         method: 'PUT',
         headers,
@@ -271,5 +307,55 @@ export class Wso2ApiManagerClient {
       );
     }
     return (await response.json()) as Wso2ApiDetail;
+  }
+
+  async updateGraphqlSchema(
+    apiId: string,
+    schema: string,
+    token?: string,
+  ): Promise<void> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+
+    const response = await this.fetchApi.fetch(`${baseUrl}/apis/${apiId}/graphql-schema`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ schema }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to update GraphQL schema, status ${response.status}`);
+    }
+  }
+
+  async updateAsyncApiDefinition(
+    apiId: string,
+    definition: string,
+    token?: string,
+  ): Promise<void> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+
+    const response = await this.fetchApi.fetch(`${baseUrl}/apis/${apiId}/asyncapi`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ definition }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to update AsyncAPI definition, status ${response.status}`);
+    }
   }
 }

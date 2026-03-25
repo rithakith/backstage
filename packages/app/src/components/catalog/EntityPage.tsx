@@ -88,7 +88,7 @@ import {
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
 import {
-  EntityWso2ApiManagerCard, EntityWso2ApiDocumentsCard,
+  EntityWso2ApiOverviewCard, EntityWso2ApiDocumentsCard,
   EntityWso2AboutCard,
   EntityWso2ApiDefinitionCard,
 } from '@internal/plugin-wso2-api-manager';
@@ -157,7 +157,7 @@ const entityWarningContent = (
     </EntitySwitch>
 
     <EntitySwitch>
-      <EntitySwitch.Case if={(e, context) => await hasRelationWarnings(e, context) && !isWso2Api(e)}>
+      <EntitySwitch.Case if={async (e, context) => (await hasRelationWarnings(e, context)) && !isWso2Api(e)}>
         <Grid item xs={12}>
           <EntityRelationWarning />
         </Grid>
@@ -373,7 +373,7 @@ const apiPage = (
     </EntityLayout.Route>
 
     <EntityLayout.Route if={isWso2Api} path="/wso2" title="WSO2">
-      <EntityWso2ApiManagerCard />
+      <EntityWso2ApiOverviewCard />
     </EntityLayout.Route>
   </EntityLayoutWrapper>
 );

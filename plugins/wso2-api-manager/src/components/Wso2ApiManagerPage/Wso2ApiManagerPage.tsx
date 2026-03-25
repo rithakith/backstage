@@ -130,6 +130,7 @@ export const Wso2ApiManagerPage = () => {
         ),
       },
       { title: 'Version', field: 'version' },
+      { title: 'Type', field: 'type' },
       { title: 'Provider', field: 'provider' },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },

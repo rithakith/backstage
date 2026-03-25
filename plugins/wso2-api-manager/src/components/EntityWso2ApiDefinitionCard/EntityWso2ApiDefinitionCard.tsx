@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAsync, useAsyncRetry } from 'react-use';
 import {
     InfoCard,
@@ -201,6 +201,89 @@ const useStyles = makeStyles(theme => ({
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 
 /**
+ * Quick and dirty GraphQL SDL formatter since we don't have a dedicated library in the frontend.
+ * Adds newlines and basic indentation for readability.
+ */
+const formatGraphQL = (sdl: string): string => {
+    if (!sdl) return sdl;
+
+    let workingSdl = sdl;
+
+    // Handle escaped characters like \n if they are literal backslashes
+    // Often WSO2 returns the schema JSON-escaped
+    if (workingSdl.includes('\\n')) {
+        workingSdl = workingSdl.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    // Basic formatting logic
+    let indent = 0;
+    let result = '';
+
+    // Split into lines first if we now have actual newlines
+    const lines = workingSdl.split('\n');
+
+    for (const line of lines) {
+        let trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        // If a line is very long and has braces, it might be minified
+        if (trimmedLine.length > 100 && (trimmedLine.includes('{') || trimmedLine.includes('}'))) {
+            // Process as a minified string
+            const parts = trimmedLine.split(/([{}])/);
+            for (let part of parts) {
+                const trimmedPart = part.trim();
+                if (!trimmedPart) continue;
+
+                if (trimmedPart === '{') {
+                    result += ' {\n';
+                    indent++;
+                    result += '  '.repeat(indent);
+                } else if (trimmedPart === '}') {
+                    indent--;
+                    result = result.trimEnd() + '\n' + '  '.repeat(indent) + '}\n' + '  '.repeat(indent);
+                } else {
+                    result += trimmedPart;
+                }
+            }
+        } else {
+            // Keep existing line structure but apply indentation
+            if (trimmedLine.includes('}')) indent = Math.max(0, indent - 1);
+            result += '  '.repeat(indent) + trimmedLine + '\n';
+            if (trimmedLine.includes('{')) indent++;
+        }
+    }
+
+    return result.replace(/\n\s*\n/g, '\n').trim();
+};
+
+/**
+ * Quick and dirty AsyncAPI/YAML formatter.
+ * Ensures basic indentation and newlines are preserved.
+ */
+const formatAsyncApi = (yaml: string): string => {
+    if (!yaml) return yaml;
+
+    let workingYaml = yaml;
+
+    // Handle JSON-escaped strings if present
+    if (workingYaml.includes('\\n')) {
+        workingYaml = workingYaml.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    // If it's pure JSON but labeled as ASYNC, pretty print it
+    try {
+        if (workingYaml.trim().startsWith('{')) {
+            const json = JSON.parse(workingYaml);
+            return JSON.stringify(json, null, 2);
+        }
+    } catch (e) {
+        // Not JSON, continue with YAML formatting
+    }
+
+    return workingYaml.trim();
+};
+
+/**
  * A specialized API Definition card for WSO2 APIs that enables Try it out 
  * and targets the WSO2 Gateway (port 8247) with automatic auth.
  */
@@ -239,10 +322,17 @@ export const EntityWso2ApiDefinitionCard = () => {
         return apiClient.getApi(apiId, tokenState.value);
     }, [apiClient, apiId, tokenState.value, tokenState.loading]);
 
-    // Get the actual OpenAPI definition
+    // Get the actual OpenAPI definition (or GraphQL Schema)
     const apiDefinitionState = useAsyncRetry(async () => {
-        if (!apiId || tokenState.loading) return undefined;
+        if (!apiId || tokenState.loading || apiDetailState.loading) return undefined;
         try {
+            const details = apiDetailState.value;
+            if (details?.type === 'GRAPHQL') {
+                return await apiClient.getGraphqlSchema(apiId, tokenState.value);
+            }
+            if (details?.type === 'ASYNC' || details?.type === 'WS' || details?.type === 'SSE' || details?.type === 'WEBHOOK' || details?.type === 'WEBSUB') {
+                return await apiClient.getAsyncApiDefinition(apiId, tokenState.value);
+            }
             return await apiClient.getApiDefinition(apiId, tokenState.value);
         } catch (e: any) {
             if (e.message && e.message.includes('404')) {
@@ -250,7 +340,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             }
             throw e;
         }
-    }, [apiClient, apiId, tokenState.value, tokenState.loading]);
+    }, [apiClient, apiId, tokenState.value, tokenState.loading, apiDetailState.value, apiDetailState.loading]);
 
     // Editor state
     const [activeTab, setActiveTab] = useState(0); // 0=Swagger UI, 1=Source
@@ -260,18 +350,33 @@ export const EntityWso2ApiDefinitionCard = () => {
     const [saveError, setSaveError] = useState<string | undefined>();
     const [saveSuccess, setSaveSuccess] = useState(false);
 
+    // Switch to Source tab automatically for GraphQL APIs since SwaggerUI can't render them
+    useEffect(() => {
+        const type = apiDetailState.value?.type;
+        if (type === 'GRAPHQL' || type === 'ASYNC' || type === 'WS' || type === 'SSE' || type === 'WEBHOOK' || type === 'WEBSUB') {
+            setActiveTab(1);
+        }
+    }, [apiDetailState.value]);
+
     // Permission check
     const { allowed: hasWritePermission } = usePermission({ permission: apiWritePermission });
 
     // Sync editor content when definition loads
     useEffect(() => {
         if (apiDefinitionState.value && !isEditing) {
-            const content = typeof apiDefinitionState.value === 'string'
-                ? apiDefinitionState.value
-                : JSON.stringify(apiDefinitionState.value, null, 2);
+            let content = '';
+            if (apiDetailState.value?.type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
+                content = formatGraphQL(apiDefinitionState.value);
+            } else if ((apiDetailState.value?.type === 'ASYNC' || apiDetailState.value?.type === 'WS' || apiDetailState.value?.type === 'SSE' || apiDetailState.value?.type === 'WEBHOOK' || apiDetailState.value?.type === 'WEBSUB') && typeof apiDefinitionState.value === 'string') {
+                content = formatAsyncApi(apiDefinitionState.value);
+            } else {
+                content = typeof apiDefinitionState.value === 'string'
+                    ? apiDefinitionState.value
+                    : JSON.stringify(apiDefinitionState.value, null, 2);
+            }
             setEditContent(content);
         }
-    }, [apiDefinitionState.value, isEditing]);
+    }, [apiDefinitionState.value, isEditing, apiDetailState.value]);
 
     const handleEdit = () => {
         setIsEditing(true);
@@ -281,9 +386,16 @@ export const EntityWso2ApiDefinitionCard = () => {
     const handleCancel = () => {
         setIsEditing(false);
         if (apiDefinitionState.value) {
-            const content = typeof apiDefinitionState.value === 'string'
-                ? apiDefinitionState.value
-                : JSON.stringify(apiDefinitionState.value, null, 2);
+            let content = '';
+            if (apiDetailState.value?.type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
+                content = formatGraphQL(apiDefinitionState.value);
+            } else if ((apiDetailState.value?.type === 'ASYNC' || apiDetailState.value?.type === 'WS' || apiDetailState.value?.type === 'SSE' || apiDetailState.value?.type === 'WEBHOOK' || apiDetailState.value?.type === 'WEBSUB') && typeof apiDefinitionState.value === 'string') {
+                content = formatAsyncApi(apiDefinitionState.value);
+            } else {
+                content = typeof apiDefinitionState.value === 'string'
+                    ? apiDefinitionState.value
+                    : JSON.stringify(apiDefinitionState.value, null, 2);
+            }
             setEditContent(content);
         }
     };
@@ -293,10 +405,25 @@ export const EntityWso2ApiDefinitionCard = () => {
         setIsSaving(true);
         setSaveError(undefined);
         try {
-            await apiClient.updateApiDefinition(apiId, editContent, tokenState.value);
+            const details = apiDetailState.value;
+            if (details?.type === 'GRAPHQL') {
+                await apiClient.updateGraphqlSchema(apiId, editContent, tokenState.value);
+            } else if (details?.type === 'ASYNC' || details?.type === 'WS' || details?.type === 'SSE' || details?.type === 'WEBHOOK' || details?.type === 'WEBSUB') {
+                await apiClient.updateAsyncApiDefinition(apiId, editContent, tokenState.value);
+            } else {
+                await apiClient.updateApiDefinition(apiId, editContent, tokenState.value);
+            }
+
             setSaveSuccess(true);
             setIsEditing(false);
-            apiDefinitionState.retry(); // Reload UI
+
+            // Trigger UI refresh
+            setLastUpdated(Date.now());
+
+            // Give WSO2 a moment to process before re-fetching
+            setTimeout(() => {
+                apiDefinitionState.retry();
+            }, 2000);
         } catch (e: any) {
             setSaveError(e.message || 'Failed to update API definition');
         } finally {
@@ -434,7 +561,9 @@ export const EntityWso2ApiDefinitionCard = () => {
                 <EmptyState
                     title="No Definition"
                     missing="info"
-                    description="This API does not have an OpenAPI/Swagger definition available."
+                    description={apiDetailState.value?.type === 'GRAPHQL'
+                        ? "This API does not have a GraphQL schema available."
+                        : "This API does not have an OpenAPI/Swagger definition available."}
                 />
             )}
 
@@ -468,83 +597,96 @@ export const EntityWso2ApiDefinitionCard = () => {
                             indicatorColor="primary"
                             textColor="primary"
                         >
-                            <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
+                            {apiDetailState.value?.type !== 'GRAPHQL' &&
+                                apiDetailState.value?.type !== 'ASYNC' &&
+                                apiDetailState.value?.type !== 'WS' &&
+                                apiDetailState.value?.type !== 'SSE' &&
+                                apiDetailState.value?.type !== 'WEBHOOK' &&
+                                apiDetailState.value?.type !== 'WEBSUB' && (
+                                    <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
+                                )}
                             <Tab id="tab-source" label="Source Editor" className={classes.tabRoot} />
                         </Tabs>
                     </Box>
 
-                    {/* Tab 0: SwaggerUI rendered view */}
-                    {activeTab === 0 && (
-                        <div className={classes.root}>
-                            {/* Discreet SSL troubleshooting link */}
-                            <Box display="flex" justifyContent="flex-end" px={2} pt={1}>
-                                <Link
-                                    href={gatewayUrlBase}
-                                    target="_blank"
-                                    style={{ fontSize: '0.75rem', opacity: 0.7 }}
-                                >
-                                    Troubleshoot Gateway Connection (SSL)
-                                </Link>
-                            </Box>
+                    {/* Tab 0: SwaggerUI rendered view (only for non-GraphQL) */}
+                    {activeTab === 0 &&
+                        apiDetailState.value?.type !== 'GRAPHQL' &&
+                        apiDetailState.value?.type !== 'ASYNC' &&
+                        apiDetailState.value?.type !== 'WS' &&
+                        apiDetailState.value?.type !== 'SSE' &&
+                        apiDetailState.value?.type !== 'WEBHOOK' &&
+                        apiDetailState.value?.type !== 'WEBSUB' && (
+                            <div className={classes.root}>
+                                {/* Discreet SSL troubleshooting link */}
+                                <Box display="flex" justifyContent="flex-end" px={2} pt={1}>
+                                    <Link
+                                        to={gatewayUrlBase}
+                                        target="_blank"
+                                        style={{ fontSize: '0.75rem', opacity: 0.7 }}
+                                    >
+                                        Troubleshoot Gateway Connection (SSL)
+                                    </Link>
+                                </Box>
 
-                            {/* Internal API Key Display and Regeneration */}
-                            {isDeployed && (
-                                <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
-                                    <Box display="flex" alignItems="center" justifyContent="space-between">
-                                        <TextField
-                                            label="Internal API Key"
-                                            value={generateKeyState.loading ? 'Generating...' : (apiKey || 'No key available')}
-                                            variant="outlined"
-                                            size="small"
-                                            InputProps={{
-                                                readOnly: true,
-                                                style: { fontFamily: 'monospace', fontSize: '0.875rem' }
-                                            }}
-                                            fullWidth
-                                        />
-                                        <Box ml={2}>
-                                            <Button
-                                                variant="contained"
-                                                color="primary"
-                                                onClick={() => generateKeyState.retry()}
-                                                disabled={generateKeyState.loading}
+                                {/* Internal API Key Display and Regeneration */}
+                                {isDeployed && (
+                                    <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
+                                        <Box display="flex" alignItems="center" justifyContent="space-between">
+                                            <TextField
+                                                label="Internal API Key"
+                                                value={generateKeyState.loading ? 'Generating...' : (apiKey || 'No key available')}
+                                                variant="outlined"
                                                 size="small"
-                                            >
-                                                {generateKeyState.loading ? 'Generating...' : 'Generate'}
-                                            </Button>
+                                                InputProps={{
+                                                    readOnly: true,
+                                                    style: { fontFamily: 'monospace', fontSize: '0.875rem' }
+                                                }}
+                                                fullWidth
+                                            />
+                                            <Box ml={2}>
+                                                <Button
+                                                    variant="contained"
+                                                    color="primary"
+                                                    onClick={() => generateKeyState.retry()}
+                                                    disabled={generateKeyState.loading}
+                                                    size="small"
+                                                >
+                                                    {generateKeyState.loading ? 'Generating...' : 'Generate'}
+                                                </Button>
+                                            </Box>
+                                        </Box>
+                                        <Box mt={1}>
+                                            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+                                                Expires in {expiresIn ? Math.round(expiresIn / 3600) : 1} hour(s)
+                                            </span>
                                         </Box>
                                     </Box>
-                                    <Box mt={1}>
-                                        <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                                            Expires in {expiresIn ? Math.round(expiresIn / 3600) : 1} hour(s)
-                                        </span>
-                                    </Box>
-                                </Box>
-                            )}
+                                )}
 
-                            <div style={{ padding: '16px', borderRadius: '4px' }}>
-                                <SwaggerUI
-                                    key={`swagger-ui-${lastUpdated}`}
-                                    spec={swaggerSpec}
-                                    supportedSubmitMethods={isDeployed ? ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] : []}
-                                    requestInterceptor={(req: any) => {
-                                        // Set credentials to 'omit' to avoid CORS issues with wildcard origins
-                                        req.credentials = 'omit';
+                                <div style={{ padding: '16px', borderRadius: '4px' }}>
+                                    <SwaggerUI
+                                        key={`swagger-ui-${lastUpdated}`}
+                                        spec={swaggerSpec}
+                                        supportedSubmitMethods={isDeployed ? ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] : []}
+                                        requestInterceptor={(req: any) => {
+                                            // Set credentials to 'omit' to avoid CORS issues with wildcard origins
+                                            req.credentials = 'omit';
 
-                                        if (apiKey) {
-                                            console.log('🚀 [WSO2-Auth] Injecting Internal-Key into request:', req.url);
-                                            // WSO2 Gateway expects testing keys in 'Internal-Key' header
-                                            req.headers['Internal-Key'] = apiKey;
-                                        } else {
-                                            // Diagnostic log for debugging missing tokens
-                                            console.warn('[WSO2-Auth] No Internal-Key in state at request time.');
-                                        }
-                                        return req;
-                                    }}
-                                />
+                                            if (apiKey) {
+                                                console.log('🚀 [WSO2-Auth] Injecting Internal-Key into request:', req.url);
+                                                // WSO2 Gateway expects testing keys in 'Internal-Key' header
+                                                req.headers['Internal-Key'] = apiKey;
+                                            } else {
+                                                // Diagnostic log for debugging missing tokens
+                                                console.warn('[WSO2-Auth] No Internal-Key in state at request time.');
+                                            }
+                                            return req;
+                                        }}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
                     {/* Tab 1: VSCode-like editor */}
                     {activeTab === 1 && (

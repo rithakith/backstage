@@ -18,6 +18,7 @@ export class AsgardeoEntityProvider implements EntityProvider {
     private readonly config: Config;
     private readonly logger: LoggerService;
     private readonly id: string;
+    private readonly roleAttribute: string;
     private connection?: EntityProviderConnection;
 
     constructor(options: {
@@ -28,6 +29,7 @@ export class AsgardeoEntityProvider implements EntityProvider {
         this.id = options.id;
         this.config = options.config;
         this.logger = options.logger;
+        this.roleAttribute = options.config.getOptionalString(`catalog.providers.${options.id}.roleAttribute`) || 'user_role';
     }
 
     getProviderName(): string {
@@ -96,11 +98,11 @@ export class AsgardeoEntityProvider implements EntityProvider {
                     // Group displayName might be like "Internal/admin" or just "developers"
                     const displayName = group.displayName || group.id;
                     // Extract just the role name after any prefix
-                    const baseName = displayName.includes('/') 
-                        ? displayName.split('/').pop()! 
+                    const baseName = displayName.includes('/')
+                        ? displayName.split('/').pop()!
                         : displayName;
                     const normalizedName = normalizeEntityName(baseName);
-                    
+
                     groupIdToName.set(group.id, normalizedName);
                     this.logger.info(`Asgardeo group: id="${group.id}", displayName="${displayName}", normalized="${normalizedName}"`);
 
@@ -148,14 +150,14 @@ export class AsgardeoEntityProvider implements EntityProvider {
                 // Debug: log each raw user from SCIM - ALL attributes
                 this.logger.info(`Asgardeo raw user (full): ${JSON.stringify(user).substring(0, 500)}`);
                 this.logger.info(`Asgardeo raw user: userName="${user.userName}", emails=${JSON.stringify(user.emails)}, groups=${JSON.stringify(user.groups)}`);
-                
-                // Check for asgardeo_role attribute
-                if (user.asgardeo_role) {
-                    this.logger.info(`  ✅ Found asgardeo_role: ${JSON.stringify(user.asgardeo_role)}`);
+
+                // Check for configured role attribute
+                if (user[this.roleAttribute]) {
+                    this.logger.info(`  ✅ Found ${this.roleAttribute}: ${JSON.stringify(user[this.roleAttribute])}`);
                 } else {
-                    this.logger.warn(`  ⚠️  No asgardeo_role attribute found for user ${user.userName}`);
+                    this.logger.warn(`  ⚠️  No ${this.roleAttribute} attribute found for user ${user.userName}`);
                 }
-                
+
                 // Check for custom schema extensions
                 for (const key of Object.keys(user)) {
                     if (key.startsWith('urn:') || key.toLowerCase().includes('role')) {
@@ -188,24 +190,24 @@ export class AsgardeoEntityProvider implements EntityProvider {
                             memberOf.push(groupIdToName.get(groupId)!);
                         } else if (grp.display) {
                             // Fallback: use display name and normalize it
-                            const baseName = grp.display.includes('/') 
-                                ? grp.display.split('/').pop()! 
+                            const baseName = grp.display.includes('/')
+                                ? grp.display.split('/').pop()!
                                 : grp.display;
                             memberOf.push(normalizeEntityName(baseName));
                         }
                     }
                 }
 
-                // Add asgardeo_role to memberOf if present
-                if (customSchema && customSchema.asgardeo_role) {
-                    const roleValue = String(customSchema.asgardeo_role);
+                // Add configured role to memberOf if present
+                if (customSchema && customSchema[this.roleAttribute]) {
+                    const roleValue = String(customSchema[this.roleAttribute]);
                     // Add the role as a group membership so it can be used for permissions
                     // Normalize it to match Backstage group naming conventions
                     const normalizedRole = normalizeEntityName(roleValue);
                     if (!memberOf.includes(normalizedRole)) {
                         memberOf.push(normalizedRole);
                     }
-                    this.logger.info(`  ✅ Added asgardeo_role to memberOf: ${roleValue} -> ${normalizedRole}`);
+                    this.logger.info(`  ✅ Added ${this.roleAttribute} to memberOf: ${roleValue} -> ${normalizedRole}`);
                 }
 
                 this.logger.info(`Asgardeo mapped user: name="${name}", email="${email}", memberOf=${JSON.stringify(memberOf)}`);
@@ -217,9 +219,9 @@ export class AsgardeoEntityProvider implements EntityProvider {
                     'asgardeo.io/user-id': user.id,
                 };
 
-                // Add asgardeo_role as annotation from custom schema
-                if (customSchema && customSchema.asgardeo_role) {
-                    annotations['asgardeo.io/role'] = String(customSchema.asgardeo_role);
+                // Add configured role as annotation from custom schema
+                if (customSchema && customSchema[this.roleAttribute]) {
+                    annotations['asgardeo.io/role'] = String(customSchema[this.roleAttribute]);
                 }
 
                 // Check for roles in other schema extensions (keep for backwards compatibility)
@@ -230,8 +232,8 @@ export class AsgardeoEntityProvider implements EntityProvider {
                     }
                     const schemaData = user[schemaKey];
                     if (schemaData && typeof schemaData === 'object') {
-                        if (schemaData.asgardeo_role) {
-                            annotations['asgardeo.io/role-from-schema'] = String(schemaData.asgardeo_role);
+                        if (schemaData[this.roleAttribute]) {
+                            annotations['asgardeo.io/role-from-schema'] = String(schemaData[this.roleAttribute]);
                         }
                     }
                 }

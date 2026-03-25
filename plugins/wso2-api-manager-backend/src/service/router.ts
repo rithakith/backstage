@@ -100,7 +100,7 @@ export async function createRouter(
     res.json(result);
   });
 
-  router.get('/apis/:apiId/definition', async (req, res) => {
+  router.get('/apis/:apiId/swagger', async (req, res) => {
     await requirePermission(req, wso2ApiReadPermission);
     const apiId = req.params.apiId;
     try {
@@ -112,6 +112,70 @@ export async function createRouter(
       } else {
         res.status(500).json({ message: error.message });
       }
+    }
+  });
+
+  router.get('/apis/:apiId/graphql-schema', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    logger.info(`[WSO2-Router] GET /apis/${apiId}/graphql-schema`);
+    try {
+      const result = await client.getGraphqlSchema(apiId);
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(result);
+    } catch (error: any) {
+      logger.error(`[WSO2-Router] Failed to fetch GraphQL schema for ${apiId}: ${error.stack}`);
+      if (error.message && error.message.includes('404')) {
+        res.status(404).json({ message: 'GraphQL Schema not found' });
+      } else {
+        res.status(500).json({ message: error.message });
+      }
+    }
+  });
+
+  router.get('/apis/:apiId/asyncapi', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    logger.info(`[WSO2-Router] GET /apis/${apiId}/asyncapi`);
+    try {
+      const result = await client.getAsyncApiDefinition(apiId);
+      res.setHeader('Content-Type', 'text/plain');
+      res.send(result);
+    } catch (error: any) {
+      logger.error(`[WSO2-Router] Failed to fetch AsyncAPI definition for ${apiId}: ${error.stack}`);
+      if (error.message && error.message.includes('404')) {
+        res.status(404).json({ message: 'AsyncAPI definition not found' });
+      } else {
+        res.status(500).json({ message: error.message });
+      }
+    }
+  });
+
+  router.put('/apis/:apiId/graphql-schema', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    const { schema } = req.body;
+    logger.info(`[WSO2-Router] PUT /apis/${apiId}/graphql-schema`);
+    try {
+      await client.updateGraphqlSchema(apiId, schema);
+      res.json({ status: 'ok' });
+    } catch (error: any) {
+      logger.error(`[WSO2-Router] Failed to update GraphQL schema for ${apiId}: ${error.stack}`);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  router.put('/apis/:apiId/asyncapi', async (req, res) => {
+    await requirePermission(req, wso2ApiReadPermission);
+    const apiId = req.params.apiId;
+    const { definition } = req.body;
+    logger.info(`[WSO2-Router] PUT /apis/${apiId}/asyncapi`);
+    try {
+      await client.updateAsyncApiDefinition(apiId, definition);
+      res.json({ status: 'ok' });
+    } catch (error: any) {
+      logger.error(`[WSO2-Router] Failed to update AsyncAPI definition for ${apiId}: ${error.stack}`);
+      res.status(500).json({ message: error.message });
     }
   });
 
@@ -220,7 +284,7 @@ export async function createRouter(
 
   // Update swagger/OpenAPI definition for a specific API
   // Requires write/update permission - write group members only
-  router.put('/publisher/apis/:apiId/definition', async (req, res) => {
+  router.put('/publisher/apis/:apiId/swagger', async (req, res) => {
     await requirePermission(req, wso2PublisherUpdatePermission);
     const { apiId } = req.params;
     const { definition } = req.body as { definition?: string };

@@ -3,6 +3,7 @@ import {
   Wso2ApiDetail,
   Wso2ApiDocumentsResponse,
   Wso2ApiListResponse,
+  Wso2ApiRevisionsResponse,
 } from './types';
 
 export interface Wso2ApiManagerApi {
@@ -17,6 +18,14 @@ export interface Wso2ApiManagerApi {
   getApiDefinition(apiId: string, token?: string): Promise<any>;
   generateApiKey(apiId: string, token?: string): Promise<any>;
   updateApiDefinition(apiId: string, definition: string, token?: string): Promise<void>;
+  getGraphqlSchema(apiId: string, token?: string): Promise<string>;
+  updateGraphqlSchema(apiId: string, schema: string, token?: string): Promise<void>;
+  getAsyncApiDefinition(apiId: string, token?: string): Promise<string>;
+  updateAsyncApiDefinition(apiId: string, definition: string, token?: string): Promise<void>;
+  getRevisions(
+    apiId: string,
+    options?: { query?: string; token?: string },
+  ): Promise<Wso2ApiRevisionsResponse>;
   listPublisherApis(options?: {
     limit?: number;
     offset?: number;
