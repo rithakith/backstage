@@ -3,7 +3,11 @@ import {
   Wso2ApiDetail,
   Wso2ApiDocumentsResponse,
   Wso2ApiListResponse,
+  Wso2ApiProductListResponse,
+  Wso2McpListResponse,
   Wso2ApiRevisionsResponse,
+  Wso2ApiDocument,
+  Wso2ApiDocumentCreate,
 } from './types';
 
 
@@ -58,6 +62,68 @@ export class Wso2ApiManagerClient {
     }
 
     return (await response.json()) as Wso2ApiListResponse;
+  }
+
+  async listApiProducts(options?: {
+    limit?: number;
+    offset?: number;
+    query?: string;
+    token?: string;
+  }): Promise<Wso2ApiProductListResponse> {
+    const baseUrl = await this.getBaseUrl();
+    const params = new URLSearchParams();
+    if (options?.limit !== undefined) {
+      params.append('limit', String(options.limit));
+    }
+    if (options?.offset !== undefined) {
+      params.append('offset', String(options.offset));
+    }
+    if (options?.query) {
+      params.append('query', options.query);
+    }
+
+    const headers: Record<string, string> = {};
+    if (options?.token) {
+      headers['X-WSO2-Access-Token'] = options.token;
+    }
+
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/api-products?${params.toString()}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to list API Products, status ${response.status}`);
+    }
+
+    return (await response.json()) as Wso2ApiProductListResponse;
+  }
+
+  async listMcps(options?: {
+    limit?: number;
+    offset?: number;
+    query?: string;
+    token?: string;
+  }): Promise<Wso2McpListResponse> {
+    const baseUrl = await this.getBaseUrl();
+    const params = new URLSearchParams();
+    if (options?.limit !== undefined) params.append('limit', String(options.limit));
+    if (options?.offset !== undefined) params.append('offset', String(options.offset));
+    if (options?.query) params.append('query', options.query);
+
+    const headers: Record<string, string> = {};
+    if (options?.token) headers['X-WSO2-Access-Token'] = options.token;
+
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/mcp-servers?${params.toString()}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to list MCP Servers, status ${response.status}`);
+    }
+
+    return (await response.json()) as Wso2McpListResponse;
   }
 
   async getApi(apiId: string, token?: string): Promise<Wso2ApiDetail> {
@@ -330,32 +396,105 @@ export class Wso2ApiManagerClient {
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `Failed to update GraphQL schema, status ${response.status}`);
+      throw new Error(error.message || `Failed to update AsyncAPI definition, status ${response.status}`);
     }
   }
 
-  async updateAsyncApiDefinition(
+  async addDocument(
     apiId: string,
-    definition: string,
+    document: Wso2ApiDocumentCreate,
+    token?: string,
+  ): Promise<Wso2ApiDocument> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) headers['X-WSO2-Access-Token'] = token;
+
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/publisher/apis/${apiId}/documents`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(document),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to add document, status ${response.status}`);
+    }
+    return (await response.json()) as Wso2ApiDocument;
+  }
+
+  async validateDocumentName(
+    apiId: string,
+    name: string,
+    token?: string,
+  ): Promise<boolean> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) headers['X-WSO2-Access-Token'] = token;
+
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/publisher/apis/${apiId}/documents/validate?name=${encodeURIComponent(name)}`,
+      {
+        method: 'POST',
+        headers,
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Failed to validate document name, status ${response.status}`);
+    }
+    const result = await response.json();
+    return result.isValid;
+  }
+
+  async addDocumentContent(
+    apiId: string,
+    documentId: string,
+    content: string | File,
+    filename?: string,
     token?: string,
   ): Promise<void> {
     const baseUrl = await this.getBaseUrl();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (token) {
-      headers['X-WSO2-Access-Token'] = token;
+    if (token) headers['X-WSO2-Access-Token'] = token;
+
+    let finalContent = content;
+    let finalFilename = filename;
+
+    if (content instanceof File) {
+      finalFilename = filename || content.name;
+      finalContent = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(content);
+      });
     }
 
-    const response = await this.fetchApi.fetch(`${baseUrl}/apis/${apiId}/asyncapi`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify({ definition }),
-    });
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/publisher/apis/${apiId}/documents/${documentId}/content`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: finalContent,
+          filename: finalFilename,
+        }),
+      },
+    );
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || `Failed to update AsyncAPI definition, status ${response.status}`);
+      throw new Error(error.message || `Failed to add document content, status ${response.status}`);
     }
   }
 }

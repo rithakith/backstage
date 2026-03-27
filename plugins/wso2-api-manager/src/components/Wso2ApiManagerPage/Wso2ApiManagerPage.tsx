@@ -10,6 +10,9 @@ import {
   DialogContent,
   DialogTitle,
   makeStyles,
+  Tabs,
+  Tab,
+  Box,
 } from '@material-ui/core';
 import {
   Content,
@@ -23,10 +26,13 @@ import {
   WarningPanel,
 } from '@backstage/core-components';
 import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import { usePermission } from '@backstage/plugin-permission-react';
 import Link from '@material-ui/core/Link';
 import {
   Wso2ApiSummary,
+  Wso2ApiProductSummary,
+  Wso2McpSummary,
   wso2ApiManagerApiRef,
   wso2AuthApiRef,
 } from '../../api';
@@ -37,7 +43,6 @@ const apiWritePermission = createPermission({
   attributes: { action: 'create' },
 });
 
-// Removed DisableTryItOutPlugin to enable "Try it out"
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const useStyles = makeStyles(_theme => ({
@@ -57,10 +62,13 @@ export const Wso2ApiManagerPage = () => {
   const classes = useStyles();
   const apiClient = useApi(wso2ApiManagerApiRef);
   const oauthApi = useApi(wso2AuthApiRef);
+  const catalogApi = useApi(catalogApiRef);
   const [token, setToken] = useState<string | undefined>();
   const [tokenLoading, setTokenLoading] = useState(true);
   // Permission check
   const { allowed: hasWritePermission } = usePermission({ permission: apiWritePermission });
+
+  const [tabValue, setTabValue] = useState(0);
 
   // Get the user's Asgardeo OAuth access token from the existing login session
   useAsync(async () => {
@@ -94,10 +102,79 @@ export const Wso2ApiManagerPage = () => {
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
 
-  const apiListState = useAsyncRetry(async () => {
-    if (tokenLoading) return { apis: [], pagination: { total: 0, offset: 0, limit: 50 } };
-    return apiClient.listApis({ limit: 50, offset: 0, token });
-  }, [apiClient, token, tokenLoading]);
+  const catalogState = useAsyncRetry(async () => {
+    // Fetch all API entities from the catalog (increase limit to ensure we get everything)
+    const response = await catalogApi.getEntities({
+      filter: { kind: 'API' },
+    });
+
+    const allEntities = response.items;
+
+    // Filter to regular APIs (those with wso2-id but NOT products/mcps)
+    const apis = allEntities.filter(e => {
+      const ann = e.metadata.annotations || {};
+      return ann['wso2.com/api-id'] && 
+             ann['wso2.com/is-api-product'] !== 'true' && 
+             ann['wso2.com/is-mcp-server'] !== 'true';
+    }).map(e => ({
+      id: e.metadata.annotations?.['wso2.com/api-id'] as string,
+      name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      version: e.metadata.annotations?.['wso2.com/api-version'] as string,
+      context: e.metadata.annotations?.['wso2.com/api-context'] as string,
+      provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
+      lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
+      type: e.metadata.annotations?.['wso2.com/api-type'] as string,
+    }));
+
+    // Filter to API Products
+    const apiProducts = allEntities.filter(e => 
+      e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'
+    ).map(e => ({
+      id: e.metadata.annotations?.['wso2.com/api-id'] as string,
+      name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      version: e.metadata.annotations?.['wso2.com/api-version'] as string,
+      context: e.metadata.annotations?.['wso2.com/api-context'] as string,
+      provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
+      lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
+      type: 'API_PRODUCT',
+    }));
+
+    // Filter to MCP Servers
+    const mcpServers = allEntities.filter(e => 
+      e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true'
+    ).map(e => ({
+      id: e.metadata.annotations?.['wso2.com/api-id'] as string,
+      name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      version: e.metadata.annotations?.['wso2.com/api-version'] as string,
+      context: e.metadata.annotations?.['wso2.com/api-context'] as string,
+      provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
+      lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
+    }));
+
+    return { apis, apiProducts, mcpServers };
+  }, [catalogApi, tabValue]);
+
+  // Map the single catalog state to the three expected list states
+  const apiListState = { 
+    loading: catalogState.loading, 
+    value: catalogState.value ? { apis: catalogState.value.apis, pagination: { total: catalogState.value.apis.length, offset: 0, limit: 1000 } } : undefined,
+    error: catalogState.error, 
+    retry: catalogState.retry 
+  };
+
+  const apiProductListState = { 
+    loading: catalogState.loading, 
+    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined, 
+    error: catalogState.error, 
+    retry: catalogState.retry 
+  };
+
+  const mcpListState = { 
+    loading: catalogState.loading, 
+    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined, 
+    error: catalogState.error, 
+    retry: catalogState.retry 
+  };
 
   const handleCreate = async (input: CreateApiInput) => {
     setCreateError(undefined);
@@ -138,6 +215,50 @@ export const Wso2ApiManagerPage = () => {
     [],
   );
 
+  const productColumns = useMemo<TableColumn<Wso2ApiProductSummary>[]>(
+    () => [
+      {
+        title: 'Name',
+        field: 'name',
+        render: rowData => (
+          <Link
+            href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+            style={{ fontWeight: 'bold', color: '#007acc' }}
+          >
+            {rowData.name}
+          </Link>
+        ),
+      },
+      { title: 'Version', field: 'version' },
+      { title: 'Type', field: 'type' },
+      { title: 'Provider', field: 'provider' },
+      { title: 'Lifecycle', field: 'lifeCycleStatus' },
+      { title: 'Context', field: 'context' },
+    ],
+    [],
+  );
+
+  const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
+    () => [
+      {
+        title: 'Name',
+        field: 'name',
+        render: rowData => (
+          <Link
+            href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+            style={{ fontWeight: 'bold', color: '#007acc' }}
+          >
+            {rowData.name}
+          </Link>
+        ),
+      },
+      { title: 'Version', field: 'version' },
+      { title: 'Provider', field: 'provider' },
+      { title: 'Lifecycle', field: 'lifeCycleStatus' },
+      { title: 'Context', field: 'context' },
+    ],
+    [],
+  );
 
   return (
     <Page themeId="tool" className={classes.root}>
@@ -165,19 +286,74 @@ export const Wso2ApiManagerPage = () => {
           />
         )}
 
-        {apiListState.loading && <Progress />}
-        {apiListState.error && (
-          <WarningPanel
-            title="Failed to load APIs"
-            message={apiListState.error.message}
-          />
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs
+            value={tabValue}
+            onChange={(_e, newValue) => setTabValue(newValue)}
+            indicatorColor="primary"
+            textColor="primary"
+          >
+            <Tab label="APIs" />
+            <Tab label="API Products" />
+            <Tab label="MCPs" />
+          </Tabs>
+        </Box>
+
+        {tabValue === 0 && (
+          <>
+            {apiListState.loading && <Progress />}
+            {apiListState.error && (
+              <WarningPanel
+                title="Failed to load APIs"
+                message={apiListState.error.message}
+              />
+            )}
+            {apiListState.value?.apis && (
+              <Table
+                options={{ paging: false, search: true }}
+                columns={columns}
+                data={apiListState.value.apis}
+              />
+            )}
+          </>
         )}
-        {apiListState.value?.apis && (
-          <Table
-            options={{ paging: false, search: true }}
-            columns={columns}
-            data={apiListState.value.apis}
-          />
+
+        {tabValue === 1 && (
+          <>
+            {apiProductListState.loading && <Progress />}
+            {apiProductListState.error && (
+              <WarningPanel
+                title="Failed to load API Products"
+                message={apiProductListState.error.message}
+              />
+            )}
+            {apiProductListState.value?.apiProducts && (
+              <Table
+                options={{ paging: false, search: true }}
+                columns={productColumns}
+                data={apiProductListState.value.apiProducts}
+              />
+            )}
+          </>
+        )}
+
+        {tabValue === 2 && (
+          <>
+            {mcpListState.loading && <Progress />}
+            {mcpListState.error && (
+              <WarningPanel
+                title="Failed to load MCP Servers"
+                message={mcpListState.error.message}
+              />
+            )}
+            {mcpListState.value?.mcpServers && (
+              <Table
+                options={{ paging: false, search: true }}
+                columns={mcpColumns}
+                data={mcpListState.value.mcpServers}
+              />
+            )}
+          </>
         )}
       </Content>
 

@@ -6,7 +6,7 @@
  * 1. Core API metadata (version, provider, context, lifecycle status) from WSO2.
  * 2. Associated documentation (PDFs, Markdown, links) with download support via the backend proxy.
  */
-import { useAsync } from 'react-use';
+import { useAsync, useAsyncRetry } from 'react-use';
 import Grid from '@material-ui/core/Grid';
 import {
     EmptyState,
@@ -80,7 +80,7 @@ export const EntityWso2ApiOverviewCard = () => {
         return apiClient.getApi(apiId, tokenState.value);
     }, [apiClient, apiId, tokenState.value]);
 
-    const apiDocumentsState = useAsync(async () => {
+    const apiDocumentsState = useAsyncRetry(async () => {
         if (!apiId) {
             return undefined;
         }
@@ -135,6 +135,7 @@ export const EntityWso2ApiOverviewCard = () => {
                     documents={apiDocumentsState.value?.documents}
                     loading={apiDocumentsState.loading}
                     error={apiDocumentsState.error}
+                    onRefresh={apiDocumentsState.retry}
                 />
             </Grid>
         </Grid>

@@ -12,6 +12,7 @@ import { AuthorizeResult, BasicPermission } from '@backstage/plugin-permission-c
 import {
   Wso2ApiManagerClient,
   readWso2ApiManagerConfig,
+  Wso2ApiDocumentCreate,
 } from './wso2Client';
 import {
   wso2ApiReadPermission,
@@ -45,7 +46,7 @@ export async function createRouter(
   async function requirePermission(
     req: express.Request,
     permission: BasicPermission,
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const credentials = await httpAuth.credentials(req, { allow: ['user'] });
     const decision = await permissions.authorize(
       [{ permission }],
@@ -57,6 +58,11 @@ export async function createRouter(
         `User is not authorized for permission: ${permission.name}`,
       );
     }
+    
+    // ONLY return the WSO2-specific access token if it's explicitly provided.
+    // Do NOT return the Backstage Authorization header token, as it is a
+    // Backstage Identity Token and will be rejected by WSO2 with a 401.
+    return req.headers['x-wso2-access-token'] as string | undefined;
   }
 
   const router = Router();
@@ -67,44 +73,93 @@ export async function createRouter(
   });
 
   router.get('/apis', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
-    const limit = readNumber(req.query.limit, 50);
-    const offset = readNumber(req.query.offset, 0);
-    const query = readString(req.query.query);
-    const result = await client.listApis({ limit, offset, query });
-    res.json(result);
+    try {
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const limit = readNumber(req.query.limit, 50);
+      const offset = readNumber(req.query.offset, 0);
+      const query = readString(req.query.query);
+      const result = await client.listApis({ limit, offset, query }, userToken);
+      res.json(result);
+    } catch (error: any) {
+      logger.error(`Failed to fetch APIs from WSO2: ${error.stack}`);
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  });
+
+  router.get('/api-products', async (req, res) => {
+    try {
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const limit = readNumber(req.query.limit, 50);
+      const offset = readNumber(req.query.offset, 0);
+      const query = readString(req.query.query);
+      const result = await client.listApiProducts({ limit, offset, query }, userToken);
+      res.json(result);
+    } catch (error: any) {
+      logger.error(`Failed to fetch API Products from WSO2: ${error.stack}`);
+      res.status(500).json({
+        error: error.message,
+      });
+    }
+  });
+
+  router.get('/mcp-servers', async (req, res) => {
+    try {
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const limit = readNumber(req.query.limit, 50);
+      const offset = readNumber(req.query.offset, 0);
+      const query = readString(req.query.query);
+
+      const result = await client.listMcps({ limit, offset, query }, userToken);
+      res.json(result);
+    } catch (error: any) {
+      logger.error(`Failed to fetch MCP servers from WSO2: ${error.stack}`);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   router.get('/apis/:apiId', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
-    const apiId = req.params.apiId;
-    const result = await client.getApi(apiId);
-    res.json(result);
+    try {
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const apiId = req.params.apiId;
+      const result = await client.getApi(apiId, userToken);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to fetch API ${req.params.apiId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   router.post('/apis/:apiId/generate-key', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
-    const apiId = req.params.apiId;
     try {
-      const result = await client.generateApiKey(apiId);
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const apiId = req.params.apiId;
+      const result = await client.generateApiKey(apiId, userToken);
       res.json(result);
     } catch (e: any) {
+      logger.error(`Failed to generate API key for ${req.params.apiId}: ${e.message}`);
       res.status(500).json({ message: e.message });
     }
   });
 
   router.get('/apis/:apiId/documents', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
     const apiId = req.params.apiId;
-    const result = await client.listDocuments(apiId);
-    res.json(result);
+    try {
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const result = await client.listDocuments(apiId, userToken);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to list documents for ${apiId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   router.get('/apis/:apiId/swagger', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
     const apiId = req.params.apiId;
     try {
-      const result = await client.getApiDefinition(apiId);
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      const result = await client.getApiDefinition(apiId, userToken);
       res.json(result);
     } catch (error: any) {
       if (error.message && error.message.includes('404')) {
@@ -116,11 +171,11 @@ export async function createRouter(
   });
 
   router.get('/apis/:apiId/graphql-schema', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
     const apiId = req.params.apiId;
-    logger.info(`[WSO2-Router] GET /apis/${apiId}/graphql-schema`);
     try {
-      const result = await client.getGraphqlSchema(apiId);
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      logger.info(`[WSO2-Router] GET /apis/${apiId}/graphql-schema`);
+      const result = await client.getGraphqlSchema(apiId, userToken);
       res.setHeader('Content-Type', 'text/plain');
       res.send(result);
     } catch (error: any) {
@@ -134,11 +189,11 @@ export async function createRouter(
   });
 
   router.get('/apis/:apiId/asyncapi', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
     const apiId = req.params.apiId;
-    logger.info(`[WSO2-Router] GET /apis/${apiId}/asyncapi`);
     try {
-      const result = await client.getAsyncApiDefinition(apiId);
+      const userToken = await requirePermission(req, wso2ApiReadPermission);
+      logger.info(`[WSO2-Router] GET /apis/${apiId}/asyncapi`);
+      const result = await client.getAsyncApiDefinition(apiId, userToken);
       res.setHeader('Content-Type', 'text/plain');
       res.send(result);
     } catch (error: any) {
@@ -152,12 +207,12 @@ export async function createRouter(
   });
 
   router.put('/apis/:apiId/graphql-schema', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
     const apiId = req.params.apiId;
     const { schema } = req.body;
     logger.info(`[WSO2-Router] PUT /apis/${apiId}/graphql-schema`);
     try {
-      await client.updateGraphqlSchema(apiId, schema);
+      await client.updateGraphqlSchema(apiId, schema, userToken);
       res.json({ status: 'ok' });
     } catch (error: any) {
       logger.error(`[WSO2-Router] Failed to update GraphQL schema for ${apiId}: ${error.stack}`);
@@ -166,12 +221,12 @@ export async function createRouter(
   });
 
   router.put('/apis/:apiId/asyncapi', async (req, res) => {
-    await requirePermission(req, wso2ApiReadPermission);
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
     const apiId = req.params.apiId;
     const { definition } = req.body;
     logger.info(`[WSO2-Router] PUT /apis/${apiId}/asyncapi`);
     try {
-      await client.updateAsyncApiDefinition(apiId, definition);
+      await client.updateAsyncApiDefinition(apiId, definition, userToken);
       res.json({ status: 'ok' });
     } catch (error: any) {
       logger.error(`[WSO2-Router] Failed to update AsyncAPI definition for ${apiId}: ${error.stack}`);
@@ -266,33 +321,112 @@ export async function createRouter(
 
   // Admin/Publisher endpoint - requires elevated permissions
   router.get('/publisher/apis', async (req, res) => {
-    await requirePermission(req, wso2PublisherReadPermission);
-    const limit = readNumber(req.query.limit, 50);
-    const offset = readNumber(req.query.offset, 0);
-    const query = readString(req.query.query);
-    const result = await client.listPublisherApis({ limit, offset, query });
-    res.json(result);
+    try {
+      const userToken = await requirePermission(req, wso2PublisherReadPermission);
+      const limit = readNumber(req.query.limit, 50);
+      const offset = readNumber(req.query.offset, 0);
+      const query = readString(req.query.query);
+      const result = await client.listPublisherApis({ limit, offset, query }, userToken);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to fetch publisher APIs: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // Admin-only endpoint - requires create permission (admin role)
   router.post('/publisher/apis', async (req, res) => {
-    await requirePermission(req, wso2PublisherCreatePermission);
-    const payload = readCreatePublisherApiRequest(req.body);
-    const result = await client.createPublisherApi({ ...payload });
-    res.json(result);
+    try {
+      const userToken = await requirePermission(req, wso2PublisherCreatePermission);
+      const payload = readCreatePublisherApiRequest(req.body);
+      const result = await client.createPublisherApi({ ...payload }, userToken);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to create API: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // Update swagger/OpenAPI definition for a specific API
   // Requires write/update permission - write group members only
   router.put('/publisher/apis/:apiId/swagger', async (req, res) => {
-    await requirePermission(req, wso2PublisherUpdatePermission);
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
     const { apiId } = req.params;
     const { definition } = req.body as { definition?: string };
+
     if (!definition || typeof definition !== 'string') {
       throw new InputError('Missing or invalid "definition" field in request body');
     }
-    await client.updateApiDefinition(apiId, definition);
-    res.json({ message: 'API definition updated successfully' });
+    try {
+      await client.updateApiDefinition(apiId, definition, userToken);
+      res.json({ message: 'API definition updated successfully' });
+    } catch (e: any) {
+      logger.error(`Failed to update API definition for ${apiId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Create a new document for an API
+  router.post('/publisher/apis/:apiId/documents', async (req, res) => {
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
+    const { apiId } = req.params;
+    const document = req.body as Wso2ApiDocumentCreate;
+
+    try {
+      const result = await client.addDocument(apiId, document, userToken);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to add document for ${apiId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Validate document name
+  router.post('/publisher/apis/:apiId/documents/validate', async (req, res) => {
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
+    const { apiId } = req.params;
+    const { name } = req.query as { name: string };
+
+    if (!name) {
+      res.status(400).json({ message: 'Missing "name" query parameter' });
+      return;
+    }
+
+    try {
+      const isValid = await client.validateDocumentName(apiId, name, userToken);
+      res.json({ isValid });
+    } catch (e: any) {
+      logger.error(`Failed to validate document name "${name}" for ${apiId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Upload document content (supports raw text or base64 file)
+  router.post('/publisher/apis/:apiId/documents/:documentId/content', async (req, res) => {
+    const userToken = await requirePermission(req, wso2PublisherUpdatePermission);
+    const { apiId, documentId } = req.params;
+    const { content, filename } = req.body as { 
+      content: string; 
+      filename?: string;
+    };
+
+    try {
+      let buffer: Buffer | string = content;
+      // If filename is present, assume content is base64 encoded file
+      if (filename && content.includes(';base64,')) {
+         const base64Data = content.split(';base64,').pop() || '';
+         buffer = Buffer.from(base64Data, 'base64');
+      } else if (filename) {
+         // Fallback if no data URI prefix but filename is provided
+         buffer = Buffer.from(content, 'base64');
+      }
+
+      await client.addDocumentContent(apiId, documentId, buffer, filename, userToken);
+      res.json({ status: 'ok' });
+    } catch (e: any) {
+      logger.error(`Failed to upload content for document ${documentId} (API: ${apiId}): ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
   });
 
   // SCIM2 endpoint - Get user attributes including custom claims like asgardeo_role

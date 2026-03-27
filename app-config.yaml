@@ -263,7 +263,7 @@ auth:
         clientId: ${WSO2_APIM_CLIENT_ID}
         clientSecret: ${WSO2_APIM_CLIENT_SECRET}
         metadataUrl: https://localhost:9447/oauth2/token/.well-known/openid-configuration
-        additionalScopes: 'apim:subscribe apim:api_view'
+        additionalScopes: 'apim:subscribe apim:api_view apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:llm_provider_read'
         prompt: login
 #        signIn:
 #          resolvers:

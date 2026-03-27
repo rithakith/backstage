@@ -74,7 +74,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     grant_type: 'password',
                     username: username,
                     password: password,
-                    scope: 'apim:api_view'
+                    scope: 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key apim:mcp_server_view'
                 }),
                 agent: httpsAgent,
             });
@@ -109,13 +109,11 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             const apiList = apisData.list || [];
 
             this.logger.info(`[WSO2 APIM Provider] Retrieved ${apiList.length} APIs from Publisher.`);
-            this.logger.info(`[WSO2 APIM Provider] RAW DETAILED JSON Response: \n${JSON.stringify(apiList, null, 2)}`);
 
             // 2.5 Fetch documents for each API
             for (const api of apiList) {
                 const apiId = api.id;
                 const docsUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/documents`;
-                this.logger.info(`[WSO2 APIM Provider] Fetching documents for API ${api.name} (${apiId}) - Request URL: ${docsUrl}`);
                 try {
                     const docsResponse = await fetch(docsUrl, {
                         headers: {
@@ -125,14 +123,11 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                         agent: httpsAgent,
                     });
 
-                    if (!docsResponse.ok) {
-                        const errText = await docsResponse.text();
-                        this.logger.error(`[WSO2 APIM Provider] Document Fetch failed for API ${apiId}. Status: ${docsResponse.status}. Response: ${errText}`);
-                        api.documents = [];
-                    } else {
+                    if (docsResponse.ok) {
                         const docsData = await docsResponse.json() as any;
-                        this.logger.info(`[WSO2 APIM Provider] Document Fetch Response Format for API ${apiId}:\n${JSON.stringify(docsData, null, 2)}`);
                         api.documents = docsData.list || [];
+                    } else {
+                        api.documents = [];
                     }
                 } catch (error) {
                     this.logger.error(`[WSO2 APIM Provider] Error fetching documents for API ${apiId}: ${error}`);
@@ -144,7 +139,6 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             for (const api of apiList) {
                 const apiId = api.id;
                 const swaggerUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/swagger`;
-                this.logger.info(`[WSO2 APIM Provider] Fetching swagger definition for API ${api.name} (${apiId}) - Request URL: ${swaggerUrl}`);
                 try {
                     const swaggerResponse = await fetch(swaggerUrl, {
                         headers: {
@@ -154,28 +148,69 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                         agent: httpsAgent,
                     });
 
-                    if (!swaggerResponse.ok) {
-                        const errText = await swaggerResponse.text();
-                        this.logger.error(`[WSO2 APIM Provider] Swagger Fetch failed for API ${apiId}. Status: ${swaggerResponse.status}. Response: ${errText}`);
-                        api.definition = `WSO2 API Document content placeholder for ${api.name}. Could not fetch actual definition. Status: ${swaggerResponse.status}`;
-                    } else {
+                    if (swaggerResponse.ok) {
                         const swaggerData = await swaggerResponse.json() as any;
-                        this.logger.info(`[WSO2 APIM Provider] Successfully fetched Swagger Definition for API ${apiId}.`);
                         api.definition = JSON.stringify(swaggerData);
+                    } else {
+                        api.definition = `WSO2 API Document content placeholder for ${api.name}. Status: ${swaggerResponse.status}`;
                     }
                 } catch (error) {
                     this.logger.error(`[WSO2 APIM Provider] Error fetching swagger for API ${apiId}: ${error}`);
-                    api.definition = `WSO2 API Document content placeholder for ${api.name}. Error fetching actual definition: ${error}`;
+                    api.definition = `WSO2 API Document content placeholder for ${api.name}. Error: ${error}`;
                 }
+            }
+
+            // 2.7 Fetch API Products from Publisher API v4
+            this.logger.info(`[WSO2 APIM Provider] Fetching API Products from ${baseUrl}/api/am/publisher/v4/api-products`);
+            let productList: any[] = [];
+            try {
+                const productsResponse = await fetch(`${baseUrl}/api/am/publisher/v4/api-products?limit=100`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Accept': 'application/json'
+                    },
+                    agent: httpsAgent,
+                });
+
+                if (productsResponse.ok) {
+                    const productsData = await productsResponse.json() as any;
+                    productList = productsData.list || [];
+                    this.logger.info(`[WSO2 APIM Provider] Retrieved ${productList.length} API Products from Publisher.`);
+                } else {
+                    const errText = await productsResponse.text();
+                    this.logger.error(`[WSO2 APIM Provider] API Product Fetch failed. Status: ${productsResponse.status}. Response: ${errText}`);
+                }
+            } catch (error) {
+                this.logger.error(`[WSO2 APIM Provider] Error fetching API Products: ${error}`);
+            }
+
+            // 2.8 Fetch MCP Servers from Publisher API v4
+            this.logger.info(`[WSO2 APIM Provider] Fetching MCP Servers from ${baseUrl}/api/am/publisher/v4/mcp-servers`);
+            let mcpList: any[] = [];
+            try {
+                const mcpResponse = await fetch(`${baseUrl}/api/am/publisher/v4/mcp-servers?limit=100`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Accept': 'application/json'
+                    },
+                    agent: httpsAgent,
+                });
+
+                if (mcpResponse.ok) {
+                    const mcpData = await mcpResponse.json() as any;
+                    mcpList = mcpData.list || [];
+                    this.logger.info(`[WSO2 APIM Provider] Retrieved ${mcpList.length} MCP Servers from Publisher.`);
+                } else {
+                    const errText = await mcpResponse.text();
+                    this.logger.error(`[WSO2 APIM Provider] MCP Server Fetch failed. Status: ${mcpResponse.status}. Response: ${errText}`);
+                }
+            } catch (error) {
+                this.logger.error(`[WSO2 APIM Provider] Error fetching MCP Servers: ${error}`);
             }
 
             // 3. Map WSO2 APIs to Backstage API Entities
             const apiEntities: ApiEntity[] = apiList.map((api: any) => {
                 const normalizedName = normalizeEntityName(api.name);
-
-                this.logger.info(`[WSO2 APIM Provider] Mapping API: "${api.name}" v${api.version} -> Entity: "${normalizedName}"`);
-                this.logger.debug(`[WSO2 APIM Provider] Raw API Payload: ${JSON.stringify(api).substring(0, 300)}...`);
-
                 const rawApiJsonString = JSON.stringify(api);
 
                 return {
@@ -194,45 +229,105 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-context': api.context || '',
                             'wso2.com/api-provider': api.provider || '',
                             'wso2.com/api-type': api.type || '',
-                            'wso2.com/api-subtype': api.subtype || '',
-                            'wso2.com/api-audience': api.audience || '',
-                            'wso2.com/api-audiences': api.audiences ? JSON.stringify(api.audiences) : '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
-                            'wso2.com/api-workflow-status': api.workflowStatus || '',
-                            'wso2.com/api-created-time': api.createdTime ? String(api.createdTime) : '',
-                            'wso2.com/api-updated-time': api.updatedTime ? String(api.updatedTime) : '',
-                            'wso2.com/api-updated-by': api.updatedBy || '',
-                            'wso2.com/api-gateway-vendor': api.gatewayVendor || '',
-                            'wso2.com/api-gateway-type': api.gatewayType || '',
-                            'wso2.com/api-business-owner': api.businessOwner || '',
-                            'wso2.com/api-business-owner-email': api.businessOwnerEmail || '',
-                            'wso2.com/api-technical-owner': api.technicalOwner || '',
-                            'wso2.com/api-technical-owner-email': api.technicalOwnerEmail || '',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
-                            // Complete payload dumped into string
                             'wso2.com/api-raw-json': rawApiJsonString,
                         },
                         tags: api.tags || [],
                     },
                     spec: {
-                        type: api.type === 'WS' ? 'websocket' : (api.type === 'GRAPHQL' ? 'graphql' : 'openapi'),
-                        lifecycle: api.lifeCycleStatus === 'PUBLISHED' ? 'production' : (api.lifeCycleStatus === 'DEPRECATED' ? 'deprecated' : 'experimental'),
+                        type: api.type === 'GRAPHQL' ? 'graphql' : 'openapi',
+                        lifecycle: api.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
                         owner: api.provider || 'unknown',
-                        definition: api.definition || `WSO2 API Document content placeholder for ${api.name}. Will be replaced by actual definition if configured later.`,
+                        definition: api.definition || `WSO2 API: ${api.name}`,
                     },
                 } as ApiEntity;
             });
 
-            // Combine the entities and format them
+            // 3.1 Map WSO2 API Products to Backstage API Entities
+            const productEntities: ApiEntity[] = productList.map((product: any) => {
+                const normalizedName = normalizeEntityName(product.name);
+                const rawProductJsonString = JSON.stringify(product);
+
+                return {
+                    apiVersion: 'backstage.io/v1alpha1',
+                    kind: 'API',
+                    metadata: {
+                        name: normalizedName,
+                        title: product.displayName || product.name,
+                        description: product.description || `WSO2 API Product: ${product.name}`,
+                        annotations: {
+                            'backstage.io/managed-by-location': `wso2-apim:${this.id}`,
+                            'backstage.io/managed-by-origin-location': `wso2-apim:${this.id}`,
+                            'wso2.com/api-id': product.id || '',
+                            'wso2.com/api-name': product.name || '',
+                            'wso2.com/api-version': product.version || '',
+                            'wso2.com/api-context': product.context || '',
+                            'wso2.com/api-provider': product.provider || '',
+                            'wso2.com/api-type': 'API_PRODUCT',
+                            'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
+                            'wso2.com/is-api-product': 'true',
+                            'wso2.com/api-raw-json': rawProductJsonString,
+                        },
+                        tags: product.tags || [],
+                    },
+                    spec: {
+                        type: 'openapi',
+                        lifecycle: product.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
+                        owner: product.provider || 'unknown',
+                        definition: `WSO2 API Product: ${product.name}`,
+                    },
+                } as ApiEntity;
+            });
+
+            // 3.2 Map WSO2 MCP Servers to Backstage API Entities
+            const mcpEntities: ApiEntity[] = mcpList.map((mcp: any) => {
+                const normalizedName = normalizeEntityName(mcp.name);
+                const rawMcpJsonString = JSON.stringify(mcp);
+
+                return {
+                    apiVersion: 'backstage.io/v1alpha1',
+                    kind: 'API',
+                    metadata: {
+                        name: normalizedName,
+                        title: mcp.name,
+                        description: mcp.description || `WSO2 MCP Server: ${mcp.name}`,
+                        annotations: {
+                            'backstage.io/managed-by-location': `wso2-apim:${this.id}`,
+                            'backstage.io/managed-by-origin-location': `wso2-apim:${this.id}`,
+                            'wso2.com/api-id': mcp.id || '',
+                            'wso2.com/api-name': mcp.name || '',
+                            'wso2.com/api-version': mcp.version || '',
+                            'wso2.com/api-context': mcp.context || '',
+                            'wso2.com/api-provider': mcp.provider || '',
+                            'wso2.com/api-type': 'MCP',
+                            'wso2.com/api-lifecycle-status': mcp.lifeCycleStatus || '',
+                            'wso2.com/is-mcp-server': 'true',
+                            'wso2.com/api-raw-json': rawMcpJsonString,
+                        },
+                        tags: mcp.tags || [],
+                    },
+                    spec: {
+                        type: 'mcp',
+                        lifecycle: mcp.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
+                        owner: mcp.provider || 'unknown',
+                        definition: `WSO2 MCP Server: ${mcp.name}`,
+                    },
+                } as ApiEntity;
+            });
+
+            const allEntities = [...apiEntities, ...productEntities, ...mcpEntities];
+
+            // 4. Apply mutation
             await this.connection.applyMutation({
                 type: 'full',
-                entities: apiEntities.map(entity => ({
+                entities: allEntities.map(entity => ({
                     entity,
                     locationKey: this.getProviderName(),
                 })),
             });
 
-            this.logger.info(`[WSO2 APIM Provider] Successfully ingested ${apiEntities.length} APIs into the Catalog`);
+            this.logger.info(`[WSO2 APIM Provider] Successfully ingested ${allEntities.length} entities (${apiEntities.length} APIs, ${productEntities.length} API Products, ${mcpEntities.length} MCP Servers) into the Catalog`);
 
         } catch (error) {
             this.logger.error(`[WSO2 APIM Provider] Validation/Sync Error: ${error instanceof Error ? error.message : error}`);

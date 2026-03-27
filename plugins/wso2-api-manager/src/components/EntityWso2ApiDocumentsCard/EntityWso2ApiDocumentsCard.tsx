@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
     InfoCard,
@@ -8,9 +8,13 @@ import {
     WarningPanel,
 } from '@backstage/core-components';
 import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { usePermission } from '@backstage/plugin-permission-react';
 import Link from '@material-ui/core/Link';
+import Button from '@material-ui/core/Button';
 
 import { Wso2ApiDocument } from '../../api';
+import { wso2PublisherUpdatePermission } from '../../permissions';
+import { AddDocumentDialog } from './AddDocumentDialog';
 
 const WSO2_API_DOCS_ANNOTATION = 'wso2.com/api-documents';
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
@@ -20,15 +24,21 @@ export interface EntityWso2ApiDocumentsCardProps {
     documents?: Wso2ApiDocument[];
     loading?: boolean;
     error?: Error;
+    onRefresh?: () => void;
 }
 
 export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProps) => {
-    const { title: propTitle, documents: propDocuments, loading, error } = props;
+    const { title: propTitle, documents: propDocuments, loading, error, onRefresh } = props;
     const { entity } = useEntity();
     const config = useApi(configApiRef);
     const { fetch } = useApi(fetchApiRef);
 
-    const wso2DocsJson = entity.metadata.annotations?.[WSO2_API_DOCS_ANNOTATION] || '[]';
+    const [isDialogOpen, setDialogOpen] = useState(false);
+
+    const { allowed: canUpdate } = usePermission({
+        permission: wso2PublisherUpdatePermission,
+    });
+
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const backendUrl = config.getString('backend.baseUrl');
 
@@ -56,7 +66,6 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
             let filename = name;
             let extensionAdded = false;
 
-            // Attempt to extract real filename from content-disposition
             const disposition = response.headers.get('content-disposition');
             if (disposition && disposition.indexOf('attachment') !== -1) {
                 const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
@@ -76,7 +85,6 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
             }
 
             link.setAttribute('download', filename);
-
             document.body.appendChild(link);
             link.click();
             link.parentNode?.removeChild(link);
@@ -107,25 +115,13 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
 
     let documents: Wso2ApiDocument[] = propDocuments || [];
 
-    // Fallback to annotation if no prop documents provided
     if (!propDocuments) {
         try {
+            const wso2DocsJson = entity.metadata.annotations?.[WSO2_API_DOCS_ANNOTATION] || '[]';
             documents = JSON.parse(wso2DocsJson);
         } catch (e) {
             console.warn('Failed to parse wso2.com/api-documents annotation', e);
         }
-    }
-
-    if (!documents || documents.length === 0) {
-        return (
-            <InfoCard title={propTitle || "WSO2 Documents"} variant="gridItem">
-                <EmptyState
-                    title="No documents"
-                    missing="info"
-                    description="This API has no documents attached in WSO2 API Manager."
-                />
-            </InfoCard>
-        );
     }
 
     const columns = [
@@ -151,12 +147,47 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
     ];
 
     return (
-        <InfoCard title={propTitle || "WSO2 Documents"} variant="gridItem">
-            <Table
-                options={{ paging: documents.length > 5, search: false }}
-                columns={columns}
-                data={documents}
-            />
+        <InfoCard 
+            title={propTitle || "WSO2 Documents"} 
+            variant="gridItem"
+            action={
+                canUpdate && (
+                    <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => setDialogOpen(true)}
+                    >
+                        Add Document
+                    </Button>
+                )
+            }
+        >
+            {documents.length === 0 ? (
+                <EmptyState
+                    title="No documents"
+                    missing="info"
+                    description="This API has no documents attached in WSO2 API Manager."
+                />
+            ) : (
+                <Table
+                    options={{ paging: documents.length > 5, search: false }}
+                    columns={columns}
+                    data={documents}
+                />
+            )}
+
+            {apiId && (
+                <AddDocumentDialog
+                    open={isDialogOpen}
+                    onClose={() => setDialogOpen(false)}
+                    apiId={apiId}
+                    onSuccess={() => {
+                        setDialogOpen(false);
+                        if (onRefresh) onRefresh();
+                        else window.location.reload();
+                    }}
+                />
+            )}
         </InfoCard>
     );
 };
