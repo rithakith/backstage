@@ -323,7 +323,7 @@ export class Wso2ApiManagerClient {
     limit: number;
     offset: number;
     query?: string;
-  }, token?: string): Promise<Wso2ApiListResponse> {
+  }): Promise<Wso2ApiListResponse> {
     const params = new URLSearchParams({
       limit: String(options.limit),
       offset: String(options.offset),
@@ -335,7 +335,7 @@ export class Wso2ApiManagerClient {
     const data = await this.requestPublisher<{
       list?: unknown[];
       pagination?: { offset: number; limit: number; total: number };
-    }>(`/apis?${params.toString()}`, undefined, token);
+    }>(`/apis?${params.toString()}`);
 
     const allApis = (data.list ?? []).map(mapApiSummary);
 
@@ -351,7 +351,7 @@ export class Wso2ApiManagerClient {
     limit: number;
     offset: number;
     query?: string;
-  }, token?: string): Promise<Wso2ApiProductListResponse> {
+  }): Promise<Wso2ApiProductListResponse> {
     const params = new URLSearchParams({
       limit: String(options.limit),
       offset: String(options.offset),
@@ -363,7 +363,7 @@ export class Wso2ApiManagerClient {
     const data = await this.requestPublisher<{
       list?: unknown[];
       pagination?: { offset: number; limit: number; total: number };
-    }>(`/api-products?${params.toString()}`, undefined, token);
+    }>(`/api-products?${params.toString()}`);
 
     const allProducts = (data.list ?? []).map(mapApiProductSummary);
 
@@ -379,13 +379,13 @@ export class Wso2ApiManagerClient {
     limit?: number;
     offset?: number;
     query?: string;
-  }, token?: string): Promise<Wso2McpListResponse> {
+  }): Promise<Wso2McpListResponse> {
     const params = new URLSearchParams();
     if (options?.limit !== undefined) params.append('limit', String(options.limit));
     if (options?.offset !== undefined) params.append('offset', String(options.offset));
     if (options?.query) params.append('query', options.query);
 
-    const data = await this.requestPublisher<any>(`/mcp-servers?${params.toString()}`, undefined, token);
+    const data = await this.requestPublisher<any>(`/mcp-servers?${params.toString()}`);
 
     // Defensive check: WSO2 might return { list: [...] } or just an array [...]
     const rawList = Array.isArray(data) ? data : data?.list;
@@ -408,16 +408,15 @@ export class Wso2ApiManagerClient {
     };
   }
 
-  async getApi(apiId: string, token?: string): Promise<Wso2ApiDetail> {
+  async getApi(apiId: string): Promise<Wso2ApiDetail> {
     const data = await this.requestPublisher<Record<string, unknown>>(
       `/apis/${apiId}`,
       undefined,
-      token,
     );
     return mapApiDetail(data);
   }
 
-  async generateApiKey(apiId: string, token?: string): Promise<Record<string, unknown>> {
+  async generateApiKey(apiId: string): Promise<Record<string, unknown>> {
     const data = await this.requestPublisher<Record<string, unknown>>(
       `/apis/${apiId}/generate-key`,
       {
@@ -427,14 +426,13 @@ export class Wso2ApiManagerClient {
           'Content-Type': 'application/json',
         },
       },
-      token,
     );
     this.logger.info(`🗝️ [WSO2-Client] Generate-key response for ${apiId}: ${JSON.stringify(data).substring(0, 1000)}`);
     return data;
   }
 
-  async getApiDefinition(apiId: string, token?: string): Promise<any> {
-    const accessToken = token || (await this.resolveAccessToken());
+  async getApiDefinition(apiId: string, _token?: string): Promise<any> {
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger?cache_bust=${Date.now()}_${Math.random()}`;
 
     const response = await undiciFetch(url, {
@@ -462,8 +460,8 @@ export class Wso2ApiManagerClient {
     }
   }
 
-  async getGraphqlSchema(apiId: string, token?: string): Promise<string> {
-    const accessToken = token || (await this.resolveAccessToken());
+  async getGraphqlSchema(apiId: string, _token?: string): Promise<string> {
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
 
     this.logger.info(`[WSO2-Client] Fetching GraphQL schema for ${apiId} from ${url}`);
@@ -488,8 +486,8 @@ export class Wso2ApiManagerClient {
     return await response.text();
   }
 
-  async getAsyncApiDefinition(apiId: string, token?: string): Promise<string> {
-    const accessToken = token || (await this.resolveAccessToken());
+  async getAsyncApiDefinition(apiId: string, _token?: string): Promise<string> {
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
 
     this.logger.info(`[WSO2-Client] Fetching AsyncAPI definition for ${apiId} from ${url}`);
@@ -524,9 +522,8 @@ export class Wso2ApiManagerClient {
   async updateApiDefinition(
     apiId: string, 
     definition: string,
-    token?: string,
   ): Promise<void> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger`;
 
     // Build multipart/form-data body manually for compatibility
@@ -568,9 +565,8 @@ export class Wso2ApiManagerClient {
   async updateGraphqlSchema(
     apiId: string, 
     schema: string,
-    token?: string,
   ): Promise<void> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
 
     // Build multipart/form-data body manually
@@ -607,9 +603,8 @@ export class Wso2ApiManagerClient {
   async updateAsyncApiDefinition(
     apiId: string, 
     definition: string,
-    token?: string,
   ): Promise<void> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
 
     // Build multipart/form-data body manually
@@ -643,11 +638,10 @@ export class Wso2ApiManagerClient {
     this.logger.info(`Successfully updated AsyncAPI definition for ${apiId}`);
   }
 
-  async listDocuments(apiId: string, token?: string): Promise<Wso2ApiDocumentsResponse> {
+  async listDocuments(apiId: string): Promise<Wso2ApiDocumentsResponse> {
     const data = await this.requestPublisher<{ list?: unknown[] }>(
       `/apis/${apiId}/documents`,
       undefined,
-      token,
     );
 
     return {
@@ -658,7 +652,6 @@ export class Wso2ApiManagerClient {
   async getRevisions(
     apiId: string,
     options?: { query?: string },
-    token?: string,
   ): Promise<Wso2ApiRevisionsResponse> {
     const params = new URLSearchParams();
     if (options?.query) {
@@ -666,17 +659,13 @@ export class Wso2ApiManagerClient {
     }
     const data = await this.requestPublisher<Wso2ApiRevisionsResponse>(
       `/apis/${apiId}/revisions?${params.toString()}`,
-      undefined,
-      token,
     );
     return data;
   }
 
-  async getDocument(apiId: string, documentId: string, token?: string): Promise<any> {
+  async getDocument(apiId: string, documentId: string): Promise<any> {
     const data = await this.requestPublisher<any>(
       `/apis/${apiId}/documents/${documentId}`,
-      undefined,
-      token,
     );
     return data;
   }
@@ -709,7 +698,7 @@ export class Wso2ApiManagerClient {
     limit: number;
     offset: number;
     query?: string;
-  }, token?: string): Promise<Wso2ApiListResponse> {
+  }): Promise<Wso2ApiListResponse> {
     const params = new URLSearchParams({
       limit: String(options.limit),
       offset: String(options.offset),
@@ -721,7 +710,7 @@ export class Wso2ApiManagerClient {
     const data = await this.requestPublisher<{
       list?: unknown[];
       pagination?: { offset: number; limit: number; total: number };
-    }>(`/apis?${params.toString()}`, undefined, token);
+    }>(`/apis?${params.toString()}`);
 
     return {
       apis: (data.list ?? []).map(mapApiSummary),
@@ -733,10 +722,12 @@ export class Wso2ApiManagerClient {
     name: string;
     version: string;
     context: string;
+    endpointUrl: string;
+    description?: string;
     type?: string;
     endpointConfig?: any;
     operations?: any[];
-  }, token?: string): Promise<Wso2ApiDetail> {
+  }): Promise<Wso2ApiDetail> {
     const payload = buildPublisherCreatePayload(input);
     const data = await this.requestPublisher<Wso2ApiDetail>(
       '/apis',
@@ -747,7 +738,6 @@ export class Wso2ApiManagerClient {
         },
         body: JSON.stringify(payload),
       },
-      token,
     );
     return mapApiDetail(data);
   }
@@ -755,7 +745,6 @@ export class Wso2ApiManagerClient {
   async addDocument(
     apiId: string,
     document: Wso2ApiDocumentCreate,
-    token?: string,
   ): Promise<Wso2ApiDocument> {
     const data = await this.requestPublisher<Record<string, unknown>>(
       `/apis/${apiId}/documents`,
@@ -764,10 +753,9 @@ export class Wso2ApiManagerClient {
         body: JSON.stringify(document),
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       },
-      token,
+      undefined, // FORCE SERVICE ACCOUNT TOKEN
     );
     return mapApiDocument(data);
   }
@@ -777,35 +765,41 @@ export class Wso2ApiManagerClient {
     documentId: string,
     content: Buffer | string,
     filename?: string,
-    token?: string,
   ): Promise<void> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}/apis/${apiId}/documents/${documentId}/content`;
+
+    // Fetch document to determine source type
+    const document = await this.getDocument(apiId, documentId);
+    const sourceType = String(document.sourceType ?? 'FILE');
+    
+    // WSO2 expects content in 'inlineContent' field for INLINE sources,
+    // and 'file' field for FILE and MARKDOWN sources.
+    const fieldName = sourceType === 'INLINE' ? 'inlineContent' : 'file';
 
     const boundary = `----FormBoundary${Date.now()}`;
     const contentType = filename ? 'application/octet-stream' : 'text/plain';
     const fname = filename || 'inline-content.txt';
 
     // Build multipart/form-data body
-    // WSO2 expects the content in the "file" field
     const pre =
       `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${fname}"\r\n` +
+      `Content-Disposition: form-data; name="${fieldName}"; filename="${fname}"\r\n` +
       `Content-Type: ${contentType}\r\n\r\n`;
     const post = `\r\n--${boundary}--\r\n`;
 
     const bodyChunks: Buffer[] = [];
     bodyChunks.push(Buffer.from(pre, 'utf-8'));
-    if (content instanceof Buffer) {
-      bodyChunks.push(content);
-    } else {
+    if (typeof content === 'string') {
       bodyChunks.push(Buffer.from(content, 'utf-8'));
+    } else {
+      bodyChunks.push(content);
     }
     bodyChunks.push(Buffer.from(post, 'utf-8'));
 
     const finalBody = Buffer.concat(bodyChunks);
 
-    this.logger.info(`Adding document content for ${documentId} via POST ${url}`);
+    this.logger.info(`Adding ${sourceType} document content for ${documentId} via POST ${url}`);
 
     const response = await undiciFetch(url, {
       method: 'POST',
@@ -820,61 +814,53 @@ export class Wso2ApiManagerClient {
     if (!response.ok) {
       const message = await this.extractWso2ErrorMessage(response);
       this.logger.error(
-        `Failed to add document content ${response.status} ${response.statusText}: ${message}`,
+        `Failed to add ${sourceType} document content ${response.status} ${response.statusText}: ${message}`,
       );
       throw new Error(message);
     }
-    this.logger.info(`Successfully added document content for ${documentId}`);
+    this.logger.info(`Successfully added ${sourceType} document content for ${documentId}`);
   }
 
   async validateDocumentName(
     apiId: string, 
     name: string,
-    token?: string,
+    _token?: string,
   ): Promise<boolean> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); 
     const url = `${this.publisherBaseUrl}/apis/${apiId}/documents/validate?name=${encodeURIComponent(name)}`;
+    this.logger.info(`[WSO2-Client] POST ${url} (Checking for 200/404 inverse logic)`);
 
-    this.logger.info(`Validating document name: ${name} for API ${apiId}`);
-
-    const response = await undiciFetch(url, {
+    let response = await undiciFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ name }),
       dispatcher: this.dispatcher,
     });
 
-    // If POST fails with 405 or other, some versions might use GET
-    if (response.status === 405) {
-      this.logger.info(`POST /validate not allowed, trying GET...`);
-      const getResponse = await undiciFetch(url, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        dispatcher: this.dispatcher,
-      });
-      if (getResponse.status === 409) return false;
-      if (!getResponse.ok) {
-        const message = await this.extractWso2ErrorMessage(getResponse);
-        throw new Error(message);
-      }
+    if (response.status === 404) {
+      this.logger.info(`[WSO2-Client] 404 Received - name "${name}" is AVAILABLE`);
       return true;
     }
 
+    if (response.status === 200) {
+      this.logger.warn(`[WSO2-Client] 200 Received - name "${name}" is DUPLICATE`);
+      return false;
+    }
+
     if (response.status === 409) {
-      this.logger.warn(`Document name already exists: ${name}`);
+      this.logger.warn(`[WSO2-Client] 409 Received - name "${name}" is DUPLICATE`);
       return false;
     }
 
     if (!response.ok) {
       const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(`Document name validation failed ${response.status}: ${message}`);
       throw new Error(message);
     }
 
-    return true;
+    return true; 
   }
 
 
@@ -1168,7 +1154,7 @@ export class Wso2ApiManagerClient {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('scope', 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key apim:mcp_server_view');
+    params.append('scope', 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key apim:mcp_server_view apim:api_manage apim:document_manage apim:document_create');
 
     this.logger.info('Requesting WSO2 access token via client_credentials grant');
 
@@ -1195,7 +1181,9 @@ export class Wso2ApiManagerClient {
     const data = (await response.json()) as {
       access_token?: string;
       expires_in?: number;
+      scope?: string;
     };
+
     if (!data.access_token) {
       throw new Error('WSO2 token grant: no access_token in response');
     }
@@ -1203,7 +1191,8 @@ export class Wso2ApiManagerClient {
     this.cachedAccessToken = data.access_token;
     this.tokenExpiryTime = Date.now() + (data.expires_in || 3600) * 1000;
 
-    this.logger.info('WSO2 access token obtained via client_credentials grant');
+    this.logger.info(`WSO2 access token obtained via client_credentials. Granted scopes: ${data.scope || 'none'}`);
+    this.logger.info(`DEBUG: [WSO2-Token] ${data.access_token}`);
     return data.access_token;
   }
 
@@ -1216,10 +1205,13 @@ export class Wso2ApiManagerClient {
       headers?: Record<string, string>;
       body?: string;
     },
-    token?: string,
+    _token?: string, // Deprecated: Always uses Service Account Token now
   ): Promise<T> {
-    const accessToken = token || (await this.resolveAccessToken());
+    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
     const url = `${this.publisherBaseUrl}${path}`;
+
+    this.logger.info(`DEBUG: [WSO2-Request] Calling ${options?.method ?? 'GET'} ${url}`);
+    this.logger.info(`DEBUG: [WSO2-Auth] Using Service Account Token: ${accessToken.substring(0, 20)}...`);
     
     let response = await undiciFetch(url, {
       method: options?.method ?? 'GET',
@@ -1235,7 +1227,7 @@ export class Wso2ApiManagerClient {
 
     // FALLBACK LOGIC: If the user provided token fails with 401/403, 
     // retry once with the service account token for GET requests.
-    if ((response.status === 401 || response.status === 403) && token && (options?.method ?? 'GET') === 'GET') {
+    if ((response.status === 401 || response.status === 403) && (options?.method ?? 'GET') === 'GET') {
       this.logger.warn(`🎫 [WSO2-Client] User token failed with ${response.status}. Retrying with service account token for ${path}`);
       const serviceToken = await this.resolveAccessToken();
       response = await undiciFetch(url, {

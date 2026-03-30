@@ -73,30 +73,57 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
 
     // Debounced name validation
     useEffect(() => {
+        let ignore = false;
+
         if (!formData.name || !apiId || !open || activeStep !== 0) {
             setNameError(null);
-            return;
+            return undefined;
         }
 
         const timer = setTimeout(async () => {
+            if (ignore) return;
             setValidating(true);
             try {
                 const token = await authApi.getAccessToken(['apim:api_view', 'apim:api_create', 'apim:api_publish']);
                 const isValid = await apiClient.validateDocumentName(apiId, formData.name, token);
-                setNameError(isValid ? null : 'Document name already exists');
-            } catch (e) {
-                console.error('Validation failed', e);
+                
+                if (!ignore) {
+                    console.log(`🔍 [WSO2-AddDoc] Validation for "${formData.name}": ${isValid}`);
+                    setNameError(isValid ? null : 'Duplicate document name');
+                }
+            } catch (e: any) {
+                if (!ignore) {
+                    console.error('Validation failed', e);
+                    setNameError(`Validation failed: ${e.message || 'Check logs'}`);
+                }
             } finally {
-                setValidating(false);
+                if (!ignore) setValidating(false);
             }
         }, 500);
 
-        return () => clearTimeout(timer);
+        return () => {
+            ignore = true;
+            clearTimeout(timer);
+        };
     }, [formData.name, apiId, apiClient, authApi, open, activeStep]);
+    
+    // Clear validation error immediately when typing
+    useEffect(() => {
+        if (formData.name) {
+            setNameError(null);
+        }
+    }, [formData.name]);
 
     const handleFormChange = (e: React.ChangeEvent<any>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name as string]: value }));
+        setFormData(prev => {
+            const newData = { ...prev, [name as string]: value };
+            // If type is a forum, force sourceType to URL as requested
+            if (name === 'type' && (value === 'PUBLIC_FORUM' || value === 'SUPPORT_FORUM')) {
+                newData.sourceType = 'URL';
+            }
+            return newData;
+        });
         
         if (name === 'summary' && value.trim() !== '') {
             setSummaryError(null);
@@ -205,7 +232,10 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
                 value={formData.name}
                 onChange={handleFormChange}
                 error={Boolean(nameError)}
-                helperText={nameError || (isValidating ? 'Validating...' : 'Provide the name for the document')}
+                helperText={nameError || (isValidating ? 'Validating...' : (formData.name ? 'Name is available' : 'Provide the name for the document'))}
+                FormHelperTextProps={{
+                    style: { color: nameError ? theme.palette.error.main : (isValidating ? theme.palette.text.secondary : theme.palette.success.main) }
+                }}
                 InputProps={{
                     endAdornment: isValidating ? <CircularProgress size={20} /> : null,
                 }}
@@ -255,17 +285,34 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
             )}
 
             <FormControl component="fieldset" fullWidth>
-                <FormLabel component="legend" style={{ marginBottom: 8 }}>Source</FormLabel>
+                <FormLabel component="legend" style={{ marginBottom: 8 }}>
+                    Source { (formData.type === 'PUBLIC_FORUM' || formData.type === 'SUPPORT_FORUM') && '(Restricted to URL for Forum types)' }
+                </FormLabel>
                 <RadioGroup
                     name="sourceType"
                     value={formData.sourceType}
                     onChange={handleFormChange}
                     style={{ flexDirection: 'row' }}
                 >
-                    <FormControlLabel value="INLINE" control={<Radio color="primary" />} label="Inline" />
-                    <FormControlLabel value="MARKDOWN" control={<Radio color="primary" />} label="Markdown" />
+                    <FormControlLabel 
+                        value="INLINE" 
+                        disabled={formData.type === 'PUBLIC_FORUM' || formData.type === 'SUPPORT_FORUM'} 
+                        control={<Radio color="primary" />} 
+                        label="Inline" 
+                    />
+                    <FormControlLabel 
+                        value="MARKDOWN" 
+                        disabled={formData.type === 'PUBLIC_FORUM' || formData.type === 'SUPPORT_FORUM'} 
+                        control={<Radio color="primary" />} 
+                        label="Markdown" 
+                    />
                     <FormControlLabel value="URL" control={<Radio color="primary" />} label="URL" />
-                    <FormControlLabel value="FILE" control={<Radio color="primary" />} label="File" />
+                    <FormControlLabel 
+                        value="FILE" 
+                        disabled={formData.type === 'PUBLIC_FORUM' || formData.type === 'SUPPORT_FORUM'} 
+                        control={<Radio color="primary" />} 
+                        label="File" 
+                    />
                 </RadioGroup>
             </FormControl>
 
@@ -321,9 +368,9 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
                             flexDirection="column" 
                             alignItems="center"
                             bgcolor={theme.palette.action.hover}
-                            transition="background-color 0.2s"
-                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = theme.palette.action.selected)}
-                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = theme.palette.action.hover)}
+                            style={{ transition: 'background-color 0.2s' }}
+                            onMouseOver={(e) => { e.currentTarget.style.backgroundColor = theme.palette.action.selected; }}
+                            onMouseOut={(e) => { e.currentTarget.style.backgroundColor = theme.palette.action.hover; }}
                         >
                             {!formData.file ? (
                                 <>

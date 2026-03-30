@@ -450,7 +450,9 @@ export class Wso2ApiManagerClient {
       const error = await response.json();
       throw new Error(error.message || `Failed to validate document name, status ${response.status}`);
     }
+    
     const result = await response.json();
+    console.log(`🔍 [WSO2-APIClient] Validation result:`, result);
     return result.isValid;
   }
 
