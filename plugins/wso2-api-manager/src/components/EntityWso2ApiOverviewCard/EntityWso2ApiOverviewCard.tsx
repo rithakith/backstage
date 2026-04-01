@@ -17,14 +17,15 @@ import {
     Table,
     WarningPanel,
 } from '@backstage/core-components';
-import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import Link from '@material-ui/core/Link';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
     Wso2ApiDetail,
     Wso2ApiProductDetail,
     Wso2ApiProductResource,
-    Wso2ApiDocument,
+    Wso2McpDetail,
+    Wso2McpTool,
     wso2ApiManagerApiRef,
     wso2AuthApiRef,
 } from '../../api';
@@ -34,6 +35,9 @@ import { EntityWso2ApiDocumentsCard } from '../EntityWso2ApiDocumentsCard';
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const IS_API_PRODUCT_ANNOTATION = 'wso2.com/is-api-product';
 const PRODUCT_RESOURCES_ANNOTATION = 'wso2.com/product-resources';
+const IS_MCP_SERVER_ANNOTATION = 'wso2.com/is-mcp-server';
+const MCP_TOOLS_ANNOTATION = 'wso2.com/mcp-tools';
+const API_DOCUMENTS_ANNOTATION = 'wso2.com/api-documents';
 
 export const EntityWso2ApiOverviewCard = () => {
     // entity: { metadata: { name: 'pizza-shack', annotations: { 'wso2.com/api-id': '...' } }, kind: 'API', ... }
@@ -49,6 +53,9 @@ export const EntityWso2ApiOverviewCard = () => {
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const isApiProduct = entity.metadata.annotations?.[IS_API_PRODUCT_ANNOTATION] === 'true';
     const productResourcesRaw = entity.metadata.annotations?.[PRODUCT_RESOURCES_ANNOTATION];
+    const isMcpServer = entity.metadata.annotations?.[IS_MCP_SERVER_ANNOTATION] === 'true';
+    const mcpToolsRaw = entity.metadata.annotations?.[MCP_TOOLS_ANNOTATION];
+    const apiDocumentsRaw = entity.metadata.annotations?.[API_DOCUMENTS_ANNOTATION];
 
     const productResources = useMemo(() => {
         if (!productResourcesRaw) return [];
@@ -60,16 +67,27 @@ export const EntityWso2ApiOverviewCard = () => {
         }
     }, [productResourcesRaw]);
 
-    // config: Access to app-config.yaml settings
-    const config = useApi(configApiRef);
+    const mcpTools = useMemo(() => {
+        if (!mcpToolsRaw) return [];
+        try {
+            return JSON.parse(mcpToolsRaw) as Wso2McpTool[];
+        } catch (e) {
+            console.error('Failed to parse WSO2 MCP tools:', e);
+            return [];
+        }
+    }, [mcpToolsRaw]);
 
-    // fetch: A wrapper around the browser fetch API with built-in auth for Backstage backends
-    const { fetch } = useApi(fetchApiRef);
+    const apiDocuments = useMemo(() => {
+        if (!apiDocumentsRaw) return [];
+        try {
+            return JSON.parse(apiDocumentsRaw) as any[];
+        } catch (e) {
+            console.error('Failed to parse WSO2 API documents:', e);
+            return [];
+        }
+    }, [apiDocumentsRaw]);
 
-    // backendUrl: The root URL of the Backstage backend (e.g., 'http://localhost:7007')
-    const backendUrl = config.getString('backend.baseUrl');
 
-    // Get the user's Asgardeo OAuth token from existing session
     const tokenState = useAsync(async () => {
         console.log('🔑 [WSO2-EntityCard] Attempting to retrieve Asgardeo OAuth token from session...');
         try {
@@ -94,18 +112,31 @@ export const EntityWso2ApiOverviewCard = () => {
         if (!apiId) {
             return undefined;
         }
+        if (isMcpServer) {
+            return apiClient.getMcp(apiId, tokenState.value);
+        }
         if (isApiProduct) {
             return apiClient.getApiProduct(apiId, tokenState.value);
         }
         return apiClient.getApi(apiId, tokenState.value);
-    }, [apiClient, apiId, tokenState.value, isApiProduct]);
+    }, [apiClient, apiId, tokenState.value, isApiProduct, isMcpServer]);
 
     const apiDocumentsState = useAsyncRetry(async () => {
         if (!apiId) {
             return undefined;
         }
+        if (isMcpServer) {
+            return apiClient.listMcpDocuments(apiId, tokenState.value);
+        }
         return apiClient.listDocuments(apiId, tokenState.value);
-    }, [apiClient, apiId, tokenState.value]);
+    }, [apiClient, apiId, tokenState.value, isMcpServer]);
+
+    const mcpToolsState = useAsync(async () => {
+        if (!apiId || !isMcpServer) {
+            return undefined;
+        }
+        return apiClient.listMcpTools(apiId, tokenState.value);
+    }, [apiClient, apiId, tokenState.value, isMcpServer]);
 
     if (!apiId) {
         return (
@@ -145,14 +176,14 @@ export const EntityWso2ApiOverviewCard = () => {
     return (
         <Grid container spacing={3} alignItems="stretch">
             <Grid item xs={12} md={6}>
-                <InfoCard title="WSO2 API details">
+                <InfoCard title="WSO2 details">
                     <ApiDetails details={details} />
                 </InfoCard>
             </Grid>
             <Grid item xs={12} md={6}>
                 <EntityWso2ApiDocumentsCard
                     title="WSO2 documents"
-                    documents={apiDocumentsState.value?.documents}
+                    documents={(apiDocumentsState.value?.documents && apiDocumentsState.value.documents.length > 0) ? apiDocumentsState.value.documents : (apiDocuments || [])}
                     loading={apiDocumentsState.loading}
                     error={apiDocumentsState.error}
                     onRefresh={apiDocumentsState.retry}
@@ -162,6 +193,19 @@ export const EntityWso2ApiOverviewCard = () => {
                 <Grid item xs={12}>
                     <InfoCard title="Resources">
                         <ProductResourcesTable resources={productResources} />
+                    </InfoCard>
+                </Grid>
+            )}
+            {isMcpServer && (
+                <Grid item xs={12}>
+                    <InfoCard title="Tools">
+                        {mcpToolsState.loading ? (
+                            <Progress />
+                        ) : mcpToolsState.error ? (
+                            <WarningPanel title="Failed to load tools" message={mcpToolsState.error.message} />
+                        ) : (
+                            <McpToolsTable tools={(mcpToolsState.value && mcpToolsState.value.length > 0) ? mcpToolsState.value : (mcpTools || [])} />
+                        )}
                     </InfoCard>
                 </Grid>
             )}
@@ -221,6 +265,31 @@ const ProductResourcesTable = ({ resources }: { resources: Wso2ApiProductResourc
     );
 };
 
+const McpToolsTable = ({ tools }: { tools: Wso2McpTool[] }) => {
+    const columns = [
+        { 
+            title: 'Tool Name', 
+            field: 'name',
+            render: (rowData: any) => (
+                <span style={{ fontWeight: 'bold', color: '#007acc' }}>
+                  {rowData.name}
+                </span>
+            ),
+        },
+        { title: 'Description', field: 'description' },
+        { title: 'Auth Type', field: 'authType' },
+        { title: 'Throttling Policy', field: 'throttlingPolicy' },
+    ];
+
+    return (
+        <Table
+            options={{ search: true, paging: true, pageSize: 5 }}
+            columns={columns}
+            data={tools}
+        />
+    );
+};
+
 const getVerbColor = (verb: string) => {
     switch (verb.toUpperCase()) {
         case 'GET': return '#61affe';
@@ -232,7 +301,7 @@ const getVerbColor = (verb: string) => {
     }
 };
 
-const ApiDetails = ({ details }: { details: Wso2ApiDetail | Wso2ApiProductDetail }) => {
+const ApiDetails = ({ details }: { details: Wso2ApiDetail | Wso2ApiProductDetail | Wso2McpDetail }) => {
     const metadata: Record<string, string> = {
         Name: details.name,
     };

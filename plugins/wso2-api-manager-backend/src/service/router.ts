@@ -131,6 +131,42 @@ export async function createRouter(
     }
   });
 
+  router.get('/mcp-servers/:mcpId', async (req, res) => {
+    try {
+      await requirePermission(req, wso2ApiReadPermission);
+      const mcpId = req.params.mcpId;
+      const result = await client.getMcp(mcpId);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to fetch MCP Server ${req.params.mcpId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/mcp-servers/:mcpId/tools', async (req, res) => {
+    try {
+      await requirePermission(req, wso2ApiReadPermission);
+      const mcpId = req.params.mcpId;
+      const result = await client.listMcpTools(mcpId);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to list tools for MCP Server ${req.params.mcpId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/mcp-servers/:mcpId/documents', async (req, res) => {
+    try {
+      await requirePermission(req, wso2ApiReadPermission);
+      const mcpId = req.params.mcpId;
+      const result = await client.listMcpDocuments(mcpId);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to list documents for MCP Server ${req.params.mcpId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   router.get('/apis/:apiId', async (req, res) => {
     try {
       await requirePermission(req, wso2ApiReadPermission);

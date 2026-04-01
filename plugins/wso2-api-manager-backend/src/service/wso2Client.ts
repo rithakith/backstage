@@ -49,6 +49,11 @@ export type Wso2McpSummary = {
   provider?: string;
   context?: string;
   lifeCycleStatus?: string;
+  tools?: any[];
+};
+
+export type Wso2McpDetail = Wso2McpSummary & {
+  description?: string;
 };
 
 export type Wso2McpListResponse = {
@@ -69,7 +74,18 @@ export type Wso2ApiDetail = Wso2ApiSummary & {
   }>;
 };
 
-
+export type Wso2ApiProductDetail = Wso2ApiProductSummary & {
+  description?: string;
+  apis: Array<{
+    apiId: string;
+    name: string;
+    version: string;
+    operations: Array<{
+      target: string;
+      verb: string;
+    }>;
+  }>;
+};
 
 /**
  * Checks if a user can access an API based on its visibility settings.
@@ -414,6 +430,61 @@ export class Wso2ApiManagerClient {
       undefined,
     );
     return mapApiDetail(data);
+  }
+
+  async getApiProduct(productId: string): Promise<Wso2ApiProductDetail> {
+    const data = await this.requestPublisher<Record<string, unknown>>(
+      `/api-products/${productId}`,
+      undefined,
+    );
+    return mapApiProductDetail(data);
+  }
+  
+  async getMcp(mcpId: string): Promise<Wso2McpDetail> {
+    const data = await this.requestPublisher<Record<string, unknown>>(
+      `/mcp-servers/${mcpId}`,
+    );
+    return mapMcpDetail(data);
+  }
+
+  async listMcpDocuments(mcpId: string): Promise<Wso2ApiDocumentsResponse> {
+    try {
+      const data = await this.requestPublisher<{ list?: unknown[] }>(
+        `/mcp-servers/${mcpId}/documents`,
+        undefined,
+      );
+      return {
+        documents: (data.list ?? []).map(mapApiDocument),
+      };
+    } catch (e: any) {
+      this.logger.warn(`🎫 [WSO2-Client] Potential issue fetching MCP documents for ${mcpId}: ${e.message}`);
+      return { documents: [] };
+    }
+  }
+
+  async listMcpTools(mcpId: string): Promise<any[]> {
+    try {
+      // Tools are part of the MCP server detail response, not a separate endpoint.
+      // Each entry with feature === 'TOOL' represents a tool.
+      const data = await this.requestPublisher<Record<string, unknown>>(
+        `/mcp-servers/${mcpId}`,
+        undefined,
+      );
+      // The response may have an 'operations' or 'list' array containing tools/resources
+      const operations = Array.isArray(data.operations) ? data.operations :
+                          Array.isArray(data.list) ? data.list : [];
+      
+      return (operations as any[]).filter(op => op.feature === 'TOOL').map(op => ({
+        name: String(op.target || op.name || ''),
+        description: String(op.description || ''),
+        authType: String(op.authType || ''),
+        throttlingPolicy: String(op.throttlingPolicy || ''),
+        payloadSchema: op.payloadSchema || null,
+      }));
+    } catch (e: any) {
+      this.logger.warn(`🎫 [WSO2-Client] Potential issue fetching MCP tools for ${mcpId}: ${e.message}`);
+      return [];
+    }
   }
 
   async generateApiKey(apiId: string): Promise<Record<string, unknown>> {
@@ -773,18 +844,25 @@ export class Wso2ApiManagerClient {
     const document = await this.getDocument(apiId, documentId);
     const sourceType = String(document.sourceType ?? 'FILE');
     
-    // WSO2 expects content in 'inlineContent' field for INLINE sources,
-    // and 'file' field for FILE and MARKDOWN sources.
-    const fieldName = sourceType === 'INLINE' ? 'inlineContent' : 'file';
+    // WSO2 expects content in 'inlineContent' field for INLINE and MARKDOWN sources,
+    // and 'file' field ONLY for FILE sources.
+    const isInlineOrMarkdown = sourceType === 'INLINE' || sourceType === 'MARKDOWN';
+    const fieldName = isInlineOrMarkdown ? 'inlineContent' : 'file';
 
     const boundary = `----FormBoundary${Date.now()}`;
     const contentType = filename ? 'application/octet-stream' : 'text/plain';
     const fname = filename || 'inline-content.txt';
 
     // Build multipart/form-data body
+    // For INLINE/MARKDOWN content, we should NOT include a 'filename' parameter as it can trigger 
+    // "Source type ... is not FILE" errors on the WSO2 side.
+    const disposition = isInlineOrMarkdown 
+      ? `Content-Disposition: form-data; name="${fieldName}"`
+      : `Content-Disposition: form-data; name="${fieldName}"; filename="${fname}"`;
+
     const pre =
       `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="${fieldName}"; filename="${fname}"\r\n` +
+      `${disposition}\r\n` +
       `Content-Type: ${contentType}\r\n\r\n`;
     const post = `\r\n--${boundary}--\r\n`;
 
@@ -1308,6 +1386,7 @@ function mapMcpSummary(value: unknown): Wso2McpSummary {
     provider: toOptionalString(item.provider),
     context: toOptionalString(item.context),
     lifeCycleStatus: toOptionalString(item.lifeCycleStatus || item.status),
+    tools: Array.isArray(item.tools) ? (item.tools as any[]) : [],
   };
 }
 
@@ -1326,6 +1405,41 @@ function mapApiDetail(value: Record<string, unknown>): Wso2ApiDetail {
     endpointURLs: Array.isArray(value.endpointURLs)
       ? (value.endpointURLs as Wso2ApiDetail['endpointURLs'])
       : undefined,
+  };
+}
+
+function mapApiProductDetail(value: Record<string, unknown>): Wso2ApiProductDetail {
+  return {
+    id: String(value.id ?? ''),
+    name: String(value.name ?? ''),
+    version: toOptionalString(value.version),
+    provider: toOptionalString(value.provider),
+    context: toOptionalString(value.context),
+    lifeCycleStatus: toOptionalString(value.lifeCycleStatus),
+    type: 'API_PRODUCT',
+    description: toOptionalString(value.description),
+    apis: Array.isArray(value.apis) ? (value.apis as Wso2ApiProductDetail['apis']) : [],
+  };
+}
+
+function mapMcpDetail(value: Record<string, unknown>): Wso2McpDetail {
+  // Extract tools from operations array (entries with feature === 'TOOL')
+  const operations = Array.isArray(value.operations) ? value.operations :
+                      Array.isArray(value.list) ? value.list : [];
+  const tools = (operations as any[]).filter(op => op.feature === 'TOOL').map(op => ({
+    name: String(op.target || op.name || ''),
+    description: String(op.description || ''),
+  }));
+
+  return {
+    id: String(value.id || value.mcpId || ''),
+    name: String(value.name || value.displayName || ''),
+    version: toOptionalString(value.version),
+    provider: toOptionalString(value.provider),
+    context: toOptionalString(value.context),
+    lifeCycleStatus: toOptionalString(value.lifeCycleStatus || value.status),
+    description: toOptionalString(value.description),
+    tools: tools.length > 0 ? tools : (Array.isArray(value.tools) ? (value.tools as any[]) : []),
   };
 }
 

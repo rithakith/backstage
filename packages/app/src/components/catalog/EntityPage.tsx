@@ -57,6 +57,7 @@ import {
   EntityRelationWarning,
 } from '@backstage/plugin-catalog';
 const isWso2Api = (entity: Entity) => Boolean(entity.metadata.annotations?.['wso2.com/api-id']);
+const isMcpEntity = (entity: Entity) => entity.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true';
 const hasMultipleComponentRelations = (entity: Entity) => {
   const componentRelations = entity.relations?.filter(r => r.type.includes('api') && r.targetRef.startsWith('component:')) || [];
   return componentRelations.length > 1;
@@ -357,7 +358,11 @@ const apiPage = (
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/definition" title="Definition">
+    <EntityLayout.Route
+      if={e => !isMcpEntity(e)}
+      path="/definition"
+      title="Definition"
+    >
       <Grid container spacing={3}>
         <Grid item xs={12}>
           <EntitySwitch>

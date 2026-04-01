@@ -9,11 +9,14 @@ import {
   Wso2ApiRevisionsResponse,
   Wso2ApiDocument,
   Wso2ApiDocumentCreate,
+  Wso2McpDetail,
+  Wso2McpTool,
+  Wso2ApiManagerApi,
 } from './types';
 
 
 
-export class Wso2ApiManagerClient {
+export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
   private readonly discoveryApi: DiscoveryApi;
   private readonly fetchApi: FetchApi;
 
@@ -163,6 +166,21 @@ export class Wso2ApiManagerClient {
     return (await response.json()) as Wso2ApiProductDetail;
   }
 
+  async getMcp(mcpId: string, token?: string): Promise<Wso2McpDetail> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) headers['X-WSO2-Access-Token'] = token;
+    
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/mcp-servers/${mcpId}`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch MCP Server, status ${response.status}`);
+    }
+    return (await response.json()) as Wso2McpDetail;
+  }
+
   async generateApiKey(apiId: string, token?: string): Promise<any> {
     const baseUrl = await this.getBaseUrl();
     const headers: Record<string, string> = {
@@ -205,6 +223,36 @@ export class Wso2ApiManagerClient {
       throw new Error(`Failed to list documents, status ${response.status}`);
     }
     return (await response.json()) as Wso2ApiDocumentsResponse;
+  }
+
+  async listMcpDocuments(mcpId: string, token?: string): Promise<Wso2ApiDocumentsResponse> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) headers['X-WSO2-Access-Token'] = token;
+    
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/mcp-servers/${mcpId}/documents`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to list MCP documents, status ${response.status}`);
+    }
+    return (await response.json()) as Wso2ApiDocumentsResponse;
+  }
+
+  async listMcpTools(mcpId: string, token?: string): Promise<Wso2McpTool[]> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) headers['X-WSO2-Access-Token'] = token;
+    
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/mcp-servers/${mcpId}/tools`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to list MCP tools, status ${response.status}`);
+    }
+    return (await response.json()) as Wso2McpTool[];
   }
 
   async getApiDefinition(apiId: string, token?: string): Promise<any> {

@@ -31,7 +31,7 @@
         "@backstage/backend-plugin-api": "workspace:^",
         "@backstage/catalog-model": "workspace:^",
         "@backstage/plugin-catalog-node": "workspace:^",
-        "node-fetch": "^2.6.7",
+        "undici": "^6.11.1",
         "uuid": "^9.0.0"
     },
     "devDependencies": {

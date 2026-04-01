@@ -2,8 +2,7 @@ import { EntityProvider, EntityProviderConnection } from '@backstage/plugin-cata
 import { Config } from '@backstage/config';
 import { LoggerService } from '@backstage/backend-plugin-api';
 import { ApiEntity } from '@backstage/catalog-model';
-import fetch from 'node-fetch';
-import https from 'https';
+import { Agent, fetch as undiciFetch } from 'undici';
 
 /**
  * Normalizes a name for use as a Backstage entity name.
@@ -55,8 +54,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
         const clientSecret = this.config.getOptionalString('wso2ApiManager.auth.clientSecret') || '';
 
         // Temporary measure: Ignore self-signed certificates in local WSO2 setup
-        const httpsAgent = new https.Agent({
-            rejectUnauthorized: false,
+        const dispatcher = new Agent({
+            connect: { rejectUnauthorized: false },
         });
 
         try {
@@ -64,7 +63,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             this.logger.debug(`[WSO2 APIM Provider] Authenticating using password grant for user: ${username}`);
 
             // 1. Authenticate to get an access token using Password Grant
-            const tokenResponse = await fetch(`${baseUrl}/oauth2/token`, {
+            const tokenResponse = await undiciFetch(`${baseUrl}/oauth2/token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -75,8 +74,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     username: username,
                     password: password,
                     scope: 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key apim:mcp_server_view'
-                }),
-                agent: httpsAgent,
+                }).toString(),
+                dispatcher,
             });
 
             if (!tokenResponse.ok) {
@@ -91,12 +90,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
             // 2. Fetch APIs from Publisher API v4
             this.logger.info(`[WSO2 APIM Provider] Fetching APIs from ${baseUrl}/api/am/publisher/v4/apis`);
-            const apisResponse = await fetch(`${baseUrl}/api/am/publisher/v4/apis`, {
+            const apisResponse = await undiciFetch(`${baseUrl}/api/am/publisher/v4/apis`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Accept': 'application/json'
                 },
-                agent: httpsAgent,
+                dispatcher,
             });
 
             if (!apisResponse.ok) {
@@ -115,12 +114,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const apiId = api.id;
                 const docsUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/documents`;
                 try {
-                    const docsResponse = await fetch(docsUrl, {
+                    const docsResponse = await undiciFetch(docsUrl, {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Accept': 'application/json'
                         },
-                        agent: httpsAgent,
+                        dispatcher,
                     });
 
                     if (docsResponse.ok) {
@@ -140,12 +139,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const apiId = api.id;
                 const swaggerUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/swagger`;
                 try {
-                    const swaggerResponse = await fetch(swaggerUrl, {
+                    const swaggerResponse = await undiciFetch(swaggerUrl, {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Accept': 'application/json'
                         },
-                        agent: httpsAgent,
+                        dispatcher,
                     });
 
                     if (swaggerResponse.ok) {
@@ -164,12 +163,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             this.logger.info(`[WSO2 APIM Provider] Fetching API Products from ${baseUrl}/api/am/publisher/v4/api-products`);
             let productList: any[] = [];
             try {
-                const productsResponse = await fetch(`${baseUrl}/api/am/publisher/v4/api-products`, {
+                const productsResponse = await undiciFetch(`${baseUrl}/api/am/publisher/v4/api-products`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Accept': 'application/json'
                     },
-                    agent: httpsAgent,
+                    dispatcher,
                 });
 
                 if (productsResponse.ok) {
@@ -189,12 +188,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const productId = product.id;
                 const detailUrl = `${baseUrl}/api/am/publisher/v4/api-products/${productId}`;
                 try {
-                    const detailResponse = await fetch(detailUrl, {
+                    const detailResponse = await undiciFetch(detailUrl, {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Accept': 'application/json'
                         },
-                        agent: httpsAgent,
+                        dispatcher,
                     });
 
                     if (detailResponse.ok) {
@@ -213,12 +212,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             this.logger.info(`[WSO2 APIM Provider] Fetching MCP Servers from ${baseUrl}/api/am/publisher/v4/mcp-servers`);
             let mcpList: any[] = [];
             try {
-                const mcpResponse = await fetch(`${baseUrl}/api/am/publisher/v4/mcp-servers`, {
+                const mcpResponse = await undiciFetch(`${baseUrl}/api/am/publisher/v4/mcp-servers`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Accept': 'application/json'
                     },
-                    agent: httpsAgent,
+                    dispatcher,
                 });
 
                 if (mcpResponse.ok) {
@@ -231,6 +230,61 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 }
             } catch (error) {
                 this.logger.error(`[WSO2 APIM Provider] Error fetching MCP Servers: ${error}`);
+            }
+
+            // 2.8.5 Fetch details and documents for each MCP Server
+            for (const mcp of mcpList) {
+                const mcpId = mcp.id;
+
+                // Fetch detail to extract tools (operations with feature === 'TOOL')
+                const detailUrl = `${baseUrl}/api/am/publisher/v4/mcp-servers/${mcpId}`;
+                try {
+                    const detailResponse = await undiciFetch(detailUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        dispatcher,
+                    });
+
+                    if (detailResponse.ok) {
+                        const detailData = await detailResponse.json() as any;
+                        const operations = detailData.operations || detailData.list || [];
+                        mcp.tools = operations.filter((op: any) => op.feature === 'TOOL').map((op: any) => ({
+                            name: String(op.target || op.name || ''),
+                            description: String(op.description || ''),
+                            authType: String(op.authType || ''),
+                            throttlingPolicy: String(op.throttlingPolicy || ''),
+                        }));
+                    } else {
+                        mcp.tools = [];
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching details for MCP Server ${mcpId}: ${error}`);
+                    mcp.tools = [];
+                }
+
+                // Fetch documents
+                const docsUrl = `${baseUrl}/api/am/publisher/v4/mcp-servers/${mcpId}/documents`;
+                try {
+                    const docsResponse = await undiciFetch(docsUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        dispatcher,
+                    });
+
+                    if (docsResponse.ok) {
+                        const docsData = await docsResponse.json() as any;
+                        mcp.documents = docsData.list || [];
+                    } else {
+                        mcp.documents = [];
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching documents for MCP Server ${mcpId}: ${error}`);
+                    mcp.documents = [];
+                }
             }
 
             // 3. Map WSO2 APIs to Backstage API Entities
@@ -330,6 +384,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-lifecycle-status': mcp.lifeCycleStatus || '',
                             'wso2.com/is-mcp-server': 'true',
                             'wso2.com/api-raw-json': rawMcpJsonString,
+                            'wso2.com/mcp-tools': mcp.tools ? JSON.stringify(mcp.tools) : '[]',
+                            'wso2.com/api-documents': mcp.documents ? JSON.stringify(mcp.documents) : '[]',
                         },
                         tags: mcp.tags || [],
                     },
