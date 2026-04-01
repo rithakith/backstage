@@ -17,6 +17,23 @@ export type Wso2ApiProductSummary = {
   type?: string;
 };
 
+export type Wso2ApiProductOperation = {
+  target: string;
+  verb: string;
+};
+
+export type Wso2ApiProductResource = {
+  apiId: string;
+  name: string;
+  version: string;
+  operations: Wso2ApiProductOperation[];
+};
+
+export type Wso2ApiProductDetail = Wso2ApiProductSummary & {
+  description?: string;
+  apis: Wso2ApiProductResource[];
+};
+
 export type Wso2McpSummary = {
   id: string;
   name: string;

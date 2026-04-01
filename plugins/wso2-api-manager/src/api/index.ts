@@ -1,6 +1,9 @@
 import { createApiRef, OAuthApi } from '@backstage/core-plugin-api';
 import {
   Wso2ApiDetail,
+  Wso2ApiProductDetail,
+  Wso2ApiProductResource,
+  Wso2ApiProductOperation,
   Wso2ApiDocumentsResponse,
   Wso2ApiListResponse,
   Wso2ApiProductListResponse,
@@ -30,6 +33,7 @@ export interface Wso2ApiManagerApi {
     token?: string;
   }): Promise<Wso2McpListResponse>;
   getApi(apiId: string, token?: string): Promise<Wso2ApiDetail>;
+  getApiProduct(apiId: string, token?: string): Promise<Wso2ApiProductDetail>;
   listDocuments(apiId: string, token?: string): Promise<Wso2ApiDocumentsResponse>;
   getApiDefinition(apiId: string, token?: string): Promise<any>;
   generateApiKey(apiId: string, token?: string): Promise<any>;
@@ -93,6 +97,9 @@ export type {
   Wso2ApiProductSummary,
   Wso2McpSummary,
   Wso2ApiDetail,
+  Wso2ApiProductDetail,
+  Wso2ApiProductResource,
+  Wso2ApiProductOperation,
   Wso2ApiDocument,
   Wso2ApiListResponse,
   Wso2ApiProductListResponse,

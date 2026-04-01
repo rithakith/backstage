@@ -7,6 +7,7 @@
  * 2. Associated documentation (PDFs, Markdown, links) with download support via the backend proxy.
  */
 import { useAsync, useAsyncRetry } from 'react-use';
+import { useMemo } from 'react';
 import Grid from '@material-ui/core/Grid';
 import {
     EmptyState,
@@ -21,6 +22,8 @@ import Link from '@material-ui/core/Link';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
     Wso2ApiDetail,
+    Wso2ApiProductDetail,
+    Wso2ApiProductResource,
     Wso2ApiDocument,
     wso2ApiManagerApiRef,
     wso2AuthApiRef,
@@ -29,6 +32,8 @@ import { EntityWso2ApiDocumentsCard } from '../EntityWso2ApiDocumentsCard';
 
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
+const IS_API_PRODUCT_ANNOTATION = 'wso2.com/is-api-product';
+const PRODUCT_RESOURCES_ANNOTATION = 'wso2.com/product-resources';
 
 export const EntityWso2ApiOverviewCard = () => {
     // entity: { metadata: { name: 'pizza-shack', annotations: { 'wso2.com/api-id': '...' } }, kind: 'API', ... }
@@ -42,6 +47,18 @@ export const EntityWso2ApiOverviewCard = () => {
 
     // apiId: A string ID from the entity annotations (e.g., '7a9b3c4d-...')
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
+    const isApiProduct = entity.metadata.annotations?.[IS_API_PRODUCT_ANNOTATION] === 'true';
+    const productResourcesRaw = entity.metadata.annotations?.[PRODUCT_RESOURCES_ANNOTATION];
+
+    const productResources = useMemo(() => {
+        if (!productResourcesRaw) return [];
+        try {
+            return JSON.parse(productResourcesRaw) as Wso2ApiProductResource[];
+        } catch (e) {
+            console.error('Failed to parse WSO2 product resources:', e);
+            return [];
+        }
+    }, [productResourcesRaw]);
 
     // config: Access to app-config.yaml settings
     const config = useApi(configApiRef);
@@ -77,8 +94,11 @@ export const EntityWso2ApiOverviewCard = () => {
         if (!apiId) {
             return undefined;
         }
+        if (isApiProduct) {
+            return apiClient.getApiProduct(apiId, tokenState.value);
+        }
         return apiClient.getApi(apiId, tokenState.value);
-    }, [apiClient, apiId, tokenState.value]);
+    }, [apiClient, apiId, tokenState.value, isApiProduct]);
 
     const apiDocumentsState = useAsyncRetry(async () => {
         if (!apiId) {
@@ -138,11 +158,81 @@ export const EntityWso2ApiOverviewCard = () => {
                     onRefresh={apiDocumentsState.retry}
                 />
             </Grid>
+            {isApiProduct && productResources.length > 0 && (
+                <Grid item xs={12}>
+                    <InfoCard title="Resources">
+                        <ProductResourcesTable resources={productResources} />
+                    </InfoCard>
+                </Grid>
+            )}
         </Grid>
     );
 };
 
-const ApiDetails = ({ details }: { details: Wso2ApiDetail }) => {
+const ProductResourcesTable = ({ resources }: { resources: Wso2ApiProductResource[] }) => {
+    const columns = [
+        { 
+            title: 'API Name', 
+            field: 'name',
+            render: (rowData: any) => (
+                <Link
+                  href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+                  style={{ fontWeight: 'bold', color: '#007acc' }}
+                >
+                  {rowData.name}
+                </Link>
+            ),
+        },
+        { title: 'Version', field: 'version' },
+        { title: 'Path', field: 'target' },
+        { 
+            title: 'Method', 
+            field: 'verb',
+            render: (rowData: any) => (
+                <span style={{ 
+                    padding: '2px 8px', 
+                    borderRadius: '4px', 
+                    backgroundColor: getVerbColor(rowData.verb),
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    fontSize: '0.8rem'
+                }}>
+                    {rowData.verb}
+                </span>
+            )
+        },
+    ];
+
+    const data = resources.flatMap(res => 
+        res.operations.map(op => ({
+            name: res.name,
+            version: res.version,
+            target: op.target,
+            verb: op.verb,
+        }))
+    );
+
+    return (
+        <Table
+            options={{ search: true, paging: true, pageSize: 5 }}
+            columns={columns}
+            data={data}
+        />
+    );
+};
+
+const getVerbColor = (verb: string) => {
+    switch (verb.toUpperCase()) {
+        case 'GET': return '#61affe';
+        case 'POST': return '#49cc90';
+        case 'PUT': return '#fca130';
+        case 'DELETE': return '#f93e3e';
+        case 'PATCH': return '#50e3c2';
+        default: return '#999';
+    }
+};
+
+const ApiDetails = ({ details }: { details: Wso2ApiDetail | Wso2ApiProductDetail }) => {
     const metadata: Record<string, string> = {
         Name: details.name,
     };

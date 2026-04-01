@@ -1,6 +1,7 @@
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 import {
   Wso2ApiDetail,
+  Wso2ApiProductDetail,
   Wso2ApiDocumentsResponse,
   Wso2ApiListResponse,
   Wso2ApiProductListResponse,
@@ -144,6 +145,22 @@ export class Wso2ApiManagerClient {
       throw new Error(`Failed to fetch API, status ${response.status}`);
     }
     return (await response.json()) as Wso2ApiDetail;
+  }
+
+  async getApiProduct(apiId: string, token?: string): Promise<Wso2ApiProductDetail> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}/api-products/${apiId}`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch API product, status ${response.status}`);
+    }
+    return (await response.json()) as Wso2ApiProductDetail;
   }
 
   async generateApiKey(apiId: string, token?: string): Promise<any> {

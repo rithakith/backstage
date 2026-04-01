@@ -91,7 +91,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
             // 2. Fetch APIs from Publisher API v4
             this.logger.info(`[WSO2 APIM Provider] Fetching APIs from ${baseUrl}/api/am/publisher/v4/apis`);
-            const apisResponse = await fetch(`${baseUrl}/api/am/publisher/v4/apis?limit=100`, {
+            const apisResponse = await fetch(`${baseUrl}/api/am/publisher/v4/apis`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Accept': 'application/json'
@@ -164,7 +164,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             this.logger.info(`[WSO2 APIM Provider] Fetching API Products from ${baseUrl}/api/am/publisher/v4/api-products`);
             let productList: any[] = [];
             try {
-                const productsResponse = await fetch(`${baseUrl}/api/am/publisher/v4/api-products?limit=100`, {
+                const productsResponse = await fetch(`${baseUrl}/api/am/publisher/v4/api-products`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Accept': 'application/json'
@@ -184,11 +184,36 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 this.logger.error(`[WSO2 APIM Provider] Error fetching API Products: ${error}`);
             }
 
+            // 2.7.5 Fetch details for each API Product to get its constituent APIs
+            for (const product of productList) {
+                const productId = product.id;
+                const detailUrl = `${baseUrl}/api/am/publisher/v4/api-products/${productId}`;
+                try {
+                    const detailResponse = await fetch(detailUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        agent: httpsAgent,
+                    });
+
+                    if (detailResponse.ok) {
+                        const detailData = await detailResponse.json() as any;
+                        product.apis = detailData.apis || [];
+                    } else {
+                        product.apis = [];
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching details for API Product ${productId}: ${error}`);
+                    product.apis = [];
+                }
+            }
+
             // 2.8 Fetch MCP Servers from Publisher API v4
             this.logger.info(`[WSO2 APIM Provider] Fetching MCP Servers from ${baseUrl}/api/am/publisher/v4/mcp-servers`);
             let mcpList: any[] = [];
             try {
-                const mcpResponse = await fetch(`${baseUrl}/api/am/publisher/v4/mcp-servers?limit=100`, {
+                const mcpResponse = await fetch(`${baseUrl}/api/am/publisher/v4/mcp-servers`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Accept': 'application/json'
@@ -268,6 +293,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
                             'wso2.com/is-api-product': 'true',
                             'wso2.com/api-raw-json': rawProductJsonString,
+                            'wso2.com/product-resources': product.apis ? JSON.stringify(product.apis) : '[]',
                         },
                         tags: product.tags || [],
                     },

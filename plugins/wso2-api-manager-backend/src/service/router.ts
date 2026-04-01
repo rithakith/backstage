@@ -104,6 +104,18 @@ export async function createRouter(
     }
   });
 
+  router.get('/api-products/:apiProductId', async (req, res) => {
+    try {
+      await requirePermission(req, wso2ApiReadPermission);
+      const apiProductId = req.params.apiProductId;
+      const result = await client.getApiProduct(apiProductId);
+      res.json(result);
+    } catch (e: any) {
+      logger.error(`Failed to fetch API Product ${req.params.apiProductId}: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   router.get('/mcp-servers', async (req, res) => {
     try {
       await requirePermission(req, wso2ApiReadPermission);
@@ -257,10 +269,11 @@ export async function createRouter(
         if (response.status === 404) {
           const docData = await client.getDocument(apiId, documentId);
 
-          if (docData && docData.sourceType === 'INLINE') {
+          if (docData && (docData.sourceType === 'INLINE' || docData.sourceType === 'MARKDOWN')) {
             const inlineText = docData.inlineContent || '';
-            res.setHeader('Content-Type', 'text/plain');
-            res.setHeader('Content-Disposition', `attachment; filename="${docData.name || 'document'}.txt"`);
+            const isMarkdown = docData.sourceType === 'MARKDOWN';
+            res.setHeader('Content-Type', isMarkdown ? 'text/markdown' : 'text/plain');
+            res.setHeader('Content-Disposition', `attachment; filename="${docData.name || 'document'}.${isMarkdown ? 'md' : 'txt'}"`);
             res.send(inlineText);
             return;
           }

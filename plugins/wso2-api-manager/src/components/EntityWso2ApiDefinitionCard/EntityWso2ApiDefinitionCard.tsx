@@ -358,8 +358,12 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDetailState.value]);
 
-    // Permission check
-    const { allowed: hasWritePermission } = usePermission({ permission: apiWritePermission });
+    // Identify if this is an API Product (editing is restricted for products)
+    const isApiProduct = entity.metadata.annotations?.['wso2.com/is-api-product'] === 'true';
+
+    // Permission check - restrict write access if it's an API Product
+    const { allowed: hasWritePermissionBase } = usePermission({ permission: apiWritePermission });
+    const hasWritePermission = hasWritePermissionBase && !isApiProduct;
 
     // Sync editor content when definition loads
     useEffect(() => {
