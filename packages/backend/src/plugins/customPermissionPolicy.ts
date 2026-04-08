@@ -38,17 +38,13 @@ class CustomPermissionPolicy implements PermissionPolicy {
         }
 
         if (isPermission(request.permission, apiWritePermission)) {
-            if (user?.info.ownershipEntityRefs.includes('group:default/write')) {
-                return { result: AuthorizeResult.ALLOW };
-            }
+            // Explicitly deny write access
             return { result: AuthorizeResult.DENY };
         }
 
         // 3. Allow write group to update API definitions in WSO2 Publisher
         if (isPermission(request.permission, wso2PublisherUpdatePermission)) {
-            if (user?.info.ownershipEntityRefs.includes('group:default/write')) {
-                return { result: AuthorizeResult.ALLOW };
-            }
+            // Explicitly deny update access
             return { result: AuthorizeResult.DENY };
         }
 

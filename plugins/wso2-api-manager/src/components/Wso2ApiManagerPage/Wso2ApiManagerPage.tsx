@@ -1,14 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAsync, useAsyncRetry } from 'react-use';
-import { createPermission } from '@backstage/plugin-permission-common';
 import {
-  Grid,
-  TextField,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   makeStyles,
   Tabs,
   Tab,
@@ -25,9 +17,8 @@ import {
   TableColumn,
   WarningPanel,
 } from '@backstage/core-components';
-import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
-import { usePermission } from '@backstage/plugin-permission-react';
 import Link from '@material-ui/core/Link';
 import {
   Wso2ApiSummary,
@@ -37,11 +28,7 @@ import {
   wso2AuthApiRef,
 } from '../../api';
 
-// Inline permission definitions (must match names in backend customPermissions.ts / packages/app/src/customPermissions.ts)
-const apiWritePermission = createPermission({
-  name: 'api.write',
-  attributes: { action: 'create' },
-});
+// Write permissions are currently disabled and hardcoded to false
 
 
 // ─── Styles ────────────────────────────────────────────────────────────────
@@ -57,16 +44,20 @@ const useStyles = makeStyles(_theme => ({
   },
 }));
 
+/**
+ * Normalizes a name for use as a Backstage entity name.
+ * Matches the logic in Wso2ApiEntityProvider.ts
+ */
+function normalizeEntityName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 export const Wso2ApiManagerPage = () => {
   const classes = useStyles();
-  const apiClient = useApi(wso2ApiManagerApiRef);
   const oauthApi = useApi(wso2AuthApiRef);
   const catalogApi = useApi(catalogApiRef);
-  const [token, setToken] = useState<string | undefined>();
-  const [tokenLoading, setTokenLoading] = useState(true);
-  // Permission check
-  const { allowed: hasWritePermission } = usePermission({ permission: apiWritePermission });
+  // Write permissions are currently disabled
 
   const [tabValue, setTabValue] = useState(0);
 
@@ -75,32 +66,20 @@ export const Wso2ApiManagerPage = () => {
     console.log('🔑 [WSO2-Frontend] Attempting to retrieve Asgardeo OAuth token from session...');
     try {
       const t = await oauthApi.getAccessToken(
-        ['openid', 'profile', 'email', 'apim:api_create', 'apim:api_publish', 'apim:subscribe', 'apim:api_view'],
+        ['openid', 'profile', 'email', 'apim:api_view'],
         { optional: true },
       );
       if (t) {
         console.log('✅ [WSO2-Frontend] Asgardeo OAuth token retrieved from session');
-        setToken(t);
       } else {
         console.warn('⚠️ [WSO2-Frontend] No OAuth token in session');
       }
     } catch (error) {
       console.error('❌ [WSO2-Frontend] Failed to get Asgardeo OAuth token:', error);
-    } finally {
-      setTokenLoading(false);
     }
   }, [oauthApi]);
 
-  const handleCreateButtonClick = () => {
-    if (!token) {
-      setCreateError('Not authenticated — please sign in to Backstage first.');
-      return;
-    }
-    setDialogOpen(true);
-  };
-
-  const [isDialogOpen, setDialogOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | undefined>();
+  const [createError] = useState<string | undefined>();
 
   const catalogState = useAsyncRetry(async () => {
     // Fetch all API entities from the catalog (increase limit to ensure we get everything)
@@ -176,21 +155,7 @@ export const Wso2ApiManagerPage = () => {
     retry: catalogState.retry 
   };
 
-  const handleCreate = async (input: CreateApiInput) => {
-    setCreateError(undefined);
-    if (!token) {
-      setCreateError('Not authenticated');
-      return;
-    }
-    try {
-      await apiClient.createPublisherApi({ ...input, token });
-      setDialogOpen(false);
-      apiListState.retry();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setCreateError(message);
-    }
-  };
+  /* handleCreate is disabled */
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
     () => [
@@ -199,7 +164,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -222,7 +187,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -245,7 +210,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -366,113 +331,5 @@ export const Wso2ApiManagerPage = () => {
       />
       */}
     </Page>
-  );
-};
-
-
-// ─── CreateApiDialog ───────────────────────────────────────────────────────
-type CreateApiInput = {
-  name: string;
-  context: string;
-  version: string;
-  endpointUrl: string;
-  description?: string;
-};
-
-const CreateApiDialog = (props: {
-  open: boolean;
-  errorMessage?: string;
-  onClose: () => void;
-  onSubmit: (input: CreateApiInput) => void;
-}) => {
-  const [formState, setFormState] = useState<CreateApiInput>({
-    name: '',
-    context: '',
-    version: '1.0.0',
-    endpointUrl: '',
-    description: '',
-  });
-
-  const updateField = (field: keyof CreateApiInput, value: string) => {
-    setFormState(current => ({ ...current, [field]: value }));
-  };
-
-  const isValid =
-    formState.name.trim() &&
-    formState.context.trim() &&
-    formState.version.trim() &&
-    formState.endpointUrl.trim();
-
-  return (
-    <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Create API</DialogTitle>
-      <DialogContent>
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <TextField
-              label="Name"
-              value={formState.name}
-              onChange={event => updateField('name', event.target.value)}
-              fullWidth
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Context"
-              value={formState.context}
-              onChange={event => updateField('context', event.target.value)}
-              fullWidth
-              helperText="Example: /order-service"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Version"
-              value={formState.version}
-              onChange={event => updateField('version', event.target.value)}
-              fullWidth
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Endpoint URL"
-              value={formState.endpointUrl}
-              onChange={event => updateField('endpointUrl', event.target.value)}
-              fullWidth
-              helperText="Example: https://api.example.com"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              label="Description"
-              value={formState.description}
-              onChange={event => updateField('description', event.target.value)}
-              fullWidth
-              multiline
-              minRows={2}
-            />
-          </Grid>
-          {props.errorMessage && (
-            <Grid item xs={12}>
-              <WarningPanel
-                title="Create API failed"
-                message={props.errorMessage}
-              />
-            </Grid>
-          )}
-        </Grid>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={props.onClose}>Cancel</Button>
-        <Button
-          color="primary"
-          variant="contained"
-          onClick={() => props.onSubmit(formState)}
-          disabled={!isValid}
-        >
-          Create
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 };

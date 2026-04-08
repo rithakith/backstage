@@ -1,4 +1,3 @@
-import React from 'react';
 import {
     Button,
     Typography,
@@ -161,7 +160,7 @@ export const SwaggerEditorPanel = ({
         ? <span className={`${classes.badge} ${classes.savedBadge}`}>✓ Saved</span>
         : isEditing
             ? <span className={`${classes.badge} ${classes.editingBadge}`}>● EDITING</span>
-            : <span className={`${classes.badge} ${classes.readOnlyBadge}`}>READ ONLY</span>;
+            : null;
 
     return (
         <div className={classes.editorContainer}>
@@ -263,7 +262,7 @@ export const SwaggerEditorPanel = ({
                 fontFamily: 'monospace',
             }}>
                 <span>{lang} · OpenAPI · {value.split('\n').length} lines</span>
-                <span>{isEditing ? 'Editing — changes not yet saved' : hasWritePermission ? 'Click Edit to modify' : 'Read-only access'}</span>
+                <span>{isEditing ? 'Editing — changes not yet saved' : ''}</span>
             </Box>
         </div>
     );

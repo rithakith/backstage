@@ -6,14 +6,24 @@ import {
     EmptyState,
     Progress,
     WarningPanel,
+    MarkdownContent,
 } from '@backstage/core-components';
 import { useApi, configApiRef, fetchApiRef } from '@backstage/core-plugin-api';
-import { usePermission } from '@backstage/plugin-permission-react';
-import Link from '@material-ui/core/Link';
-import Button from '@material-ui/core/Button';
+import {
+    Link,
+    Button,
+    Box,
+    Typography,
+    Divider,
+    IconButton,
+    Chip,
+    Paper,
+} from '@material-ui/core';
+import ArrowBackIcon from '@material-ui/icons/ArrowBack';
+import GetAppIcon from '@material-ui/icons/GetApp';
+import { useEffect } from 'react';
 
 import { Wso2ApiDocument } from '../../api';
-import { wso2PublisherUpdatePermission } from '../../permissions';
 import { AddDocumentDialog } from './AddDocumentDialog';
 
 const WSO2_API_DOCS_ANNOTATION = 'wso2.com/api-documents';
@@ -33,11 +43,12 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
     const config = useApi(configApiRef);
     const { fetch } = useApi(fetchApiRef);
 
+    const [previewDoc, setPreviewDoc] = useState<Wso2ApiDocument | null>(null);
+    const [previewContent, setPreviewContent] = useState<string | null>(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
     const [isDialogOpen, setDialogOpen] = useState(false);
 
-    const { allowed: canUpdate } = usePermission({
-        permission: wso2PublisherUpdatePermission,
-    });
+    const canUpdate = false;
 
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const backendUrl = config.getString('backend.baseUrl');
@@ -95,6 +106,36 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         }
     };
 
+    const handlePreview = async (rowData: Wso2ApiDocument) => {
+        const { sourceType } = rowData;
+        if (sourceType === 'URL') {
+            window.open(rowData.sourceUrl || '#', '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        if (sourceType !== 'MARKDOWN' && sourceType !== 'INLINE') {
+            handleDownload(rowData);
+            return;
+        }
+
+        setPreviewDoc(rowData);
+        setLoadingPreview(true);
+        setPreviewContent(null);
+
+        try {
+            const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${rowData.id}/content`;
+            const response = await fetch(url, { method: 'GET' });
+            if (!response.ok) throw new Error(`Failed to load: ${response.statusText}`);
+            const content = await response.text();
+            setPreviewContent(content);
+        } catch (e) {
+            console.error('Failed to load document content', e);
+            setPreviewContent('Failed to load content.');
+        } finally {
+            setLoadingPreview(false);
+        }
+    };
+
     if (loading) {
         return (
             <InfoCard title={propTitle || "WSO2 Documents"} variant="gridItem">
@@ -133,18 +174,151 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
                     href="#"
                     onClick={(e: React.MouseEvent) => {
                         e.preventDefault();
-                        handleDownload(rowData);
+                        if (rowData.sourceType === 'MARKDOWN' || rowData.sourceType === 'INLINE') {
+                            handlePreview(rowData);
+                        } else {
+                            handleDownload(rowData);
+                        }
                     }}
-                    style={{ color: '#0A66C2', textDecoration: 'underline', cursor: 'pointer' }}
+                    style={{ color: '#0A66C2', textDecoration: 'underline', cursor: 'pointer', fontWeight: 'bold' }}
                 >
                     {rowData.name}
                 </Link>
             )
         },
-        { title: 'Type', field: 'type' },
-        { title: 'Source Type', field: 'sourceType' },
+        { 
+            title: 'Type', 
+            field: 'type',
+            render: (rowData: Wso2ApiDocument) => (
+                <Chip size="small" label={rowData.type} variant="outlined" />
+            )
+        },
+        { 
+            title: 'Source', 
+            field: 'sourceType',
+            render: (rowData: Wso2ApiDocument) => {
+                const isPreviewable = rowData.sourceType === 'MARKDOWN' || rowData.sourceType === 'INLINE';
+                return (
+                    <Typography variant="body2" color="textSecondary">
+                        {rowData.sourceType} {isPreviewable ? '(Previewable)' : ''}
+                    </Typography>
+                );
+            }
+        },
         { title: 'Summary', field: 'summary' }
     ];
+
+    // Trigger preview automatically if there is only one document
+    useEffect(() => {
+        if (documents.length === 1 && !previewDoc && !loadingPreview) {
+            const doc = documents[0];
+            if (doc.sourceType === 'MARKDOWN' || doc.sourceType === 'INLINE') {
+                handlePreview(doc);
+            }
+        }
+    }, [documents]);
+
+    const renderPreview = () => {
+        if (!previewDoc) return null;
+
+        return (
+            <Box>
+                <Box display="flex" alignItems="center" mb={2} justifyContent="space-between">
+                    <Box display="flex" alignItems="center">
+                        {documents.length > 1 && (
+                            <IconButton onClick={() => setPreviewDoc(null)} style={{ marginRight: 8 }}>
+                                <ArrowBackIcon />
+                            </IconButton>
+                        )}
+                        {/* Title moved inside Paper */}
+                    </Box>
+                    {previewDoc.sourceType !== 'INLINE' && previewDoc.sourceType !== 'MARKDOWN' && (
+                        <Button
+                            startIcon={<GetAppIcon />}
+                            onClick={() => handleDownload(previewDoc)}
+                            variant="outlined"
+                            size="small"
+                        >
+                            Download
+                        </Button>
+                    )}
+                </Box>
+                <Divider />
+                <Box mt={2}>
+                    {loadingPreview ? (
+                        <Progress />
+                    ) : (
+                        <Paper 
+                            elevation={3} 
+                            style={{ 
+                                backgroundColor: '#fff', 
+                                color: '#000', 
+                                padding: '40px', 
+                                minHeight: '500px',
+                                border: '1px solid #eee'
+                            }}
+                        >
+                            <Typography variant="h4" style={{ fontWeight: 700, marginBottom: 16 }}>
+                                {previewDoc.name}
+                            </Typography>
+                            <Box mb={4} display="flex" gap="12px">
+                                <Chip size="small" label={previewDoc.type} />
+                                <Chip size="small" label={previewDoc.sourceType} variant="outlined" />
+                            </Box>
+                            <Divider style={{ marginBottom: 32 }} />
+                            
+                            {previewDoc.sourceType === 'MARKDOWN' || previewDoc.sourceType === 'INLINE' ? (
+                                <MarkdownContent content={previewContent || ''} />
+                            ) : (
+                                <pre style={{ 
+                                    whiteSpace: 'pre-wrap', 
+                                    fontFamily: 'monospace',
+                                    fontSize: '0.9rem',
+                                    lineHeight: 1.6
+                                }}>
+                                    {previewContent}
+                                </pre>
+                            )}
+                        </Paper>
+                    )}
+                </Box>
+            </Box>
+        );
+    };
+
+    const renderSingleDocView = () => {
+        const doc = documents[0];
+        const isPreviewable = doc.sourceType === 'MARKDOWN' || doc.sourceType === 'INLINE';
+
+        if (isPreviewable && previewDoc) {
+            return renderPreview();
+        }
+
+        return (
+            <Box p={2} textAlign="center" border={1} borderColor="divider" borderRadius={4}>
+                <Typography variant="h5" gutterBottom>{doc.name}</Typography>
+                <Box mb={2}>
+                    <Chip label={doc.type} color="primary" variant="outlined" style={{ marginRight: 8 }} />
+                    <Chip label={doc.sourceType} variant="outlined" />
+                </Box>
+                <Typography variant="body1" color="textSecondary" paragraph>
+                    {doc.summary || "This API has a single documentation resource available."}
+                </Typography>
+                <Box mt={2}>
+                    {doc.sourceType !== 'INLINE' && doc.sourceType !== 'MARKDOWN' && (
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<GetAppIcon />}
+                            onClick={() => handleDownload(doc)}
+                        >
+                            Download Document
+                        </Button>
+                    )}
+                </Box>
+            </Box>
+        );
+    };
 
     return (
         <InfoCard 
@@ -169,11 +343,19 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
                     description="This API has no documents attached in WSO2 API Manager."
                 />
             ) : (
-                <Table
-                    options={{ paging: documents.length > 5, search: false }}
-                    columns={columns}
-                    data={documents}
-                />
+                <>
+                    {previewDoc && documents.length > 1 ? (
+                        renderPreview()
+                    ) : documents.length === 1 ? (
+                        renderSingleDocView()
+                    ) : (
+                        <Table
+                            options={{ paging: documents.length > 5, search: false }}
+                            columns={columns}
+                            data={documents}
+                        />
+                    )}
+                </>
             )}
 
             {apiId && (

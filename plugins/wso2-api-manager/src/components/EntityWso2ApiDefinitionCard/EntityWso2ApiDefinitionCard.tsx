@@ -9,14 +9,13 @@ import {
 } from '@backstage/core-components';
 import { useApi, alertApiRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { usePermission } from '@backstage/plugin-permission-react';
-import { createPermission } from '@backstage/plugin-permission-common';
 import {
     Box,
     Tabs,
     Tab,
     Button,
     TextField,
+    Typography,
 } from '@material-ui/core';
 import {
     wso2ApiManagerApiRef,
@@ -29,10 +28,7 @@ import { SwaggerEditorPanel } from '../SwaggerEditorPanel';
 
 import { makeStyles } from '@material-ui/core/styles';
 
-const apiWritePermission = createPermission({
-    name: 'api.write',
-    attributes: { action: 'create' },
-});
+// Write permissions are currently disabled and hardcoded to false
 
 const useStyles = makeStyles(theme => ({
     root: {
@@ -284,6 +280,30 @@ const formatAsyncApi = (yaml: string): string => {
 };
 
 /**
+ * Placeholder component for the Swagger UI 'Try It Out' button when the API is not deployed.
+ */
+const NotDeployedTryItOutPlaceholder = () => (
+    <div style={{
+        padding: '8px 12px',
+        backgroundColor: '#fffbe6',
+        border: '1px solid #ffe58f',
+        borderRadius: '4px',
+        color: '#856200',
+        fontSize: '0.875rem',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginTop: '10px',
+        marginBottom: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+    }}>
+        <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+        Interactive testing is disabled: API not deployed to Gateway
+    </div>
+);
+
+/**
  * A specialized API Definition card for WSO2 APIs that enables Try it out 
  * and targets the WSO2 Gateway (port 8247) with automatic auth.
  */
@@ -304,7 +324,7 @@ export const EntityWso2ApiDefinitionCard = () => {
     const tokenState = useAsyncRetry(async () => {
         try {
             const t = await oauthApi.getAccessToken(
-                ['openid', 'profile', 'email', 'apim:api_view', 'apim:subscribe'],
+                ['openid', 'profile', 'email', 'apim:api_view'],
                 { optional: true },
             );
             return t;
@@ -359,11 +379,10 @@ export const EntityWso2ApiDefinitionCard = () => {
     }, [apiDetailState.value]);
 
     // Identify if this is an API Product (editing is restricted for products)
-    const isApiProduct = entity.metadata.annotations?.['wso2.com/is-api-product'] === 'true';
+    /* isApiProduct not needed for read-only view */
 
-    // Permission check - restrict write access if it's an API Product
-    const { allowed: hasWritePermissionBase } = usePermission({ permission: apiWritePermission });
-    const hasWritePermission = hasWritePermissionBase && !isApiProduct;
+    // Permission check - hardcode to false
+    const hasWritePermission = false;
 
     // Sync editor content when definition loads
     useEffect(() => {
@@ -382,58 +401,7 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDefinitionState.value, isEditing, apiDetailState.value]);
 
-    const handleEdit = () => {
-        setIsEditing(true);
-        setSaveSuccess(false);
-    };
-
-    const handleCancel = () => {
-        setIsEditing(false);
-        if (apiDefinitionState.value) {
-            let content = '';
-            if (apiDetailState.value?.type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
-                content = formatGraphQL(apiDefinitionState.value);
-            } else if ((apiDetailState.value?.type === 'ASYNC' || apiDetailState.value?.type === 'WS' || apiDetailState.value?.type === 'SSE' || apiDetailState.value?.type === 'WEBHOOK' || apiDetailState.value?.type === 'WEBSUB') && typeof apiDefinitionState.value === 'string') {
-                content = formatAsyncApi(apiDefinitionState.value);
-            } else {
-                content = typeof apiDefinitionState.value === 'string'
-                    ? apiDefinitionState.value
-                    : JSON.stringify(apiDefinitionState.value, null, 2);
-            }
-            setEditContent(content);
-        }
-    };
-
-    const handleSave = async () => {
-        if (!tokenState.value || !apiId) return;
-        setIsSaving(true);
-        setSaveError(undefined);
-        try {
-            const details = apiDetailState.value;
-            if (details?.type === 'GRAPHQL') {
-                await apiClient.updateGraphqlSchema(apiId, editContent, tokenState.value);
-            } else if (details?.type === 'ASYNC' || details?.type === 'WS' || details?.type === 'SSE' || details?.type === 'WEBHOOK' || details?.type === 'WEBSUB') {
-                await apiClient.updateAsyncApiDefinition(apiId, editContent, tokenState.value);
-            } else {
-                await apiClient.updateApiDefinition(apiId, editContent, tokenState.value);
-            }
-
-            setSaveSuccess(true);
-            setIsEditing(false);
-
-            // Trigger UI refresh
-            setLastUpdated(Date.now());
-
-            // Give WSO2 a moment to process before re-fetching
-            setTimeout(() => {
-                apiDefinitionState.retry();
-            }, 2000);
-        } catch (e: any) {
-            setSaveError(e.message || 'Failed to update API definition');
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    /* Edit, Cancel, Save handlers disabled */
 
     // Generate an API test key for the Try it out functionality
     // Generate an API test key for the Try it out functionality
@@ -510,6 +478,16 @@ export const EntityWso2ApiDefinitionCard = () => {
     const isDeployed = useMemo(() => {
         return (revisionsState.value?.list?.length ?? 0) > 0;
     }, [revisionsState.value]);
+
+    // Swagger UI Plugin to replace the 'Try It Out' button with a message when not deployed
+    const tryItOutPlugin = useMemo(() => {
+        if (isDeployed) return {};
+        return {
+            components: {
+                TryItOutButton: NotDeployedTryItOutPlaceholder,
+            }
+        };
+    }, [isDeployed]);
 
     // Dynamically rewrite the Swagger/OpenAPI spec URL to hit the API Gateway directly (e.g. 8247)
     const swaggerSpec = useMemo(() => {
@@ -633,6 +611,19 @@ export const EntityWso2ApiDefinitionCard = () => {
                                     </Link>
                                 </Box>
 
+                                {/* Deployment Status Info Message - High Visibility */}
+                                {!revisionsState.loading && !isDeployed && (
+                                    <Box mx={2} my={2} p={2.5} border={1} borderColor="#91d5ff" borderRadius={4} bgcolor="#e6f7ff">
+                                        <Typography variant="body2" style={{ color: '#0050b3', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 500 }}>
+                                            <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
+                                            <Box>
+                                                <strong>Interactive Testing Disabled:</strong> This API is not currently deployed to the WSO2 Gateway environment. 
+                                                You can view the definition below, but you must deploy the API in the WSO2 Publisher to test it interactively.
+                                            </Box>
+                                        </Typography>
+                                    </Box>
+                                )}
+
                                 {/* Internal API Key Display and Regeneration */}
                                 {isDeployed && (
                                     <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
@@ -670,9 +661,10 @@ export const EntityWso2ApiDefinitionCard = () => {
 
                                 <div style={{ padding: '16px', borderRadius: '4px' }}>
                                     <SwaggerUI
-                                        key={`swagger-ui-${lastUpdated}`}
+                                        key={`swagger-ui-${lastUpdated}-${isDeployed}`}
                                         spec={swaggerSpec}
-                                        supportedSubmitMethods={isDeployed ? ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'] : []}
+                                        plugins={[tryItOutPlugin]}
+                                        supportedSubmitMethods={['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']}
                                         requestInterceptor={(req: any) => {
                                             // Set credentials to 'omit' to avoid CORS issues with wildcard origins
                                             req.credentials = 'omit';
@@ -703,9 +695,9 @@ export const EntityWso2ApiDefinitionCard = () => {
                             saveSuccess={saveSuccess}
                             saveError={saveError}
                             hasWritePermission={hasWritePermission}
-                            onEdit={handleEdit}
-                            onSave={handleSave}
-                            onCancel={handleCancel}
+                            onEdit={() => {}}
+                            onSave={() => {}}
+                            onCancel={() => {}}
                         />
                     )}
                 </>
