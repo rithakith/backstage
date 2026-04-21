@@ -1,12 +1,12 @@
 {
-  "name": "@internal/plugin-wso2-api-manager-backend",
-  "version": "0.1.0-next.0",
+  "name": "@rk-apim/backstage-plugin-wso2-api-manager-backend",
+  "version": "1.0.0",
   "backstage": {
     "role": "backend-plugin",
     "pluginId": "wso2-api-manager",
     "pluginPackages": [
-      "@internal/plugin-wso2-api-manager",
-      "@internal/plugin-wso2-api-manager-backend"
+      "@rk-apim/backstage-plugin-wso2-api-manager",
+      "@rk-apim/backstage-plugin-wso2-api-manager-backend"
     ]
   },
   "publishConfig": {
@@ -14,7 +14,6 @@
     "main": "dist/index.cjs.js",
     "types": "dist/index.d.ts"
   },
-  "private": true,
   "homepage": "https://backstage.io",
   "repository": {
     "type": "git",
@@ -40,7 +39,7 @@
     "@backstage/backend-plugin-api": "workspace:^",
     "@backstage/errors": "workspace:^",
     "@backstage/plugin-permission-common": "workspace:^",
-    "express": "^4.22.0",
+    "express": "^4.17.6",
     "express-promise-router": "^4.1.0",
     "jose": "^5.10.0",
     "undici": "^6.11.1"

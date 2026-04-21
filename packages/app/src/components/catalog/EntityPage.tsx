@@ -56,12 +56,16 @@ import {
   hasRelationWarnings,
   EntityRelationWarning,
 } from '@backstage/plugin-catalog';
-const isWso2Api = (entity: Entity) => Boolean(entity.metadata.annotations?.['wso2.com/api-id']);
-const isMcpEntity = (entity: Entity) => entity.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true';
-const hasMultipleComponentRelations = (entity: Entity) => {
-  const componentRelations = entity.relations?.filter(r => r.type.includes('api') && r.targetRef.startsWith('component:')) || [];
-  return componentRelations.length > 1;
-};
+import {
+  EntityWso2AboutCard,
+  EntityWso2ApiDefinitionCard,
+  EntityWso2McpToolsCard,
+  EntityWso2ApiOverviewCard,
+  EntityWso2ApiProductResourcesCard,
+  isWso2Api,
+  isMcpEntity,
+  hasMultipleComponentRelations,
+} from '@rk-apim/backstage-plugin-wso2-api-manager';
 
 import {
   Direction,
@@ -88,13 +92,6 @@ import {
   LightBox,
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
-import {
-  EntityWso2AboutCard,
-  EntityWso2ApiDefinitionCard,
-  EntityWso2McpToolsCard,
-  EntityWso2ApiOverviewCard,
-  EntityWso2ApiProductResourcesCard,
-} from '@internal/plugin-wso2-api-manager';
 
 const customEntityFilterKind = ['Component', 'API', 'System'];
 

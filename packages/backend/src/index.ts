@@ -75,9 +75,9 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 // backend.add(import('@backstage/plugin-signals-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(rootSystemMetadataServiceFactory);
-backend.add(import('@internal/plugin-wso2-api-manager-backend'));
+backend.add(import('@rk-apim/backstage-plugin-wso2-api-manager-backend'));
 backend.add(import('@internal/catalog-backend-module-asgardeo'));
-backend.add(import('@internal/catalog-backend-module-wso2-apim'));
+backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-wso2-apim'));
 
 backend.add(import('@backstage/plugin-events-backend-module-google-pubsub'));
 backend.add(import('@backstage/plugin-mcp-actions-backend'));

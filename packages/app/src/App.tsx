@@ -74,7 +74,7 @@ import {
 import { CustomizableHomePage } from './components/home/CustomizableHomePage';
 import { HomePage } from './components/home/HomePage';
 import { BuiThemerPage } from '@backstage/plugin-mui-to-bui';
-import { Wso2ApiManagerPage } from '@internal/plugin-wso2-api-manager';
+import { Wso2ApiManagerPage } from '@rk-apim/backstage-plugin-wso2-api-manager';
 import { asgardeoAuthApiRef } from './apis';
 import { PermissionTestPage } from './components/PermissionTestPage';
 
