@@ -127,28 +127,28 @@ export interface SwaggerEditorProps {
     value: string;
     readOnly: boolean;
     onChange?: (val: string) => void;
-    isEditing: boolean;
-    isSaving: boolean;
-    saveSuccess: boolean;
+    isEditing?: boolean;
+    isSaving?: boolean;
+    saveSuccess?: boolean;
     saveError?: string;
-    hasWritePermission: boolean;
-    onEdit: () => void;
-    onSave: () => void;
-    onCancel: () => void;
+    hasWritePermission?: boolean;
+    onEdit?: () => void;
+    onSave?: () => void;
+    onCancel?: () => void;
 }
 
 export const SwaggerEditorPanel = ({
     value,
     readOnly,
     onChange,
-    isEditing,
-    isSaving,
-    saveSuccess,
+    isEditing = false,
+    isSaving = false,
+    saveSuccess = false,
     saveError,
-    hasWritePermission,
-    onEdit,
-    onSave,
-    onCancel,
+    hasWritePermission = false,
+    onEdit = () => {},
+    onSave = () => {},
+    onCancel = () => {},
 }: SwaggerEditorProps) => {
     const classes = useStyles();
 

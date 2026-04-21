@@ -11,9 +11,7 @@ import {
 import { policyExtensionPoint } from '@backstage/plugin-permission-node/alpha';
 import { isPermission } from '@backstage/plugin-permission-common';
 import { apiReadPermission, apiWritePermission } from './customPermissions';
-import {
-    wso2PublisherUpdatePermission,
-} from '@internal/plugin-wso2-api-manager-backend';
+
 
 class CustomPermissionPolicy implements PermissionPolicy {
     async handle(
@@ -42,11 +40,7 @@ class CustomPermissionPolicy implements PermissionPolicy {
             return { result: AuthorizeResult.DENY };
         }
 
-        // 3. Allow write group to update API definitions in WSO2 Publisher
-        if (isPermission(request.permission, wso2PublisherUpdatePermission)) {
-            // Explicitly deny update access
-            return { result: AuthorizeResult.DENY };
-        }
+
 
         // Fallback: allow all other permissions by default
         return { result: AuthorizeResult.ALLOW };

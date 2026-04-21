@@ -89,9 +89,11 @@ import {
 } from '@backstage/plugin-techdocs-module-addons-contrib';
 import { EntityTechdocsContent } from '@backstage/plugin-techdocs';
 import {
-  EntityWso2ApiOverviewCard, EntityWso2ApiDocumentsCard,
   EntityWso2AboutCard,
   EntityWso2ApiDefinitionCard,
+  EntityWso2McpToolsCard,
+  EntityWso2ApiOverviewCard,
+  EntityWso2ApiProductResourcesCard,
 } from '@internal/plugin-wso2-api-manager';
 
 const customEntityFilterKind = ['Component', 'API', 'System'];
@@ -325,6 +327,24 @@ const apiPage = (
                 <EntitySwitch.Case>
                   <Grid item xs={12}>
                     <EntityWso2AboutCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
+              
+              {/* Add Resource Table below the About card for API Products */}
+              <EntitySwitch>
+                <EntitySwitch.Case if={e => e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'}>
+                  <Grid item xs={12}>
+                    <EntityWso2ApiProductResourcesCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
+
+              {/* Add MCP Tools Table below the About card for MCP servers */}
+              <EntitySwitch>
+                <EntitySwitch.Case if={isMcpEntity}>
+                  <Grid item xs={12}>
+                    <EntityWso2McpToolsCard />
                   </Grid>
                 </EntitySwitch.Case>
               </EntitySwitch>

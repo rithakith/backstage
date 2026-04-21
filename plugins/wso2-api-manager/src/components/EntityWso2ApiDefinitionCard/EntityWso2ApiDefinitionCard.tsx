@@ -7,7 +7,7 @@ import {
     EmptyState,
     Link,
 } from '@backstage/core-components';
-import { useApi, alertApiRef } from '@backstage/core-plugin-api';
+import { useApi, alertApiRef, discoveryApiRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
     Box,
@@ -20,181 +20,17 @@ import {
 import {
     wso2ApiManagerApiRef,
     wso2AuthApiRef,
+    Wso2ApiDetail,
 } from '../../api';
 // @ts-ignore
 import SwaggerUI from 'swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
 import { SwaggerEditorPanel } from '../SwaggerEditorPanel';
 
-import { makeStyles } from '@material-ui/core/styles';
-
-// Write permissions are currently disabled and hardcoded to false
-
-const useStyles = makeStyles(theme => ({
-    root: {
-        '& .swagger-ui': {
-            fontFamily: theme.typography.fontFamily,
-            color: theme.palette.text.primary,
-
-            ['& .btn-clear']: {
-                color: theme.palette.text.primary,
-            },
-            [`& .scheme-container`]: {
-                backgroundColor: theme.palette.background.default,
-            },
-            [`& .opblock-tag,
-          .opblock-tag small,
-          table thead tr td,
-          table thead tr th,
-          table tbody tr td,
-          table tbody tr th`]: {
-                fontFamily: theme.typography.fontFamily,
-                color: theme.palette.text.primary,
-                borderColor: theme.palette.divider,
-            },
-            [`& section.models,
-          section.models.is-open h4`]: {
-                borderColor: theme.palette.divider,
-            },
-            [`& .model-title,
-          .model .renderedMarkdown,
-          .model .description`]: {
-                fontFamily: theme.typography.fontFamily,
-                fontWeight: theme.typography.fontWeightRegular,
-            },
-            [`& h1, h2, h3, h4, h5, h6,
-          .errors h4, .error h4, .opblock h4, section.models h4,
-          .response-control-media-type__accept-message,
-          .opblock-summary-description,
-          .opblock-summary-operation-id,
-          .opblock-summary-path,
-          .opblock-summary-path__deprecated,
-          .opblock-description-wrapper,
-          .opblock-external-docs-wrapper,
-          .opblock-section-header .btn,
-          .opblock-section-header>label,
-          .scheme-container .schemes>label,a.nostyle,
-          .parameter__name,
-          .response-col_status,
-          .response-col_links,
-          .error .btn,
-          .info .title,
-          .info .base-url`]: {
-                fontFamily: theme.typography.fontFamily,
-                color: theme.palette.text.primary,
-            },
-            [`& .opblock .opblock-section-header,
-          .model-box,
-          section.models .model-container`]: {
-                background: theme.palette.background.default,
-            },
-            [`& .prop-format,
-          .parameter__in`]: {
-                color: theme.palette.text.disabled,
-            },
-            [`& table.model,
-          .parameter__type,
-          .model.model-title,
-          .model-title,
-          .model span,
-          .model .brace-open,
-          .model .brace-close,
-          .model .property.primitive,
-          .model .renderedMarkdown,
-          .model .description,
-          .errors small`]: {
-                color: theme.palette.text.secondary,
-            },
-            [`& .parameter__name.required:after,
-        .parameter__name.required span`]: {
-                color: theme.palette.warning.dark,
-            },
-            [`& table.model,
-          table.model .model,
-          .opblock-external-docs-wrapper`]: {
-                fontSize: theme.typography.fontSize,
-            },
-            [`& table.headers td`]: {
-                color: theme.palette.text.primary,
-                fontWeight: theme.typography.fontWeightRegular,
-            },
-            [`& .model-hint`]: {
-                color: theme.palette.text.secondary,
-                backgroundColor: theme.palette.background.paper,
-            },
-            [`& .opblock-summary-method,
-          .info a`]: {
-                fontFamily: theme.typography.fontFamily,
-            },
-            [`& .info, .opblock, .tab`]: {
-                [`& li, p`]: {
-                    fontFamily: theme.typography.fontFamily,
-                    color: theme.palette.text.primary,
-                },
-            },
-            [`& a`]: {
-                color: theme.palette.primary.main,
-            },
-            [`& .renderedMarkdown code`]: {
-                color: theme.palette.secondary.light,
-            },
-            [`& .property-row td:first-child`]: {
-                color: theme.palette.text.primary,
-            },
-            [`& span.prop-type`]: {
-                color: theme.palette.success.light,
-            },
-            [`& .opblock-control-arrow svg, .authorization__btn .unlocked`]: {
-                fill: theme.palette.text.primary,
-            },
-
-            [`& .json-schema-2020-12__title,
-          .json-schema-2020-12-keyword__name,
-          .json-schema-2020-12-property .json-schema-2020-12__title,
-          .json-schema-2020-12-keyword--description`]: {
-                color: theme.palette.text.primary,
-            },
-            [`.json-schema-2020-12-accordion__icon svg`]: {
-                fill: theme.palette.text.primary,
-            },
-            [`& .json-schema-2020-12-accordion,
-          .json-schema-2020-12-expand-deep-button`]: {
-                background: 'none',
-                appearance: 'none',
-            },
-            [`& .json-schema-2020-12-expand-deep-button,
-          .json-schema-2020-12-keyword__name--secondary,
-          .json-schema-2020-12-keyword__value--secondary,
-          .json-schema-2020-12__attribute--muted,
-          .json-schema-2020-12-keyword__value--const,
-          .json-schema-2020-12-keyword__value--warning`]: {
-                color: theme.palette.text.secondary,
-            },
-            [`& .json-schema-2020-12-body,
-          .json-schema-2020-12-keyword__value--const,
-          .json-schema-2020-12-keyword__value--warning`]: {
-                borderColor: theme.palette.text.secondary,
-            },
-            [`.json-schema-2020-12__constraint--string`]: {
-                backgroundColor: theme.palette.primary.main,
-            },
-            [`& .json-schema-2020-12__attribute--primary`]: {
-                color: theme.palette.primary.main,
-            },
-            [`& .json-schema-2020-12-property--required>.json-schema-2020-12:first-of-type>.json-schema-2020-12-head .json-schema-2020-12__title:after`]:
-            {
-                color: theme.palette.warning.dark,
-            },
-        },
-    },
-    tabRoot: {
-        minWidth: 120,
-        textTransform: 'none',
-        fontWeight: 600,
-    },
-}));
+import { useStyles } from './styles';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
+const API_ENDPOINTS_ANNOTATION = 'wso2.com/api-endpoints';
 
 /**
  * Quick and dirty GraphQL SDL formatter since we don't have a dedicated library in the frontend.
@@ -253,6 +89,12 @@ const formatGraphQL = (sdl: string): string => {
 };
 
 /**
+ * Helper to check if an API type is event-driven/async and should use the Source tab only.
+ */
+const isAsyncType = (type?: string) => 
+    ['ASYNC', 'WS', 'SSE', 'WEBHOOK', 'WEBSUB'].includes(type || '');
+
+/**
  * Quick and dirty AsyncAPI/YAML formatter.
  * Ensures basic indentation and newlines are preserved.
  */
@@ -308,18 +150,24 @@ export const EntityWso2ApiDefinitionCard = () => {
     const apiClient = useApi(wso2ApiManagerApiRef);
     const oauthApi = useApi(wso2AuthApiRef);
     const alertApi = useApi(alertApiRef);
+    const discoveryApi = useApi(discoveryApiRef);
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const apiKeyRef = useRef<string | null>(null);
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [expiresIn, setExpiresIn] = useState<number | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
 
-    // Get the user's Asgardeo OAuth token from existing session
+    const [backendProxyUrl, setBackendProxyUrl] = useState('');
+
+    useEffect(() => {
+        discoveryApi.getBaseUrl('wso2-api-manager').then(url => setBackendProxyUrl(url));
+    }, [discoveryApi]);
+
     // Get the user's Asgardeo OAuth token from existing session
     const tokenState = useAsyncRetry(async () => {
         try {
             const t = await oauthApi.getAccessToken(
-                ['openid', 'profile', 'email', 'apim:api_view'],
+                ['openid', 'profile', 'email', 'apim:api_view', 'apim:api_generate_key', 'apim:api_manage'],
                 { optional: true },
             );
             return t;
@@ -329,41 +177,44 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [oauthApi]);
 
-    // Get API Details (to get context and version for URL rewriting)
-    const apiDetailState = useAsync(async () => {
-        if (!apiId || tokenState.loading) {
+    const apiRawJson = entity.metadata.annotations?.['wso2.com/api-raw-json'];
+
+    // Get API Details from Catalog metadata
+    const details = useMemo(() => {
+        if (!apiRawJson) return undefined;
+        try {
+            return JSON.parse(apiRawJson) as Wso2ApiDetail;
+        } catch (e) {
+            console.error('Failed to parse WSO2 API raw JSON:', e);
             return undefined;
         }
-        return apiClient.getApi(apiId, tokenState.value);
-    }, [apiClient, apiId, tokenState.value, tokenState.loading]);
+    }, [apiRawJson]);
 
-    // Get the actual OpenAPI definition (or GraphQL Schema)
-    const apiDefinitionState = useAsyncRetry(async () => {
-        if (!apiId || tokenState.loading || apiDetailState.loading) return undefined;
-        try {
-            const details = apiDetailState.value;
-            if (details?.type === 'GRAPHQL') {
-                return await apiClient.getGraphqlSchema(apiId, tokenState.value);
+    // Keep the state name for minimal disruption to the rest of the file
+    const apiDetailState = { value: details, loading: false, error: undefined };
+
+    // Get the actual OpenAPI definition (or GraphQL Schema) from the Catalog
+    const apiDefinitionState = useMemo(() => {
+        const definition = entity.spec?.definition as string | undefined;
+        if (!definition) return { value: null, loading: false };
+
+        if (typeof definition === 'string' && definition.trim().startsWith('{')) {
+            try {
+                return { value: JSON.parse(definition), loading: false };
+            } catch (e) {
+                console.warn('Failed to parse API definition as JSON:', e);
             }
-            if (details?.type === 'ASYNC' || details?.type === 'WS' || details?.type === 'SSE' || details?.type === 'WEBHOOK' || details?.type === 'WEBSUB') {
-                return await apiClient.getAsyncApiDefinition(apiId, tokenState.value);
-            }
-            return await apiClient.getApiDefinition(apiId, tokenState.value);
-        } catch (e: any) {
-            if (e.message && e.message.includes('404')) {
-                return null;
-            }
-            throw e;
         }
-    }, [apiClient, apiId, tokenState.value, tokenState.loading, apiDetailState.value, apiDetailState.loading]);
+        return { value: definition, loading: false };
+    }, [entity.spec?.definition]);
 
     // Editor state
     const [activeTab, setActiveTab] = useState(0); // 0=Swagger UI, 1=Source
 
-    // Switch to Source tab automatically for GraphQL APIs since SwaggerUI can't render them
+    // Sync display content when definition loads
     useEffect(() => {
         const type = apiDetailState.value?.type;
-        if (type === 'GRAPHQL' || type === 'ASYNC' || type === 'WS' || type === 'SSE' || type === 'WEBHOOK' || type === 'WEBSUB') {
+        if (type === 'GRAPHQL' || isAsyncType(type)) {
             setActiveTab(1);
         }
     }, [apiDetailState.value]);
@@ -374,9 +225,10 @@ export const EntityWso2ApiDefinitionCard = () => {
     useEffect(() => {
         if (apiDefinitionState.value) {
             let content = '';
-            if (apiDetailState.value?.type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
+            const type = apiDetailState.value?.type;
+            if (type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
                 content = formatGraphQL(apiDefinitionState.value);
-            } else if ((apiDetailState.value?.type === 'ASYNC' || apiDetailState.value?.type === 'WS' || apiDetailState.value?.type === 'SSE' || apiDetailState.value?.type === 'WEBHOOK' || apiDetailState.value?.type === 'WEBSUB') && typeof apiDefinitionState.value === 'string') {
+            } else if (isAsyncType(type) && typeof apiDefinitionState.value === 'string') {
                 content = formatAsyncApi(apiDefinitionState.value);
             } else {
                 content = typeof apiDefinitionState.value === 'string'
@@ -389,7 +241,6 @@ export const EntityWso2ApiDefinitionCard = () => {
 
 
 
-    // Generate an API test key for the Try it out functionality
     // Generate an API test key for the Try it out functionality
     const generateKeyState = useAsyncRetry(async () => {
         // We need the user token to request an Internal Key from WSO2
@@ -437,18 +288,47 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [generateKeyState.value, generateKeyState.error, alertApi]);
 
-    // Calculate the Gateway URL base
-    const gatewayUrlBase = useMemo(() => {
+    // Calculate the Gateway URLs from harvested endpoints
+    const gatewayUrls = useMemo<string[]>(() => {
         const details = apiDetailState.value;
-        if (!details) return '';
+        const endpointsRaw = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
+        
+        let endpoints: Array<{ 
+            urls: string[], 
+            environmentType?: string, 
+            environmentName?: string 
+        }> = [];
 
-        let context = details.context || '';
-        if (details.version && !context.endsWith(details.version)) {
-            context = `${context.replace(/\/$/, '')}/${details.version}`;
+        if (endpointsRaw) {
+            try {
+                endpoints = JSON.parse(endpointsRaw);
+            } catch (e) {
+                console.error('Failed to parse api-endpoints annotation:', e);
+            }
         }
-        const hostname = window.location.hostname || 'localhost';
-        return `https://${hostname}:8247${context}`;
-    }, [apiDetailState.value]);
+
+        // 1. Try dedicated endpoints annotation first (enriched by backend)
+        if (endpoints && endpoints.length > 0) {
+            const prodEnv = endpoints.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
+                         || endpoints[0];
+            
+            if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
+                return prodEnv.urls;
+            }
+        }
+
+        // 2. Fallback to what's in the raw JSON (if any)
+        if (details?.endpointURLs && details.endpointURLs.length > 0) {
+            const prodEnv = details.endpointURLs.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
+                         || details.endpointURLs[0];
+            
+            if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
+                return prodEnv.urls;
+            }
+        }
+
+        return [];
+    }, [apiDetailState.value, entity.metadata.annotations]);
 
     // Check if API is deployed
     const revisionsState = useAsync(async () => {
@@ -478,17 +358,15 @@ export const EntityWso2ApiDefinitionCard = () => {
 
     // Dynamically rewrite the Swagger/OpenAPI spec URL to hit the API Gateway directly (e.g. 8247)
     const swaggerSpec = useMemo(() => {
-        if (!apiDefinitionState.value || !gatewayUrlBase) return apiDefinitionState.value;
+        if (!apiDefinitionState.value || gatewayUrls.length === 0) return apiDefinitionState.value;
 
         try {
             const spec = JSON.parse(JSON.stringify(apiDefinitionState.value));
-            const gatewayUrl = gatewayUrlBase;
 
             if (spec.openapi) { // OpenAPI 3 Support
-                spec.servers = [{
-                    url: gatewayUrl,
-                    description: 'API Gateway'
-                }];
+                spec.servers = gatewayUrls.map(url => ({
+                    url
+                }));
                 // Clear overlapping servers in paths
                 if (spec.paths) {
                     for (const pathKey of Object.keys(spec.paths)) {
@@ -498,9 +376,9 @@ export const EntityWso2ApiDefinitionCard = () => {
                     }
                 }
             } else if (spec.swagger) { // Swagger 2 Support
-                const urlObj = new URL(gatewayUrl);
+                const urlObj = new URL(gatewayUrls[0]); // Fallback to first URL for Swagger 2
                 spec.host = urlObj.host;
-                spec.schemes = [urlObj.protocol.replace(':', '')];
+                spec.schemes = gatewayUrls.map(u => u.split(':')[0]);
                 spec.basePath = urlObj.pathname !== '/' ? urlObj.pathname : '/';
             }
 
@@ -509,7 +387,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             console.warn('[WSO2-DefinitionCard] Failed to rewrite Swagger spec URLs', e);
             return apiDefinitionState.value;
         }
-    }, [apiDefinitionState.value, apiDetailState.value]);
+    }, [apiDefinitionState.value, gatewayUrls]);
 
     if (!apiId) {
         return null; // Not a WSO2 API
@@ -518,13 +396,6 @@ export const EntityWso2ApiDefinitionCard = () => {
     return (
         <InfoCard title="API Definition" >
             {(apiDefinitionState.loading || apiDetailState.loading) && <Progress />}
-
-            {apiDefinitionState.error && (
-                <WarningPanel
-                    title="Failed to load API Definition"
-                    message={apiDefinitionState.error.message}
-                />
-            )}
 
             {!apiDefinitionState.loading && apiDefinitionState.value === null && (
                 <EmptyState
@@ -566,31 +437,22 @@ export const EntityWso2ApiDefinitionCard = () => {
                             indicatorColor="primary"
                             textColor="primary"
                         >
-                            {apiDetailState.value?.type !== 'GRAPHQL' &&
-                                apiDetailState.value?.type !== 'ASYNC' &&
-                                apiDetailState.value?.type !== 'WS' &&
-                                apiDetailState.value?.type !== 'SSE' &&
-                                apiDetailState.value?.type !== 'WEBHOOK' &&
-                                apiDetailState.value?.type !== 'WEBSUB' && (
-                                    <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
-                                )}
+                            {apiDetailState.value?.type !== 'GRAPHQL' && !isAsyncType(apiDetailState.value?.type) && (
+                                <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
+                            )}
                             <Tab id="tab-source" label="View Source" className={classes.tabRoot} />
                         </Tabs>
                     </Box>
 
-                    {/* Tab 0: SwaggerUI rendered view (only for non-GraphQL) */}
+                    {/* Tab 0: SwaggerUI rendered view (only for non-GraphQL and non-Async) */}
                     {activeTab === 0 &&
                         apiDetailState.value?.type !== 'GRAPHQL' &&
-                        apiDetailState.value?.type !== 'ASYNC' &&
-                        apiDetailState.value?.type !== 'WS' &&
-                        apiDetailState.value?.type !== 'SSE' &&
-                        apiDetailState.value?.type !== 'WEBHOOK' &&
-                        apiDetailState.value?.type !== 'WEBSUB' && (
+                        !isAsyncType(apiDetailState.value?.type) && (
                             <div className={classes.root}>
                                 {/* Discreet SSL troubleshooting link */}
                                 <Box display="flex" justifyContent="flex-end" px={2} pt={1}>
                                     <Link
-                                        to={gatewayUrlBase}
+                                        to={gatewayUrls.find(u => u.startsWith('https')) || gatewayUrls[0]}
                                         target="_blank"
                                         style={{ fontSize: '0.75rem', opacity: 0.7 }}
                                     >
@@ -652,6 +514,15 @@ export const EntityWso2ApiDefinitionCard = () => {
                                         plugins={[tryItOutPlugin]}
                                         supportedSubmitMethods={['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']}
                                         requestInterceptor={(req: any) => {
+                                            // If the request targets a WSO2 Gateway, proxy it through the Backstage backend to bypass CORS
+                                            const isGatewayRequest = gatewayUrls.some(baseUrl => req.url.startsWith(baseUrl));
+                                            
+                                            if (isGatewayRequest && backendProxyUrl) {
+                                                console.log(`🛡️ [WSO2-Proxy] Routing request through backend proxy: ${req.url}`);
+                                                req.headers['x-target-url'] = req.url;
+                                                req.url = `${backendProxyUrl}/proxy`;
+                                            }
+
                                             // Set credentials to 'omit' to avoid CORS issues with wildcard origins
                                             req.credentials = 'omit';
 
@@ -675,15 +546,6 @@ export const EntityWso2ApiDefinitionCard = () => {
                         <SwaggerEditorPanel
                             value={editContent}
                             readOnly
-                            onChange={() => {}}
-                            isEditing={false}
-                            isSaving={false}
-                            saveSuccess={false}
-                            saveError={undefined}
-                            hasWritePermission={false}
-                            onEdit={() => {}}
-                            onSave={() => {}}
-                            onCancel={() => {}}
                         />
                     )}
                 </>

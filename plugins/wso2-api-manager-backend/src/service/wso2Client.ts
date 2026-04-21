@@ -1,5 +1,6 @@
 import { LoggerService, RootConfigService } from '@backstage/backend-plugin-api';
-import { Agent, fetch as undiciFetch } from 'undici';
+import { Agent, fetch as undiciFetch, Response } from 'undici';
+
 export type Wso2ApiSummary = {
   id: string;
   name: string;
@@ -8,61 +9,6 @@ export type Wso2ApiSummary = {
   context?: string;
   lifeCycleStatus?: string;
   type?: string;
-  /** 
-   * API visibility: PUBLIC, RESTRICTED, or PRIVATE
-   * NOTE: This field is NOT returned by the DevPortal API (/api/am/devportal/v3).
-   * WSO2 performs server-side filtering and only returns APIs the user can access.
-   * This field would only be present if using the Publisher API (/api/am/publisher/v4).
-   */
-  visibility?: 'PUBLIC' | 'RESTRICTED' | 'PRIVATE';
-  /** 
-   * Roles that can access this API when visibility is RESTRICTED
-   * NOTE: This field is NOT returned by the DevPortal API.
-   * See visibility field comment above.
-   */
-  visibleRoles?: string[];
-};
-
-export type Wso2ApiProductSummary = {
-  id: string;
-  name: string;
-  version?: string;
-  provider?: string;
-  context?: string;
-  lifeCycleStatus?: string;
-  type?: string;
-};
-
-export type Wso2ApiProductListResponse = {
-  apiProducts: Wso2ApiProductSummary[];
-  pagination?: {
-    offset: number;
-    limit: number;
-    total: number;
-  };
-};
-
-export type Wso2McpSummary = {
-  id: string;
-  name: string;
-  version?: string;
-  provider?: string;
-  context?: string;
-  lifeCycleStatus?: string;
-  tools?: any[];
-};
-
-export type Wso2McpDetail = Wso2McpSummary & {
-  description?: string;
-};
-
-export type Wso2McpListResponse = {
-  mcpServers: Wso2McpSummary[];
-  pagination?: {
-    offset: number;
-    limit: number;
-    total: number;
-  };
 };
 
 export type Wso2ApiDetail = Wso2ApiSummary & {
@@ -74,63 +20,6 @@ export type Wso2ApiDetail = Wso2ApiSummary & {
   }>;
 };
 
-export type Wso2ApiProductDetail = Wso2ApiProductSummary & {
-  description?: string;
-  apis: Array<{
-    apiId: string;
-    name: string;
-    version: string;
-    operations: Array<{
-      target: string;
-      verb: string;
-    }>;
-  }>;
-};
-
-/**
- * Checks if a user can access an API based on its visibility settings.
- * 
- * NOTE: This function is currently NOT USED for DevPortal API integration because:
- * 1. WSO2 DevPortal API performs server-side filtering
- * 2. The visibility/visibleRoles fields are not exposed by the DevPortal API
- * 3. All APIs returned by the DevPortal API are already accessible to the user
- * 
- * This function is kept for potential future use with the Publisher API
- * or custom visibility logic.
- */
-export function canAccessApi(
-  api: Wso2ApiSummary,
-  userRoles: string[],
-): boolean {
-  // PUBLIC APIs are visible to everyone
-  if (!api.visibility || api.visibility === 'PUBLIC') {
-    return true;
-  }
-
-  // PRIVATE APIs are only for internal use (admin/creator)
-  if (api.visibility === 'PRIVATE') {
-    // Check if user has admin/Internal/creator role
-    const adminRoles = ['admin', 'Internal/creator', 'Internal/publisher', 'apim:admin'];
-    return userRoles.some(role => adminRoles.includes(role));
-  }
-
-  // RESTRICTED APIs require specific roles
-  if (api.visibility === 'RESTRICTED') {
-    if (!api.visibleRoles || api.visibleRoles.length === 0) {
-      return false;
-    }
-    // Check if user has any of the required roles
-    return api.visibleRoles.some(requiredRole =>
-      userRoles.some(userRole =>
-        userRole.toLowerCase() === requiredRole.toLowerCase() ||
-        userRole.endsWith(`/${requiredRole}`), // Handle Internal/rolename format
-      ),
-    );
-  }
-
-  return false;
-}
-
 export type Wso2ApiDocument = {
   id: string;
   name: string;
@@ -139,88 +28,7 @@ export type Wso2ApiDocument = {
   sourceUrl?: string;
   documentId?: string;
   type?: string;
-};
-
-export type Wso2ApiDocumentCreate = {
-  name: string;
-  type: string;
-  summary?: string;
-  sourceType: string;
-  sourceUrl?: string;
   inlineContent?: string;
-  otherTypeName?: string;
-  visibility?: 'API_LEVEL' | 'PRIVATE' | 'OWNER_ONLY';
-};
-
-export type Wso2ApiListResponse = {
-  apis: Wso2ApiSummary[];
-  pagination?: {
-    offset: number;
-    limit: number;
-    total: number;
-  };
-};
-
-export type Wso2ApiDocumentsResponse = {
-  documents: Wso2ApiDocument[];
-};
-
-// SCIM2 Types for user and role management
-export type Wso2ScimUser = {
-  id?: string;
-  userName?: string;
-  displayName?: string;
-  emails?: Array<{ value?: string; primary?: boolean }>;
-  groups?: Array<{ display?: string; value?: string }>;
-  roles?: Array<{ display?: string; value?: string }>;
-  asgardeo_role?: string | string[];
-  'urn:scim:wso2:schema'?: Record<string, unknown>;
-  'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'?: Record<string, unknown>;
-  'urn:scim:schemas:extension:enterprise:2.0:User'?: Record<string, unknown>;
-  // Asgardeo custom schema extensions
-  'urn:ietf:params:scim:schemas:extension:asgardeo:2.0:User'?: Record<string, unknown>;
-  'urn:scim:schemas:extension:custom:User'?: Record<string, unknown>;
-  // Allow any other schema extensions
-  [key: string]: unknown;
-};
-
-export type Wso2ScimListResponse = {
-  totalResults?: number;
-  startIndex?: number;
-  itemsPerPage?: number;
-  Resources?: Wso2ScimUser[];
-};
-
-export type Wso2ScimRole = {
-  id?: string;
-  displayName?: string;
-  permissions?: string[];
-};
-
-export type Wso2ScimRolesResponse = {
-  totalResults?: number;
-  Resources?: Wso2ScimRole[];
-};
-
-export type Wso2ScimUserAttributes = {
-  username: string;
-  displayName?: string;
-  email?: string;
-  roles: string[];
-  groups: string[];
-  attributes: Record<string, unknown>;
-};
-
-export type Wso2RolePermissions = {
-  roleName: string;
-  permissions: string[];
-};
-
-export type Wso2UserPermissions = {
-  username: string;
-  roles: string[];
-  permissions: string[];
-  rolePermissions: Wso2RolePermissions[];
 };
 
 export type Wso2ApiRevision = {
@@ -315,10 +123,7 @@ export class Wso2ApiManagerClient {
     }
   }
 
-  /**
-   * Helper to extract a user-friendly error message from a WSO2 response.
-   */
-  private async extractWso2ErrorMessage(response: any): Promise<string> {
+  private async extractWso2ErrorMessage(response: Response): Promise<string> {
     try {
       const body = await response.text();
       try {
@@ -335,160 +140,8 @@ export class Wso2ApiManagerClient {
     }
   }
 
-  async listApis(options: {
-    limit: number;
-    offset: number;
-    query?: string;
-  }): Promise<Wso2ApiListResponse> {
-    const params = new URLSearchParams({
-      limit: String(options.limit),
-      offset: String(options.offset),
-    });
-    if (options.query) {
-      params.set('query', options.query);
-    }
-
-    const data = await this.requestPublisher<{
-      list?: unknown[];
-      pagination?: { offset: number; limit: number; total: number };
-    }>(`/apis?${params.toString()}`);
-
-    const allApis = (data.list ?? []).map(mapApiSummary);
-
-    this.logger.info(`📊 Retrieved ${allApis.length} API(s) from WSO2 Publisher`);
-
-    return {
-      apis: allApis,
-      pagination: data.pagination,
-    };
-  }
-
-  async listApiProducts(options: {
-    limit: number;
-    offset: number;
-    query?: string;
-  }): Promise<Wso2ApiProductListResponse> {
-    const params = new URLSearchParams({
-      limit: String(options.limit),
-      offset: String(options.offset),
-    });
-    if (options.query) {
-      params.set('query', options.query);
-    }
-
-    const data = await this.requestPublisher<{
-      list?: unknown[];
-      pagination?: { offset: number; limit: number; total: number };
-    }>(`/api-products?${params.toString()}`);
-
-    const allProducts = (data.list ?? []).map(mapApiProductSummary);
-
-    this.logger.info(`📊 Retrieved ${allProducts.length} API Product(s) from WSO2 Publisher`);
-
-    return {
-      apiProducts: allProducts,
-      pagination: data.pagination,
-    };
-  }
-
-  async listMcps(options?: {
-    limit?: number;
-    offset?: number;
-    query?: string;
-  }): Promise<Wso2McpListResponse> {
-    const params = new URLSearchParams();
-    if (options?.limit !== undefined) params.append('limit', String(options.limit));
-    if (options?.offset !== undefined) params.append('offset', String(options.offset));
-    if (options?.query) params.append('query', options.query);
-
-    const data = await this.requestPublisher<any>(`/mcp-servers?${params.toString()}`);
-
-    // Defensive check: WSO2 might return { list: [...] } or just an array [...]
-    const rawList = Array.isArray(data) ? data : data?.list;
-
-    if (!Array.isArray(rawList)) {
-      this.logger.warn(
-        `[WSO2-Client] Unexpected response structure for MCP servers. Received keys: ${Object.keys(
-          data || {},
-        ).join(', ')}`,
-      );
-    }
-
-    return {
-      mcpServers: (Array.isArray(rawList) ? rawList : []).map(mapMcpSummary),
-      pagination: data?.pagination || {
-        offset: options?.offset ?? 0,
-        limit: options?.limit ?? 50,
-        total: Array.isArray(rawList) ? rawList.length : 0,
-      },
-    };
-  }
-
-  async getApi(apiId: string): Promise<Wso2ApiDetail> {
-    const data = await this.requestPublisher<Record<string, unknown>>(
-      `/apis/${apiId}`,
-      undefined,
-    );
-    return mapApiDetail(data);
-  }
-
-  async getApiProduct(productId: string): Promise<Wso2ApiProductDetail> {
-    const data = await this.requestPublisher<Record<string, unknown>>(
-      `/api-products/${productId}`,
-      undefined,
-    );
-    return mapApiProductDetail(data);
-  }
-  
-  async getMcp(mcpId: string): Promise<Wso2McpDetail> {
-    const data = await this.requestPublisher<Record<string, unknown>>(
-      `/mcp-servers/${mcpId}`,
-    );
-    return mapMcpDetail(data);
-  }
-
-  async listMcpDocuments(mcpId: string): Promise<Wso2ApiDocumentsResponse> {
-    try {
-      const data = await this.requestPublisher<{ list?: unknown[] }>(
-        `/mcp-servers/${mcpId}/documents`,
-        undefined,
-      );
-      return {
-        documents: (data.list ?? []).map(mapApiDocument),
-      };
-    } catch (e: any) {
-      this.logger.warn(`🎫 [WSO2-Client] Potential issue fetching MCP documents for ${mcpId}: ${e.message}`);
-      return { documents: [] };
-    }
-  }
-
-  async listMcpTools(mcpId: string): Promise<any[]> {
-    try {
-      // Tools are part of the MCP server detail response, not a separate endpoint.
-      // Each entry with feature === 'TOOL' represents a tool.
-      const data = await this.requestPublisher<Record<string, unknown>>(
-        `/mcp-servers/${mcpId}`,
-        undefined,
-      );
-      // The response may have an 'operations' or 'list' array containing tools/resources
-      const operations = Array.isArray(data.operations) ? data.operations :
-                          Array.isArray(data.list) ? data.list : [];
-      
-      return (operations as any[]).filter(op => op.feature === 'TOOL').map(op => ({
-        name: String(op.target || op.name || ''),
-        description: String(op.description || ''),
-        authType: String(op.authType || ''),
-        throttlingPolicy: String(op.throttlingPolicy || ''),
-        payloadSchema: op.payloadSchema || null,
-      }));
-    } catch (e: any) {
-      this.logger.warn(`🎫 [WSO2-Client] Potential issue fetching MCP tools for ${mcpId}: ${e.message}`);
-      return [];
-    }
-  }
-
-  async generateApiKey(apiId: string): Promise<Record<string, unknown>> {
-    const data = await this.requestPublisher<Record<string, unknown>>(
+  async generateApiKey(apiId: string, token?: string): Promise<Record<string, unknown>> {
+    return await this.requestPublisher<Record<string, unknown>>(
       `/apis/${apiId}/generate-key`,
       {
         method: 'POST',
@@ -497,734 +150,47 @@ export class Wso2ApiManagerClient {
           'Content-Type': 'application/json',
         },
       },
+      token
     );
-    this.logger.info(`🗝️ [WSO2-Client] Generate-key response for ${apiId}: ${JSON.stringify(data).substring(0, 1000)}`);
-    return data;
   }
 
-  async getApiDefinition(apiId: string, _token?: string): Promise<any> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger?cache_bust=${Date.now()}_${Math.random()}`;
-
-    const response = await undiciFetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(`WSO2 Publisher request failed ${response.status} ${response.statusText}: ${body}`);
-      throw new Error(`WSO2 Publisher request failed, status ${response.status}`);
-    }
-
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      // Return as raw string if not JSON (e.g. YAML)
-      return text;
-    }
-  }
-
-  async getGraphqlSchema(apiId: string, _token?: string): Promise<string> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
-
-    this.logger.info(`[WSO2-Client] Fetching GraphQL schema for ${apiId} from ${url}`);
-
-    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: '*/*',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const errBody = await response.text();
-      this.logger.error(`Failed to fetch GraphQL schema ${response.status}: ${errBody}`);
-      throw new Error(`Failed to fetch GraphQL schema, status ${response.status}`);
-    }
-
-    return await response.text();
-  }
-
-  async getAsyncApiDefinition(apiId: string, _token?: string): Promise<string> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
-
-    this.logger.info(`[WSO2-Client] Fetching AsyncAPI definition for ${apiId} from ${url}`);
-
-    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: '*/*',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(
-        `Failed to fetch AsyncAPI definition ${response.status} ${response.statusText}: ${message}`,
-      );
-      throw new Error(message);
-    }
-
-    return await response.text();
-  }
-
-  /**
-   * Updates the swagger/OpenAPI definition for an API on the WSO2 Publisher Portal.
-   * Sends a PUT request to /apis/{apiId}/swagger with the definition as multipart/form-data.
-   * WSO2 Publisher v4 expects the definition in the `apiDefinition` form field.
-   */
-  async updateApiDefinition(
-    apiId: string, 
-    definition: string,
-  ): Promise<void> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/swagger`;
-
-    // Build multipart/form-data body manually for compatibility
-    // WSO2 Publisher v4 expects the definition in the `file` form field.
-    const isJson = definition.trim().startsWith('{');
-    const contentType = isJson ? 'application/json' : 'application/yaml';
-    const filename = isJson ? 'swagger.json' : 'swagger.yaml';
-
-    const boundary = `----FormBoundary${Date.now()}`;
-    const body =
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
-      `Content-Type: ${contentType}\r\n\r\n` +
-      `${definition}\r\n` +
-      `--${boundary}--\r\n`;
-
-    this.logger.info(`Updating API definition for ${apiId} via PUT ${url}`);
-
-    const response = await undiciFetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(
-        `Failed to update API definition ${response.status} ${response.statusText}: ${message}`,
-      );
-      throw new Error(message);
-    }
-    this.logger.info(`Successfully updated API definition for ${apiId}`);
-  }
-
-  async updateGraphqlSchema(
-    apiId: string, 
-    schema: string,
-  ): Promise<void> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/graphql-schema`;
-
-    // Build multipart/form-data body manually
-    const boundary = `----FormBoundary${Date.now()}`;
-    const body =
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="schemaDefinition"; filename="schema.graphql"\r\n` +
-      `Content-Type: application/graphql\r\n\r\n` +
-      `${schema}\r\n` +
-      `--${boundary}--\r\n`;
-
-    this.logger.info(`Updating GraphQL schema for ${apiId} via PUT ${url}`);
-
-    const response = await undiciFetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(
-        `Failed to update GraphQL schema ${response.status} ${response.statusText}: ${message}`,
-      );
-      throw new Error(message);
-    }
-    this.logger.info(`Successfully updated GraphQL schema for ${apiId}`);
-  }
-
-  async updateAsyncApiDefinition(
-    apiId: string, 
-    definition: string,
-  ): Promise<void> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/asyncapi`;
-
-    // Build multipart/form-data body manually
-    const boundary = `----FormBoundary${Date.now()}`;
-    const body =
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="asyncapi.yaml"\r\n` +
-      `Content-Type: application/yaml\r\n\r\n` +
-      `${definition}\r\n` +
-      `--${boundary}--\r\n`;
-
-    this.logger.info(`Updating AsyncAPI definition for ${apiId} via PUT ${url}`);
-
-    const response = await undiciFetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(
-        `Failed to update AsyncAPI definition ${response.status} ${response.statusText}: ${message}`,
-      );
-      throw new Error(message);
-    }
-    this.logger.info(`Successfully updated AsyncAPI definition for ${apiId}`);
-  }
-
-  async listDocuments(apiId: string): Promise<Wso2ApiDocumentsResponse> {
-    const data = await this.requestPublisher<{ list?: unknown[] }>(
-      `/apis/${apiId}/documents`,
-      undefined,
-    );
-
-    return {
-      documents: (data.list ?? []).map(mapApiDocument),
-    };
-  }
 
   async getRevisions(
     apiId: string,
-    options?: { query?: string },
+    options?: { query?: string; token?: string },
   ): Promise<Wso2ApiRevisionsResponse> {
     const params = new URLSearchParams();
     if (options?.query) {
       params.set('query', options.query);
     }
-    const data = await this.requestPublisher<Wso2ApiRevisionsResponse>(
+    return await this.requestPublisher<Wso2ApiRevisionsResponse>(
       `/apis/${apiId}/revisions?${params.toString()}`,
+      {},
+      options?.token
     );
-    return data;
   }
 
-  async getDocument(apiId: string, documentId: string): Promise<any> {
-    const data = await this.requestPublisher<any>(
+  async getDocument(apiId: string, documentId: string, token?: string): Promise<Wso2ApiDocument> {
+    return await this.requestPublisher<Wso2ApiDocument>(
       `/apis/${apiId}/documents/${documentId}`,
+      {},
+      token
     );
-    return data;
   }
 
-  async getDocumentContentStream(apiId: string, documentId: string): Promise<any> {
-    const accessToken = await this.resolveAccessToken();
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/documents/${documentId}/content`;
-
-    this.logger.info(`Fetching document content: ${url}`);
-
-    // Do a raw fetch
-    const response = await undiciFetch(`${url}?t=${Date.now()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      this.logger.warn(`WSO2 Content Fetch returned ${response.status} for ${url}`);
-    }
-
-    return response;
-  }
-
-  async listPublisherApis(options: {
-    limit: number;
-    offset: number;
-    query?: string;
-  }): Promise<Wso2ApiListResponse> {
-    const params = new URLSearchParams({
-      limit: String(options.limit),
-      offset: String(options.offset),
-    });
-    if (options.query) {
-      params.set('query', options.query);
-    }
-
-    const data = await this.requestPublisher<{
-      list?: unknown[];
-      pagination?: { offset: number; limit: number; total: number };
-    }>(`/apis?${params.toString()}`);
-
-    return {
-      apis: (data.list ?? []).map(mapApiSummary),
-      pagination: data.pagination,
-    };
-  }
-
-  async createPublisherApi(input: {
-    name: string;
-    version: string;
-    context: string;
-    endpointUrl: string;
-    description?: string;
-    type?: string;
-    endpointConfig?: any;
-    operations?: any[];
-  }): Promise<Wso2ApiDetail> {
-    const payload = buildPublisherCreatePayload(input);
-    const data = await this.requestPublisher<Wso2ApiDetail>(
-      '/apis',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      },
-    );
-    return mapApiDetail(data);
-  }
-
-  async addDocument(
-    apiId: string,
-    document: Wso2ApiDocumentCreate,
-  ): Promise<Wso2ApiDocument> {
-    const data = await this.requestPublisher<Record<string, unknown>>(
-      `/apis/${apiId}/documents`,
-      {
-        method: 'POST',
-        body: JSON.stringify(document),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      },
-      undefined, // FORCE SERVICE ACCOUNT TOKEN
-    );
-    return mapApiDocument(data);
-  }
-
-  async addDocumentContent(
-    apiId: string,
-    documentId: string,
-    content: Buffer | string,
-    filename?: string,
-  ): Promise<void> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/documents/${documentId}/content`;
-
-    // Fetch document to determine source type
-    const document = await this.getDocument(apiId, documentId);
-    const sourceType = String(document.sourceType ?? 'FILE');
-    
-    // WSO2 expects content in 'inlineContent' field for INLINE and MARKDOWN sources,
-    // and 'file' field ONLY for FILE sources.
-    const isInlineOrMarkdown = sourceType === 'INLINE' || sourceType === 'MARKDOWN';
-    const fieldName = isInlineOrMarkdown ? 'inlineContent' : 'file';
-
-    const boundary = `----FormBoundary${Date.now()}`;
-    const contentType = filename ? 'application/octet-stream' : 'text/plain';
-    const fname = filename || 'inline-content.txt';
-
-    // Build multipart/form-data body
-    // For INLINE/MARKDOWN content, we should NOT include a 'filename' parameter as it can trigger 
-    // "Source type ... is not FILE" errors on the WSO2 side.
-    const disposition = isInlineOrMarkdown 
-      ? `Content-Disposition: form-data; name="${fieldName}"`
-      : `Content-Disposition: form-data; name="${fieldName}"; filename="${fname}"`;
-
-    const pre =
-      `--${boundary}\r\n` +
-      `${disposition}\r\n` +
-      `Content-Type: ${contentType}\r\n\r\n`;
-    const post = `\r\n--${boundary}--\r\n`;
-
-    const bodyChunks: Buffer[] = [];
-    bodyChunks.push(Buffer.from(pre, 'utf-8'));
-    if (typeof content === 'string') {
-      bodyChunks.push(Buffer.from(content, 'utf-8'));
-    } else {
-      bodyChunks.push(content);
-    }
-    bodyChunks.push(Buffer.from(post, 'utf-8'));
-
-    const finalBody = Buffer.concat(bodyChunks);
-
-    this.logger.info(`Adding ${sourceType} document content for ${documentId} via POST ${url}`);
-
-    const response = await undiciFetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body: finalBody,
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      this.logger.error(
-        `Failed to add ${sourceType} document content ${response.status} ${response.statusText}: ${message}`,
-      );
-      throw new Error(message);
-    }
-    this.logger.info(`Successfully added ${sourceType} document content for ${documentId}`);
-  }
-
-  async validateDocumentName(
-    apiId: string, 
-    name: string,
-    _token?: string,
-  ): Promise<boolean> {
-    const accessToken = await this.resolveAccessToken(); 
-    const url = `${this.publisherBaseUrl}/apis/${apiId}/documents/validate?name=${encodeURIComponent(name)}`;
-    this.logger.info(`[WSO2-Client] POST ${url} (Checking for 200/404 inverse logic)`);
-
-    let response = await undiciFetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name }),
-      dispatcher: this.dispatcher,
-    });
-
-    if (response.status === 404) {
-      this.logger.info(`[WSO2-Client] 404 Received - name "${name}" is AVAILABLE`);
-      return true;
-    }
-
-    if (response.status === 200) {
-      this.logger.warn(`[WSO2-Client] 200 Received - name "${name}" is DUPLICATE`);
-      return false;
-    }
-
-    if (response.status === 409) {
-      this.logger.warn(`[WSO2-Client] 409 Received - name "${name}" is DUPLICATE`);
-      return false;
-    }
-
-    if (!response.ok) {
-      const message = await this.extractWso2ErrorMessage(response);
-      throw new Error(message);
-    }
-
-    return true; 
-  }
-
-
-
-  /**
-   * Fetches user attributes from WSO2 SCIM2 API by username.
-   * This retrieves the full user profile including custom attributes like asgardeo_role.
-   * 
-   * @param username - The username to look up (e.g., email or user ID)
-   * @param credentials - The credentials to authenticate the request
-   * @returns User attributes including roles and custom claims
-   */
-  async getUserAttributesFromScim(
-    username: string,
-  ): Promise<Wso2ScimUserAttributes> {
-    const accessToken = await this.resolveAccessToken();
-
-    // SCIM2 filter to find user by username
-    const filter = encodeURIComponent(`userName eq "${username}"`);
-    const url = `${this.config.baseUrl}/scim2/Users?filter=${filter}`;
-
-    this.logger.info(`SCIM2 request: GET ${url}`);
-
-    const response = await undiciFetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/scim+json',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(`SCIM2 request failed ${response.status}: ${body}`);
-      throw new Error(`SCIM2 request failed, status ${response.status}`);
-    }
-
-    const data = (await response.json()) as Wso2ScimListResponse;
-
-    this.logger.info(`SCIM2 response: ${JSON.stringify(data).substring(0, 2000)}`);
-
-    if (!data.Resources || data.Resources.length === 0) {
-      this.logger.warn(`No user found in SCIM2 for username: ${username}`);
-      return {
-        username,
-        roles: [],
-        groups: [],
-        attributes: {},
-      };
-    }
-
-    const user = data.Resources[0];
-    this.logger.info(`SCIM2 user data: ${JSON.stringify(user).substring(0, 2000)}`);
-    return this.mapScimUserToAttributes(user);
-  }
-
-  /**
-   * Fetches the permissions associated with a role from WSO2.
-   * This queries the SCIM2 Roles endpoint to get role details including permissions.
-   * 
-   * @param roleName - The role name (e.g., "Internal/creator", "admin")
-   * @param credentials - The credentials to authenticate the request
-   * @returns Role permissions
-   */
-  async getRolePermissions(
-    roleName: string,
-  ): Promise<Wso2RolePermissions> {
-    const accessToken = await this.resolveAccessToken();
-
-    // SCIM2 filter to find role by displayName
-    const filter = encodeURIComponent(`displayName eq "${roleName}"`);
-    const url = `${this.config.baseUrl}/scim2/Roles?filter=${filter}`;
-
-    this.logger.info(`SCIM2 Roles request: GET ${url}`);
-
-    const response = await undiciFetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/scim+json',
-      },
-      dispatcher: this.dispatcher,
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(`SCIM2 Roles request failed ${response.status}: ${body}`);
-      throw new Error(`SCIM2 Roles request failed, status ${response.status}`);
-    }
-
-    const data = (await response.json()) as Wso2ScimRolesResponse;
-
-    if (!data.Resources || data.Resources.length === 0) {
-      this.logger.warn(`No role found in SCIM2 for roleName: ${roleName}`);
-      return {
-        roleName,
-        permissions: [],
-      };
-    }
-
-    const role = data.Resources[0];
-    return {
-      roleName: role.displayName || roleName,
-      permissions: role.permissions || [],
-    };
-  }
-
-  /**
-   * Gets all permissions for a user by fetching their roles and then retrieving
-   * permissions for each role.
-   * 
-   * @param username - The username to look up
-   * @param credentials - The credentials to authenticate the request
-   * @returns User with all their permissions aggregated from their roles
-   */
-  async getUserPermissions(
-    username: string,
-  ): Promise<Wso2UserPermissions> {
-    // First get user attributes including roles
-    const userAttributes = await this.getUserAttributesFromScim(username);
-
-    // Combine roles from different sources:
-    // 1. Roles from SCIM groups
-    // 2. Roles from asgardeo_role custom attribute
-    const allRoles = [...new Set([...userAttributes.roles, ...userAttributes.groups])];
-
-    // Add asgardeo_role if present in custom attributes
-    const asgardeoRoles = userAttributes.attributes['asgardeo_role'];
-    if (asgardeoRoles) {
-      const parsedRoles = Array.isArray(asgardeoRoles)
-        ? asgardeoRoles
-        : String(asgardeoRoles).split(',').map(r => r.trim()).filter(Boolean);
-      allRoles.push(...parsedRoles);
-    }
-
-    const uniqueRoles = [...new Set(allRoles)];
-
-    // Fetch permissions for each role in parallel
-    const permissionResults = await Promise.all(
-      uniqueRoles.map(async role => {
-        try {
-          return await this.getRolePermissions(role);
-        } catch (err) {
-          this.logger.warn(`Could not fetch permissions for role ${role}: ${err}`);
-          return { roleName: role, permissions: [] };
-        }
-      }),
-    );
-
-    // Aggregate all permissions
-    const allPermissions = permissionResults.flatMap(r => r.permissions);
-    const uniquePermissions = [...new Set(allPermissions)];
-
-    return {
-      username,
-      roles: uniqueRoles,
-      permissions: uniquePermissions,
-      rolePermissions: permissionResults,
-    };
-  }
-
-  private mapScimUserToAttributes(user: Wso2ScimUser): Wso2ScimUserAttributes {
-    const roles: string[] = [];
-    const groups: string[] = [];
-    const attributes: Record<string, unknown> = {};
-    const userObj = user as Record<string, unknown>;
-
-    this.logger.info(`Mapping SCIM user: ${JSON.stringify(Object.keys(user))}`);
-
-    // Extract roles from groups
-    if (user.groups) {
-      for (const group of user.groups) {
-        if (group.display) {
-          groups.push(group.display);
-          // WSO2 roles are typically in format "Internal/rolename" or "Application/appname"
-          if (group.display.includes('/')) {
-            roles.push(group.display);
-          }
-        }
-      }
-    }
-
-    // Extract roles from roles array (if present)
-    if (user.roles) {
-      for (const role of user.roles) {
-        if (role.display) {
-          roles.push(role.display);
-        }
-      }
-    }
-
-    // Extract custom attributes from urn:scim:wso2:schema
-    const wso2Schema = user['urn:scim:wso2:schema'] as Record<string, unknown> | undefined;
-    if (wso2Schema) {
-      this.logger.info(`Found urn:scim:wso2:schema: ${JSON.stringify(wso2Schema)}`);
-      Object.assign(attributes, wso2Schema);
-    }
-
-    // Also check for urn:ietf:params:scim:schemas:extension:enterprise:2.0:User
-    const enterpriseSchema = user['urn:ietf:params:scim:schemas:extension:enterprise:2.0:User'] as Record<string, unknown> | undefined;
-    if (enterpriseSchema) {
-      this.logger.info(`Found enterprise schema: ${JSON.stringify(enterpriseSchema)}`);
-      Object.assign(attributes, enterpriseSchema);
-    }
-
-    // Check for Asgardeo custom schema
-    const asgardeoSchema = user['urn:ietf:params:scim:schemas:extension:asgardeo:2.0:User'] as Record<string, unknown> | undefined;
-    if (asgardeoSchema) {
-      this.logger.info(`Found asgardeo schema: ${JSON.stringify(asgardeoSchema)}`);
-      Object.assign(attributes, asgardeoSchema);
-    }
-
-    // Check for custom schema (where asgardeo_role is typically stored)
-    const customSchema = user['urn:scim:schemas:extension:custom:User'] as Record<string, unknown> | undefined;
-    if (customSchema) {
-      this.logger.info(`Found custom schema: ${JSON.stringify(customSchema)}`);
-      Object.assign(attributes, customSchema);
-      // Extract asgardeo_role specifically from custom schema
-      if (customSchema.asgardeo_role) {
-        this.logger.info(`✅ Found asgardeo_role in custom schema: ${customSchema.asgardeo_role}`);
-        // Also add it as a role
-        const roleValue = String(customSchema.asgardeo_role);
-        if (!roles.includes(roleValue)) {
-          roles.push(roleValue);
-        }
-      }
-    }
-
-    // Check all schema extensions (any key starting with "urn:")
-    for (const key of Object.keys(userObj)) {
-      if (key.startsWith('urn:') && typeof userObj[key] === 'object' && userObj[key] !== null) {
-        this.logger.info(`Found schema extension ${key}: ${JSON.stringify(userObj[key])}`);
-        Object.assign(attributes, userObj[key] as Record<string, unknown>);
-      }
-    }
-
-    // Check for asgardeo_role in various locations
-    // 1. Top-level attribute
-    if (user.asgardeo_role) {
-      this.logger.info(`Found asgardeo_role at top level: ${user.asgardeo_role}`);
-      attributes['asgardeo_role'] = user.asgardeo_role;
-    }
-
-    // 2. Check in wso2Schema if not already found
-    if (!attributes['asgardeo_role'] && wso2Schema?.asgardeo_role) {
-      this.logger.info(`Found asgardeo_role in wso2Schema: ${wso2Schema.asgardeo_role}`);
-      attributes['asgardeo_role'] = wso2Schema.asgardeo_role;
-    }
-
-    // 3. Check all keys in user object (case-insensitive search)
-    for (const key of Object.keys(userObj)) {
-      if (key.toLowerCase().includes('asgardeo') || key.toLowerCase().includes('role')) {
-        this.logger.info(`Found potential role attribute: ${key} = ${JSON.stringify(userObj[key])}`);
-        if (!attributes[key]) {
-          attributes[key] = userObj[key];
-        }
-      }
-    }
-
-    this.logger.info(`Final attributes: ${JSON.stringify(attributes)}`);
-
-    return {
-      username: user.userName || '',
-      displayName: user.displayName,
-      email: user.emails?.[0]?.value,
-      roles: [...new Set(roles)],
-      groups: [...new Set(groups)],
-      attributes,
-    };
+  async getDocumentContentStream(apiId: string, documentId: string, token?: string): Promise<Response> {
+    return await this.fetchWithFallback(`/apis/${apiId}/documents/${documentId}/content?t=${Date.now()}`, {}, token);
   }
 
   private cachedAccessToken: string | null = null;
   private tokenExpiryTime: number = 0;
 
-  /**
-   * Resolves the access token to use against WSO2.
-   *
-   * We exclusively use the client_credentials grant type to authenticate the backend plugin.
-   */
   private async resolveAccessToken(): Promise<string> {
-    // If we have a cached token that is still valid (with a 5-minute buffer), use it.
     if (this.cachedAccessToken && Date.now() < this.tokenExpiryTime - 300000) {
       return this.cachedAccessToken;
     }
 
     const { clientId, clientSecret, tokenUrl } = this.config.auth;
-
     if (!tokenUrl) {
       throw new Error('tokenUrl is required for client_credentials grant');
     }
@@ -1232,9 +198,7 @@ export class Wso2ApiManagerClient {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('scope', 'apim:api_view apim:subscribe apim:api_create apim:api_publish apim:api_key apim:mcp_server_view apim:api_manage apim:document_manage apim:document_create');
-
-    this.logger.info('Requesting WSO2 access token via client_credentials grant');
+    params.append('scope', 'apim:api_generate_key apim:api_create apim:api_manage apim:api_view apim:api_publish apim:subscribe apim:api_key apim:mcp_server_view');
 
     const response = await undiciFetch(tokenUrl, {
       method: 'POST',
@@ -1247,19 +211,12 @@ export class Wso2ApiManagerClient {
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(
-        `WSO2 token grant failed ${response.status} ${response.statusText}: ${body}`,
-      );
-      throw new Error(
-        `WSO2 token grant failed, status ${response.status}`,
-      );
+      throw new Error(`WSO2 token grant failed, status ${response.status}`);
     }
 
     const data = (await response.json()) as {
       access_token?: string;
       expires_in?: number;
-      scope?: string;
     };
 
     if (!data.access_token) {
@@ -1268,33 +225,29 @@ export class Wso2ApiManagerClient {
 
     this.cachedAccessToken = data.access_token;
     this.tokenExpiryTime = Date.now() + (data.expires_in || 3600) * 1000;
-
-    this.logger.info(`WSO2 access token obtained via client_credentials. Granted scopes: ${data.scope || 'none'}`);
-    this.logger.info(`DEBUG: [WSO2-Token] ${data.access_token}`);
     return data.access_token;
   }
 
-
-
-  private async requestPublisher<T>(
+  private async fetchWithFallback(
     path: string,
     options?: {
       method?: string;
       headers?: Record<string, string>;
       body?: string;
     },
-    _token?: string, // Deprecated: Always uses Service Account Token now
-  ): Promise<T> {
-    const accessToken = await this.resolveAccessToken(); // FORCE SERVICE ACCOUNT TOKEN
+    token?: string
+  ): Promise<Response> {
+    const isUserToken = !!token;
+    const accessToken = token || (await this.resolveAccessToken());
     const url = `${this.publisherBaseUrl}${path}`;
 
-    this.logger.info(`DEBUG: [WSO2-Request] Calling ${options?.method ?? 'GET'} ${url}`);
-    this.logger.info(`DEBUG: [WSO2-Auth] Using Service Account Token: ${accessToken.substring(0, 20)}...`);
-    
-    let response = await undiciFetch(url, {
+    this.logger.debug(`[WSO2-Client] Fetching ${url} using ${isUserToken ? 'USER' : 'SERVICE-ACCOUNT'} token`);
+
+    const response = await undiciFetch(url, {
       method: options?.method ?? 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        'Accept': 'application/json',
         'Cache-Control': 'no-cache',
         Pragma: 'no-cache',
         ...(options?.headers ?? {}),
@@ -1303,209 +256,42 @@ export class Wso2ApiManagerClient {
       dispatcher: this.dispatcher,
     });
 
-    // FALLBACK LOGIC: If the user provided token fails with 401/403, 
-    // retry once with the service account token for GET requests.
-    if ((response.status === 401 || response.status === 403) && (options?.method ?? 'GET') === 'GET') {
-      this.logger.warn(`🎫 [WSO2-Client] User token failed with ${response.status}. Retrying with service account token for ${path}`);
-      const serviceToken = await this.resolveAccessToken();
-      response = await undiciFetch(url, {
-        method: options?.method ?? 'GET',
-        headers: {
-          Authorization: `Bearer ${serviceToken}`,
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
-          ...(options?.headers ?? {}),
-        },
-        body: options?.body,
-        dispatcher: this.dispatcher,
-      });
+    // Handle 401 fallback
+    if (response.status === 401 && isUserToken) {
+      this.logger.warn(`[WSO2-Client] User token failed with 401 for ${path}. Retrying with SERVICE-ACCOUNT token.`);
+      // Retry without user token
+      return await this.fetchWithFallback(path, options, undefined);
     }
 
+    return response;
+  }
+
+  private async requestPublisher<T>(
+    path: string,
+    options?: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    },
+    token?: string
+  ): Promise<T> {
+    const response = await this.fetchWithFallback(path, options, token);
+    const isUserToken = !!token;
+
     if (!response.ok) {
-      const body = await response.text();
-      this.logger.error(
-        `WSO2 Publisher request failed ${response.status} ${response.statusText}: ${body}`,
-      );
-      throw new Error(
-        `WSO2 Publisher request failed, status ${response.status}: ${body.substring(0, 500)}`,
-      );
+      const message = await this.extractWso2ErrorMessage(response);
+      const errorMsg = `WSO2 Publisher request failed (context: ${isUserToken ? 'USER' : 'SERVICE-ACCOUNT'}), status ${response.status}: ${message.substring(0, 500)}`;
+      this.logger.error(`[WSO2-Client] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
 
     const text = await response.text();
     try {
       return JSON.parse(text) as T;
     } catch (e) {
-      this.logger.error(`Failed to parse WSO2 response as JSON for ${path}. Body: ${text.substring(0, 1000)}`);
-      // If it's a GET request and we expected JSON but got something else, it's an error
-      if ((options?.method ?? 'GET') === 'GET') {
-          throw new Error('WSO2 returned an invalid JSON response');
-      }
-      // For non-GET, we might not always need JSON back
       return text as unknown as T;
     }
   }
-}
-
-function mapApiSummary(value: unknown): Wso2ApiSummary {
-  const item = value as Record<string, unknown>;
-  return {
-    id: String(item.id ?? ''),
-    name: String(item.name ?? ''),
-    version: toOptionalString(item.version),
-    provider: toOptionalString(item.provider),
-    context: toOptionalString(item.context),
-    lifeCycleStatus: toOptionalString(item.lifeCycleStatus),
-    type: toOptionalString(item.type),
-    visibility: toVisibility(item.visibility),
-    visibleRoles: toStringArray(item.visibleRoles),
-  };
-}
-
-function mapApiProductSummary(value: unknown): Wso2ApiProductSummary {
-  const item = value as Record<string, unknown>;
-  return {
-    id: String(item.id ?? ''),
-    name: String(item.name ?? ''),
-    version: toOptionalString(item.version),
-    provider: toOptionalString(item.provider),
-    context: toOptionalString(item.context),
-    lifeCycleStatus: toOptionalString(item.lifeCycleStatus),
-    type: 'API_PRODUCT',
-  };
-}
-
-function mapMcpSummary(value: unknown): Wso2McpSummary {
-  if (!value || typeof value !== 'object') {
-    return { id: 'unknown', name: 'Unknown Server' };
-  }
-  const item = value as Record<string, unknown>;
-  return {
-    id: String(item.id || item.mcpId || ''),
-    name: String(item.name || item.displayName || ''),
-    version: toOptionalString(item.version),
-    provider: toOptionalString(item.provider),
-    context: toOptionalString(item.context),
-    lifeCycleStatus: toOptionalString(item.lifeCycleStatus || item.status),
-    tools: Array.isArray(item.tools) ? (item.tools as any[]) : [],
-  };
-}
-
-function mapApiDetail(value: Record<string, unknown>): Wso2ApiDetail {
-  return {
-    id: String(value.id ?? ''),
-    name: String(value.name ?? ''),
-    version: toOptionalString(value.version),
-    provider: toOptionalString(value.provider),
-    context: toOptionalString(value.context),
-    lifeCycleStatus: toOptionalString(value.lifeCycleStatus),
-    type: toOptionalString(value.type),
-    description: toOptionalString(value.description),
-    visibility: toVisibility(value.visibility),
-    visibleRoles: toStringArray(value.visibleRoles),
-    endpointURLs: Array.isArray(value.endpointURLs)
-      ? (value.endpointURLs as Wso2ApiDetail['endpointURLs'])
-      : undefined,
-  };
-}
-
-function mapApiProductDetail(value: Record<string, unknown>): Wso2ApiProductDetail {
-  return {
-    id: String(value.id ?? ''),
-    name: String(value.name ?? ''),
-    version: toOptionalString(value.version),
-    provider: toOptionalString(value.provider),
-    context: toOptionalString(value.context),
-    lifeCycleStatus: toOptionalString(value.lifeCycleStatus),
-    type: 'API_PRODUCT',
-    description: toOptionalString(value.description),
-    apis: Array.isArray(value.apis) ? (value.apis as Wso2ApiProductDetail['apis']) : [],
-  };
-}
-
-function mapMcpDetail(value: Record<string, unknown>): Wso2McpDetail {
-  // Extract tools from operations array (entries with feature === 'TOOL')
-  const operations = Array.isArray(value.operations) ? value.operations :
-                      Array.isArray(value.list) ? value.list : [];
-  const tools = (operations as any[]).filter(op => op.feature === 'TOOL').map(op => ({
-    name: String(op.target || op.name || ''),
-    description: String(op.description || ''),
-  }));
-
-  return {
-    id: String(value.id || value.mcpId || ''),
-    name: String(value.name || value.displayName || ''),
-    version: toOptionalString(value.version),
-    provider: toOptionalString(value.provider),
-    context: toOptionalString(value.context),
-    lifeCycleStatus: toOptionalString(value.lifeCycleStatus || value.status),
-    description: toOptionalString(value.description),
-    tools: tools.length > 0 ? tools : (Array.isArray(value.tools) ? (value.tools as any[]) : []),
-  };
-}
-
-function toVisibility(value: unknown): 'PUBLIC' | 'RESTRICTED' | 'PRIVATE' | undefined {
-  if (value === 'PUBLIC' || value === 'RESTRICTED' || value === 'PRIVATE') {
-    return value;
-  }
-  return undefined;
-}
-
-function toStringArray(value: unknown): string[] | undefined {
-  if (Array.isArray(value)) {
-    return value.filter(v => typeof v === 'string').map(String);
-  }
-  return undefined;
-}
-
-function mapApiDocument(value: unknown): Wso2ApiDocument {
-  const item = value as Record<string, unknown>;
-  return {
-    id: String(item.documentId ?? item.id ?? ''),
-    name: String(item.name ?? ''),
-    summary: toOptionalString(item.summary),
-    sourceType: toOptionalString(item.sourceType),
-    sourceUrl: toOptionalString(item.sourceUrl),
-    type: toOptionalString(item.type),
-  };
-}
-
-function toOptionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function buildPublisherCreatePayload(input: {
-  name: string;
-  context: string;
-  version: string;
-  endpointUrl: string;
-  description?: string;
-}) {
-  const endpointConfig = {
-    endpoint_type: 'http',
-    production_endpoints: {
-      url: input.endpointUrl,
-      config: null,
-    },
-    sandbox_endpoints: {
-      url: input.endpointUrl,
-      config: null,
-    },
-  };
-
-  return {
-    name: input.name,
-    context: input.context,
-    version: input.version,
-    type: 'HTTP',
-    transport: ['http', 'https'],
-    visibility: 'PUBLIC',
-    description: input.description,
-    endpointConfig: JSON.stringify(endpointConfig),
-  };
 }
 
 function joinUrl(baseUrl: string, path: string): string {

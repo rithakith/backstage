@@ -24,7 +24,6 @@ import GetAppIcon from '@material-ui/icons/GetApp';
 import { useEffect } from 'react';
 
 import { Wso2ApiDocument } from '../../api';
-import { AddDocumentDialog } from './AddDocumentDialog';
 
 const WSO2_API_DOCS_ANNOTATION = 'wso2.com/api-documents';
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
@@ -38,7 +37,7 @@ export interface EntityWso2ApiDocumentsCardProps {
 }
 
 export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProps) => {
-    const { title: propTitle, documents: propDocuments, loading, error, onRefresh } = props;
+    const { title: propTitle, documents: propDocuments, loading: propLoading, error: propError } = props;
     const { entity } = useEntity();
     const config = useApi(configApiRef);
     const { fetch } = useApi(fetchApiRef);
@@ -46,18 +45,22 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
     const [previewDoc, setPreviewDoc] = useState<Wso2ApiDocument | null>(null);
     const [previewContent, setPreviewContent] = useState<string | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
-    const [isDialogOpen, setDialogOpen] = useState(false);
-
-    const canUpdate = false;
 
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const backendUrl = config.getString('backend.baseUrl');
 
     const handleDownload = async (rowData: Wso2ApiDocument) => {
-        const { name, sourceType, sourceUrl, id: docId } = rowData;
+        const docId = rowData.id || rowData.documentId;
+        const { name, sourceType, sourceUrl } = rowData;
 
         if (sourceType === 'URL') {
             window.open(sourceUrl || '#', '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        if (!docId) {
+            console.error('Document ID is missing', rowData);
+            alert('Cannot download document: Missing ID');
             return;
         }
 
@@ -108,6 +111,8 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
 
     const handlePreview = async (rowData: Wso2ApiDocument) => {
         const { sourceType } = rowData;
+        const docId = rowData.id || rowData.documentId;
+
         if (sourceType === 'URL') {
             window.open(rowData.sourceUrl || '#', '_blank', 'noopener,noreferrer');
             return;
@@ -118,12 +123,18 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
             return;
         }
 
+        if (!docId) {
+            console.error('Document ID is missing for preview', rowData);
+            setPreviewContent('Failed to load content: Missing document ID.');
+            return;
+        }
+
         setPreviewDoc(rowData);
         setLoadingPreview(true);
         setPreviewContent(null);
 
         try {
-            const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${rowData.id}/content`;
+            const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
             const response = await fetch(url, { method: 'GET' });
             if (!response.ok) throw new Error(`Failed to load: ${response.statusText}`);
             const content = await response.text();
@@ -136,7 +147,10 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         }
     };
 
-    if (loading) {
+    const isLoading = propLoading;
+    const error = propError;
+
+    if (isLoading) {
         return (
             <InfoCard title={propTitle || "WSO2 Documents"} variant="gridItem">
                 <Progress />
@@ -147,19 +161,25 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
     if (error) {
         return (
             <InfoCard title={propTitle || "WSO2 Documents"} variant="gridItem">
-                <WarningPanel severity="error">
-                    Failed to load documents: {error.message}
+                <WarningPanel severity="error" title="Failed to load documents">
+                    {error.message}
                 </WarningPanel>
             </InfoCard>
         );
     }
 
-    let documents: Wso2ApiDocument[] = propDocuments || [];
+    let documents: Wso2ApiDocument[] = (propDocuments || []).map((doc: any) => ({
+        ...doc,
+        id: doc.id || doc.documentId,
+    }));
 
-    if (!propDocuments) {
+    if (!propDocuments || documents.length === 0) {
         try {
             const wso2DocsJson = entity.metadata.annotations?.[WSO2_API_DOCS_ANNOTATION] || '[]';
-            documents = JSON.parse(wso2DocsJson);
+            documents = JSON.parse(wso2DocsJson).map((doc: any) => ({
+                ...doc,
+                id: doc.id || doc.documentId,
+            }));
         } catch (e) {
             console.warn('Failed to parse wso2.com/api-documents annotation', e);
         }
@@ -326,17 +346,6 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         <InfoCard 
             title={propTitle || "WSO2 Documents"} 
             variant="gridItem"
-            action={
-                canUpdate && (
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => setDialogOpen(true)}
-                    >
-                        Add Document
-                    </Button>
-                )
-            }
         >
             {documents.length === 0 ? (
                 <EmptyState
@@ -358,19 +367,6 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
                         />
                     )}
                 </>
-            )}
-
-            {apiId && (
-                <AddDocumentDialog
-                    open={isDialogOpen}
-                    onClose={() => setDialogOpen(false)}
-                    apiId={apiId}
-                    onSuccess={() => {
-                        setDialogOpen(false);
-                        if (onRefresh) onRefresh();
-                        else window.location.reload();
-                    }}
-                />
             )}
         </InfoCard>
     );

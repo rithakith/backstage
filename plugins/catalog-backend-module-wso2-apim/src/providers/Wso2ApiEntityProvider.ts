@@ -90,8 +90,26 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             const accessToken = tokenData.access_token;
             this.logger.info(`[WSO2 APIM Provider] Successfully acquired WSO2 Access Token.`);
 
-            // 2. Fetch APIs from Publisher API v4
-            this.logger.info(`[WSO2 APIM Provider] Fetching APIs from ${baseUrl}/api/am/publisher/v4/apis`);
+            // 2. Fetch Global Settings from Publisher API v4 (used for Gateway URL discovery)
+            this.logger.info(`[WSO2 APIM Provider] Fetching Global Settings from ${baseUrl}/api/am/publisher/v4/settings`);
+            let globalSettings: any = null;
+            try {
+                const settingsResponse = await undiciFetch(`${baseUrl}/api/am/publisher/v4/settings`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Accept': 'application/json'
+                    },
+                    dispatcher,
+                });
+                if (settingsResponse.ok) {
+                    globalSettings = await settingsResponse.json();
+                    this.logger.info(`[WSO2 APIM Provider] Successfully retrieved global settings with ${globalSettings?.environment?.length || 0} environments.`);
+                }
+            } catch (error) {
+                this.logger.error(`[WSO2 APIM Provider] Error fetching global settings: ${error}`);
+            }
+
+            // 2.1 Fetch APIs from Publisher API v4
             const apisResponse = await undiciFetch(`${baseUrl}/api/am/publisher/v4/apis`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -159,7 +177,11 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
                     if (docsResponse.ok) {
                         const docsData = await docsResponse.json() as any;
-                        api.documents = docsData.list || [];
+                        // Map documentId to id to ensure consistency in Backstage frontend
+                        api.documents = (docsData.list || []).map((doc: any) => ({
+                            ...doc,
+                            id: doc.id || doc.documentId
+                        }));
                     } else {
                         api.documents = [];
                     }
@@ -169,12 +191,22 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 }
             }
 
-            // 2.6 Fetch swagger definitions for each API
+            // 2.6 Fetch definitions (Swagger/OpenAPI or AsyncAPI) for each API
             for (const api of apiList) {
                 const apiId = api.id;
-                const swaggerUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/swagger`;
+                const apiType = api.type;
+                
+                // Determine the correct definition endpoint based on API type
+                // WebSub, WS (WebSocket), SSE, and ASYNC APIs use AsyncAPI
+                const isAsyncApi = apiType === 'WEBSUB' || apiType === 'WS' || apiType === 'SSE' || apiType === 'ASYNC';
+                const definitionUrl = isAsyncApi 
+                    ? `${baseUrl}/api/am/publisher/v4/apis/${apiId}/asyncapi`
+                    : `${baseUrl}/api/am/publisher/v4/apis/${apiId}/swagger`;
+                
+                this.logger.debug(`[WSO2 APIM Provider] Fetching ${isAsyncApi ? 'AsyncAPI' : 'Swagger'} definition for API ${api.name} (${apiId}) from ${definitionUrl}`);
+
                 try {
-                    const swaggerResponse = await undiciFetch(swaggerUrl, {
+                    const response = await undiciFetch(definitionUrl, {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`,
                             'Accept': 'application/json'
@@ -182,14 +214,14 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                         dispatcher,
                     });
 
-                    if (swaggerResponse.ok) {
-                        const swaggerData = await swaggerResponse.json() as any;
-                        api.definition = JSON.stringify(swaggerData);
+                    if (response.ok) {
+                        const data = await response.json() as any;
+                        api.definition = JSON.stringify(data);
                     } else {
-                        api.definition = `WSO2 API Document content placeholder for ${api.name}. Status: ${swaggerResponse.status}`;
+                        api.definition = `WSO2 API Document content placeholder for ${api.name}. Status: ${response.status}`;
                     }
                 } catch (error) {
-                    this.logger.error(`[WSO2 APIM Provider] Error fetching swagger for API ${apiId}: ${error}`);
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching definition for API ${apiId}: ${error}`);
                     api.definition = `WSO2 API Document content placeholder for ${api.name}. Error: ${error}`;
                 }
             }
@@ -241,6 +273,31 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 } catch (error) {
                     this.logger.error(`[WSO2 APIM Provider] Error fetching details for API Product ${productId}: ${error}`);
                     product.apis = [];
+                }
+            }
+
+            // 2.7.6 Fetch swagger definitions for each API Product
+            for (const product of productList) {
+                const productId = product.id;
+                const swaggerUrl = `${baseUrl}/api/am/publisher/v4/api-products/${productId}/swagger`;
+                try {
+                    const swaggerResponse = await undiciFetch(swaggerUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        dispatcher,
+                    });
+
+                    if (swaggerResponse.ok) {
+                        const swaggerData = await swaggerResponse.json() as any;
+                        product.definition = JSON.stringify(swaggerData);
+                    } else {
+                        product.definition = `WSO2 API Product Document content placeholder for ${product.name}. Status: ${swaggerResponse.status}`;
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching swagger for API Product ${productId}: ${error}`);
+                    product.definition = `WSO2 API Product Document content placeholder for ${product.name}. Error: ${error}`;
                 }
             }
 
@@ -313,7 +370,11 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
                     if (docsResponse.ok) {
                         const docsData = await docsResponse.json() as any;
-                        mcp.documents = docsData.list || [];
+                        // Map documentId to id to ensure consistency in Backstage frontend
+                        mcp.documents = (docsData.list || []).map((doc: any) => ({
+                            ...doc,
+                            id: doc.id || doc.documentId
+                        }));
                     } else {
                         mcp.documents = [];
                     }
@@ -347,7 +408,64 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-type': api.type || '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
-                            'wso2.com/api-endpoints': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
+                            'wso2.com/api-endpoints': (() => {
+                                // Strictly use global settings to reconstruct URLs, ignoring potentially incorrect WSO2 defaults
+                                if (globalSettings && globalSettings.environment) {
+                                    const enrichedEndpoints = globalSettings.environment.map((env: any) => {
+                                        const vhost = env.vhosts?.[0]; // Use first vhost
+                                        if (!vhost) return null;
+
+                                        let host = vhost.host;
+                                        // Replace common placeholders (e.g. for AWS gateways)
+                                        if (host.includes('{apiId}')) host = host.replace('{apiId}', api.id);
+                                        
+                                        // Handle additional properties from settings
+                                        if (env.additionalProperties) {
+                                            env.additionalProperties.forEach((prop: any) => {
+                                                const placeholder = `{${prop.key}}`;
+                                                if (host.includes(placeholder)) {
+                                                    host = host.replace(placeholder, prop.value);
+                                                }
+                                            });
+                                        }
+
+                                        // Ensure context starts with / and ends with the version
+                                        let fullContext = api.context ? (api.context.startsWith('/') ? api.context : `/${api.context}`) : '';
+                                        if (api.version && !fullContext.endsWith(api.version)) {
+                                            fullContext = `${fullContext.replace(/\/$/, '')}/${api.version}`;
+                                        }
+
+                                        const urls: string[] = [];
+                                        
+                                        // Add HTTPS URL if port available
+                                        if (vhost.httpsPort) {
+                                            const httpsPortString = (vhost.httpsPort === 443) ? '' : `:${vhost.httpsPort}`;
+                                            urls.push(`https://${host}${httpsPortString}${fullContext}`);
+                                        }
+                                        
+                                        // Add HTTP URL if port available
+                                        if (vhost.httpPort) {
+                                            const httpPortString = (vhost.httpPort === 80) ? '' : `:${vhost.httpPort}`;
+                                            urls.push(`http://${host}${httpPortString}${fullContext}`);
+                                        }
+
+                                        this.logger.info(`[WSO2-DEBUG] Reconstructed ${urls.length} Gateway URLs for API "${api.name}" in Env "${env.name}": ${urls.join(', ')}`);
+
+                                        return {
+                                            environmentName: env.name,
+                                            environmentType: env.type,
+                                            urls
+                                        };
+                                    }).filter(Boolean);
+
+                                    if (enrichedEndpoints.length > 0) {
+                                        this.logger.debug(`[WSO2 APIM Provider] Enriched endpoint URLs for API ${api.name} using global settings.`);
+                                        return JSON.stringify(enrichedEndpoints);
+                                    }
+                                }
+                                
+                                return '[]';
+                            })(),
                             'wso2.com/api-raw-json': rawApiJsonString,
                             'wso2.com/business-owner': api.businessInformation?.businessOwner || '',
                             'wso2.com/business-owner-email': api.businessInformation?.businessOwnerEmail || '',
@@ -360,7 +478,13 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                         tags: api.tags || [],
                     },
                     spec: {
-                        type: api.type === 'HTTP' ? 'openapi' : 'api',
+                        type: (() => {
+                            const type = api.type || 'HTTP';
+                            if (type === 'HTTP' || type === 'SOAP') return 'openapi';
+                            if (type === 'GRAPHQL') return 'graphql';
+                            if (type === 'WEBSUB' || type === 'WS' || type === 'SSE' || type === 'ASYNC') return 'asyncapi';
+                            return 'api';
+                        })(),
                         lifecycle: api.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
                         owner: api.provider || 'unknown',
                         definition: api.definition || `WSO2 API: ${api.name}`,
@@ -392,7 +516,43 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-type': 'API_PRODUCT',
                             'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
                             'wso2.com/is-api-product': 'true',
-                            'wso2.com/api-endpoints': product.endpointURLs ? JSON.stringify(product.endpointURLs) : '[]',
+                            'wso2.com/api-endpoints': (() => {
+                                // Strictly use global settings to reconstruct URLs for API Products
+                                if (globalSettings && globalSettings.environment) {
+                                    const enrichedEndpoints = globalSettings.environment.map((env: any) => {
+                                        const vhost = env.vhosts?.[0];
+                                        if (!vhost) return null;
+                                        let host = vhost.host;
+                                        if (host.includes('{apiId}')) host = host.replace('{apiId}', product.id);
+                                        if (env.additionalProperties) {
+                                            env.additionalProperties.forEach((prop: any) => {
+                                                const placeholder = `{${prop.key}}`;
+                                                if (host.includes(placeholder)) host = host.replace(placeholder, prop.value);
+                                            });
+                                        }
+                                        let fullContext = product.context ? (product.context.startsWith('/') ? product.context : `/${product.context}`) : '';
+                                        // API Products might not always have versions in same way, but we apply same logic if present
+                                        if (product.version && !fullContext.endsWith(product.version)) {
+                                            fullContext = `${fullContext.replace(/\/$/, '')}/${product.version}`;
+                                        }
+
+                                        const urls: string[] = [];
+                                        if (vhost.httpsPort) {
+                                            const httpsPortString = (vhost.httpsPort === 443) ? '' : `:${vhost.httpsPort}`;
+                                            urls.push(`https://${host}${httpsPortString}${fullContext}`);
+                                        }
+                                        if (vhost.httpPort) {
+                                            const httpPortString = (vhost.httpPort === 80) ? '' : `:${vhost.httpPort}`;
+                                            urls.push(`http://${host}${httpPortString}${fullContext}`);
+                                        }
+                                        
+                                        this.logger.info(`[WSO2-DEBUG-PRODUCT] Reconstructed ${urls.length} Gateway URLs for Product "${product.name}" in Env "${env.name}": ${urls.join(', ')}`);
+                                        return { environmentName: env.name, environmentType: env.type, urls };
+                                    }).filter(Boolean);
+                                    if (enrichedEndpoints.length > 0) return JSON.stringify(enrichedEndpoints);
+                                }
+                                return '[]';
+                            })(),
                             'wso2.com/api-raw-json': rawProductJsonString,
                             'wso2.com/product-resources': product.apis ? JSON.stringify(product.apis) : '[]',
                             'wso2.com/business-owner': product.businessInformation?.businessOwner || '',
@@ -409,7 +569,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                         type: 'openapi',
                         lifecycle: product.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
                         owner: product.provider || 'unknown',
-                        definition: `WSO2 API Product: ${product.name}`,
+                        definition: product.definition || `WSO2 API Product: ${product.name}`,
                     },
                 } as ApiEntity;
             });

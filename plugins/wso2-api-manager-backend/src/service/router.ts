@@ -1,12 +1,13 @@
 import express from 'express';
 import Router from 'express-promise-router';
+import { fetch as undiciFetch, Agent } from 'undici';
 import {
   HttpAuthService,
   LoggerService,
   RootConfigService,
   UserInfoService,
 } from '@backstage/backend-plugin-api';
-import { InputError } from '@backstage/errors';
+
 import {
   Wso2ApiManagerClient,
   readWso2ApiManagerConfig
@@ -22,7 +23,7 @@ export interface RouterOptions {
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, httpAuth, config } = options;
+  const { logger, httpAuth, config, userInfo: _userInfo } = options;
   const wso2Config = readWso2ApiManagerConfig(config);
   const client = new Wso2ApiManagerClient({
     config: wso2Config,
@@ -50,118 +51,11 @@ export async function createRouter(
     res.json({ status: 'ok' });
   });
 
-  router.get('/apis', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const limit = readNumber(req.query.limit, 50);
-      const offset = readNumber(req.query.offset, 0);
-      const query = readString(req.query.query);
-      const result = await client.listApis({ limit, offset, query });
-      res.json(result);
-    } catch (error: any) {
-      logger.error(`Failed to fetch APIs from WSO2: ${error.stack}`);
-      res.status(500).json({
-        error: error.message,
-      });
-    }
-  });
-
-  router.get('/api-products', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const limit = readNumber(req.query.limit, 50);
-      const offset = readNumber(req.query.offset, 0);
-      const query = readString(req.query.query);
-      const result = await client.listApiProducts({ limit, offset, query });
-      res.json(result);
-    } catch (error: any) {
-      logger.error(`Failed to fetch API Products from WSO2: ${error.stack}`);
-      res.status(500).json({
-        error: error.message,
-      });
-    }
-  });
-
-  router.get('/api-products/:apiProductId', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const apiProductId = req.params.apiProductId;
-      const result = await client.getApiProduct(apiProductId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to fetch API Product ${req.params.apiProductId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  router.get('/mcp-servers', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const limit = readNumber(req.query.limit, 50);
-      const offset = readNumber(req.query.offset, 0);
-      const query = readString(req.query.query);
-
-      const result = await client.listMcps({ limit, offset, query });
-      res.json(result);
-    } catch (error: any) {
-      logger.error(`Failed to fetch MCP servers from WSO2: ${error.stack}`);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  router.get('/mcp-servers/:mcpId', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const mcpId = req.params.mcpId;
-      const result = await client.getMcp(mcpId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to fetch MCP Server ${req.params.mcpId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  router.get('/mcp-servers/:mcpId/tools', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const mcpId = req.params.mcpId;
-      const result = await client.listMcpTools(mcpId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to list tools for MCP Server ${req.params.mcpId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  router.get('/mcp-servers/:mcpId/documents', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const mcpId = req.params.mcpId;
-      const result = await client.listMcpDocuments(mcpId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to list documents for MCP Server ${req.params.mcpId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  router.get('/apis/:apiId', async (req, res) => {
-    try {
-      await ensureAuthenticated(req);
-      const apiId = req.params.apiId;
-      const result = await client.getApi(apiId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to fetch API ${req.params.apiId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
   router.post('/apis/:apiId/generate-key', async (req, res) => {
     try {
-      await ensureAuthenticated(req);
+      const token = await ensureAuthenticated(req);
       const apiId = req.params.apiId;
-      const result = await client.generateApiKey(apiId);
+      const result = await client.generateApiKey(apiId, token);
       res.json(result);
     } catch (e: any) {
       logger.error(`Failed to generate API key for ${req.params.apiId}: ${e.message}`);
@@ -169,75 +63,12 @@ export async function createRouter(
     }
   });
 
-  router.get('/apis/:apiId/documents', async (req, res) => {
-    const apiId = req.params.apiId;
-    try {
-      await ensureAuthenticated(req);
-      const result = await client.listDocuments(apiId);
-      res.json(result);
-    } catch (e: any) {
-      logger.error(`Failed to list documents for ${apiId}: ${e.message}`);
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  router.get('/apis/:apiId/swagger', async (req, res) => {
-    const apiId = req.params.apiId;
-    try {
-      await ensureAuthenticated(req);
-      const result = await client.getApiDefinition(apiId);
-      res.json(result);
-    } catch (error: any) {
-      if (error.message && error.message.includes('404')) {
-        res.status(404).json({ message: 'Definition not found' });
-      } else {
-        res.status(500).json({ message: error.message });
-      }
-    }
-  });
-
-  router.get('/apis/:apiId/graphql-schema', async (req, res) => {
-    const apiId = req.params.apiId;
-    try {
-      await ensureAuthenticated(req);
-      logger.info(`[WSO2-Router] GET /apis/${apiId}/graphql-schema`);
-      const result = await client.getGraphqlSchema(apiId);
-      res.setHeader('Content-Type', 'text/plain');
-      res.send(result);
-    } catch (error: any) {
-      logger.error(`[WSO2-Router] Failed to fetch GraphQL schema for ${apiId}: ${error.stack}`);
-      if (error.message && error.message.includes('404')) {
-        res.status(404).json({ message: 'GraphQL Schema not found' });
-      } else {
-        res.status(500).json({ message: error.message });
-      }
-    }
-  });
-
-  router.get('/apis/:apiId/asyncapi', async (req, res) => {
-    const apiId = req.params.apiId;
-    try {
-      await ensureAuthenticated(req);
-      logger.info(`[WSO2-Router] GET /apis/${apiId}/asyncapi`);
-      const result = await client.getAsyncApiDefinition(apiId);
-      res.setHeader('Content-Type', 'text/plain');
-      res.send(result);
-    } catch (error: any) {
-      logger.error(`[WSO2-Router] Failed to fetch AsyncAPI definition for ${apiId}: ${error.stack}`);
-      if (error.message && error.message.includes('404')) {
-        res.status(404).json({ message: 'AsyncAPI definition not found' });
-      } else {
-        res.status(500).json({ message: error.message });
-      }
-    }
-  });
-
   router.get('/apis/:apiId/revisions', async (req, res) => {
-    await ensureAuthenticated(req);
     const apiId = req.params.apiId;
-    const query = readString(req.query.query);
+    const query = (req.query.query as string) || undefined;
     try {
-      const result = await client.getRevisions(apiId, { query });
+      const token = await ensureAuthenticated(req);
+      const result = await client.getRevisions(apiId, { query, token });
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -247,14 +78,12 @@ export async function createRouter(
   router.get('/apis/:apiId/documents/:documentId/content', async (req, res) => {
     const { apiId, documentId } = req.params;
     try {
-      const response = await client.getDocumentContentStream(apiId, documentId);
+      const token = await ensureAuthenticated(req);
+      const response = await client.getDocumentContentStream(apiId, documentId, token);
 
       if (!response.ok) {
-        // If content stream returned 404, WSO2 might be reporting no streaming file content.
-        // It might be an INLINE document stored under `inlineContent`.
         if (response.status === 404) {
-          const docData = await client.getDocument(apiId, documentId);
-
+          const docData = await client.getDocument(apiId, documentId, token);
           if (docData && (docData.sourceType === 'INLINE' || docData.sourceType === 'MARKDOWN')) {
             const inlineText = docData.inlineContent || '';
             const isMarkdown = docData.sourceType === 'MARKDOWN';
@@ -264,8 +93,6 @@ export async function createRouter(
             return;
           }
         }
-
-        // Proxy upstream errors
         let errBody = '';
         try {
           errBody = await response.text();
@@ -284,7 +111,6 @@ export async function createRouter(
         return;
       }
 
-      // If document content is natively returned as JSON, parse it as text
       if (contentType.includes('application/json')) {
         const json = await response.json() as any;
         const content = json.inlineContent || JSON.stringify(json, null, 2);
@@ -294,12 +120,8 @@ export async function createRouter(
         return;
       }
 
-      // Standard file stream
       if (contentType) res.setHeader('Content-Type', contentType);
       if (disposition) res.setHeader('Content-Disposition', disposition);
-      else res.setHeader('Content-Disposition', `attachment; filename="document-${documentId}"`);
-
-      // response.body is a stream containing binary data (like word docs)
       const { Readable } = require('stream');
       const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
 
@@ -309,81 +131,62 @@ export async function createRouter(
           res.status(500).send('Error streaming document content');
         }
       });
-
       nodeStream.pipe(res);
-
     } catch (e: any) {
       logger.error(`Failed to stream document content: ${e.message}`, e);
       res.status(500).send(e.message);
     }
   });
 
-  // Admin/Publisher endpoint
-  router.get('/publisher/apis', async (req, res) => {
+  router.all('/proxy', async (req, res) => {
+    const targetUrl = req.headers['x-target-url'] as string;
+    if (!targetUrl) {
+      res.status(400).json({ message: 'Missing x-target-url header' });
+      return;
+    }
+
     try {
-      await ensureAuthenticated(req);
-      const limit = readNumber(req.query.limit, 50);
-      const offset = readNumber(req.query.offset, 0);
-      const query = readString(req.query.query);
-      const result = await client.listPublisherApis({ limit, offset, query });
-      res.json(result);
+      // Re-use the agent from config to handle rejectUnauthorized
+      const dispatcher = new Agent({
+        connect: { rejectUnauthorized: wso2Config.tls.rejectUnauthorized === false ? false : true },
+      });
+
+      // Filter headers to pass to the target
+      const headers: Record<string, string> = {};
+      const sensitiveHeaders = ['authorization', 'internal-key', 'content-type', 'accept'];
+      
+      Object.keys(req.headers).forEach(key => {
+        if (sensitiveHeaders.includes(key.toLowerCase()) || key.toLowerCase().startsWith('x-')) {
+          if (key.toLowerCase() !== 'x-target-url' && key.toLowerCase() !== 'host' && key.toLowerCase() !== 'origin') {
+            headers[key] = req.headers[key] as string;
+          }
+        }
+      });
+
+      const response = await undiciFetch(targetUrl, {
+        method: req.method,
+        headers,
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body),
+        dispatcher,
+      });
+
+      const data = await response.text();
+      
+      // Copy response headers back
+      const responseHeaders = ['content-type', 'cache-control', 'expires', 'pragma'];
+      responseHeaders.forEach(h => {
+        const val = response.headers.get(h);
+        if (val) res.setHeader(h, val);
+      });
+
+      res.status(response.status).send(data);
     } catch (e: any) {
-      logger.error(`Failed to fetch publisher APIs: ${e.message}`);
-      res.status(500).json({ message: e.message });
+      logger.error(`Proxy request to ${targetUrl} failed: ${e.message}`);
+      res.status(500).json({ message: `Proxy error: ${e.message}` });
     }
   });
 
-
-
-  // SCIM2 endpoint - Get user attributes including custom claims like asgardeo_role
-  router.get('/users/:username/attributes', async (req, res) => {
-    await ensureAuthenticated(req);
-    const username = req.params.username;
-    const result = await client.getUserAttributesFromScim(username);
-    res.json(result);
-  });
-
-  // SCIM2 endpoint - Get role permissions
-  router.get('/roles/:roleName/permissions', async (req, res) => {
-    await ensureAuthenticated(req);
-    const roleName = req.params.roleName;
-    const result = await client.getRolePermissions(roleName);
-    res.json(result);
-  });
-
-  // SCIM2 endpoint - Get all user permissions (aggregated from all roles)
-  router.get('/users/:username/permissions', async (req, res) => {
-    await ensureAuthenticated(req);
-    const username = req.params.username;
-    const result = await client.getUserPermissions(username);
-    res.json(result);
-  });
-
-  logger.info('WSO2 API Manager backend router initialized');
+  logger.info('WSO2 API Manager backend router initialized with Proxy capabilities');
   return router;
-}
-
-function readNumber(value: unknown, fallback: number): number {
-  if (value === undefined) {
-    return fallback;
-  }
-  if (typeof value !== 'string') {
-    throw new InputError('Query parameter must be a string');
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed)) {
-    throw new InputError('Query parameter must be a number');
-  }
-  return parsed;
-}
-
-function readString(value: unknown): string | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== 'string') {
-    throw new InputError('Query parameter must be a string');
-  }
-  return value.trim() || undefined;
 }
 
