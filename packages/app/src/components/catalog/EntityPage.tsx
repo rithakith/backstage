@@ -377,7 +377,7 @@ const apiPage = (
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route if={isWso2Api} path="/wso2" title="WSO2">
+    <EntityLayout.Route if={isWso2Api} path="/wso2" title="Docs">
       <EntityWso2ApiOverviewCard />
     </EntityLayout.Route>
   </EntityLayoutWrapper>

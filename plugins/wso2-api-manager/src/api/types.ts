@@ -1,8 +1,9 @@
-import { createApiRef, OAuthApi } from '@backstage/core-plugin-api';
+
 
 export type Wso2ApiSummary = {
   id: string;
   name: string;
+  namespace?: string;
   version?: string;
   provider?: string;
   context?: string;
@@ -12,6 +13,7 @@ export type Wso2ApiSummary = {
 export type Wso2ApiProductSummary = {
   id: string;
   name: string;
+  namespace?: string;
   version?: string;
   provider?: string;
   context?: string;
@@ -47,6 +49,7 @@ export type Wso2McpTool = {
 export type Wso2McpSummary = {
   id: string;
   name: string;
+  namespace?: string;
   version?: string;
   provider?: string;
   context?: string;
@@ -65,6 +68,15 @@ export type Wso2ApiDetail = Wso2ApiSummary & {
     environmentType?: string;
     urls?: string[];
   }>;
+  businessInformation?: {
+    businessOwner?: string;
+    businessOwnerEmail?: string;
+    technicalOwner?: string;
+    technicalOwnerEmail?: string;
+  };
+  apiThrottlingPolicy?: string;
+  visibility?: string;
+  transport?: string[];
 };
 
 export type Wso2ApiDocument = {
@@ -80,34 +92,9 @@ export type Wso2ApiDocument = {
 export type Wso2ApiDocumentType = 'HOWTO' | 'SAMPLES' | 'PUBLIC_FORUM' | 'SUPPORT_FORUM' | 'OTHER' | 'SWAGGER_DOC';
 export type Wso2ApiDocumentSourceType = 'INLINE' | 'URL' | 'FILE' | 'MARKDOWN';
 
-export type Wso2ApiDocumentCreate = {
-  name: string;
-  type: string;
-  summary?: string;
-  sourceType: string;
-  sourceUrl?: string;
-  inlineContent?: string;
-  otherTypeName?: string;
-  visibility?: 'API_LEVEL' | 'PRIVATE' | 'OWNER_ONLY';
-};
 
-export type Wso2ApiListResponse = {
-  apis: Wso2ApiSummary[];
-  pagination?: {
-    offset: number;
-    limit: number;
-    total: number;
-  };
-};
 
-export type Wso2ApiProductListResponse = {
-  apiProducts: Wso2ApiProductSummary[];
-  pagination?: {
-    offset: number;
-    limit: number;
-    total: number;
-  };
-};
+
 
 export type Wso2McpListResponse = {
   mcpServers: Wso2McpSummary[];
@@ -140,18 +127,6 @@ export type Wso2ApiRevisionsResponse = {
 };
 
 export interface Wso2ApiManagerApi {
-  listApis(options?: {
-    limit?: number;
-    offset?: number;
-    query?: string;
-    token?: string;
-  }): Promise<Wso2ApiListResponse>;
-  listApiProducts(options?: {
-    limit?: number;
-    offset?: number;
-    query?: string;
-    token?: string;
-  }): Promise<Wso2ApiProductListResponse>;
   listMcps(options?: {
     limit?: number;
     offset?: number;
@@ -166,44 +141,10 @@ export interface Wso2ApiManagerApi {
   listMcpTools(mcpId: string, token?: string): Promise<Wso2McpTool[]>;
   getApiDefinition(apiId: string, token?: string): Promise<any>;
   generateApiKey(apiId: string, token?: string): Promise<any>;
-  updateApiDefinition(apiId: string, definition: string, token?: string): Promise<void>;
   getGraphqlSchema(apiId: string, token?: string): Promise<string>;
-  updateGraphqlSchema(apiId: string, schema: string, token?: string): Promise<void>;
   getAsyncApiDefinition(apiId: string, token?: string): Promise<string>;
-  updateAsyncApiDefinition(apiId: string, definition: string, token?: string): Promise<void>;
   getRevisions(
     apiId: string,
     options?: { query?: string; token?: string },
   ): Promise<Wso2ApiRevisionsResponse>;
-  listPublisherApis(options?: {
-    limit?: number;
-    offset?: number;
-    query?: string;
-    token?: string;
-  }): Promise<Wso2ApiListResponse>;
-  createPublisherApi(input: {
-    name: string;
-    context: string;
-    version: string;
-    endpointUrl: string;
-    description?: string;
-    token?: string;
-  }): Promise<Wso2ApiDetail>;
-  addDocument(
-    apiId: string,
-    document: Wso2ApiDocumentCreate,
-    token?: string,
-  ): Promise<Wso2ApiDocument>;
-  validateDocumentName(
-    apiId: string,
-    name: string,
-    token?: string,
-  ): Promise<boolean>;
-  addDocumentContent(
-    apiId: string,
-    documentId: string,
-    content: string | File,
-    filename?: string,
-    token?: string,
-  ): Promise<void>;
 }

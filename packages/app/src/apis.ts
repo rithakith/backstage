@@ -45,7 +45,6 @@ import {
   Wso2ApiManagerClient,
   wso2ApiManagerApiRef,
   wso2AuthApiRef,
-  thunderAuthApiRef,
 } from '@internal/plugin-wso2-api-manager';
 
 export const asgardeoAuthApiRef: ApiRef<
@@ -148,26 +147,7 @@ export const apis: AnyApiFactory[] = [
       }),
   }),
 
-  createApiFactory({
-    api: thunderAuthApiRef,
-    deps: {
-      discoveryApi: discoveryApiRef,
-      oauthRequestApi: oauthRequestApiRef,
-      configApi: configApiRef,
-    },
-    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
-      OAuth2.create({
-        discoveryApi,
-        oauthRequestApi,
-        provider: {
-          id: 'oidc',
-          title: 'Thunder Auth',
-          icon: () => null,
-        },
-        environment: configApi.getOptionalString('auth.environment'),
-        defaultScopes: ['openid', 'profile', 'email'],
-      }),
-  }),
+
 
   ScmAuth.createDefaultApiFactory(),
 ];

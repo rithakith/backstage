@@ -38,6 +38,9 @@ const PRODUCT_RESOURCES_ANNOTATION = 'wso2.com/product-resources';
 const IS_MCP_SERVER_ANNOTATION = 'wso2.com/is-mcp-server';
 const MCP_TOOLS_ANNOTATION = 'wso2.com/mcp-tools';
 const API_DOCUMENTS_ANNOTATION = 'wso2.com/api-documents';
+const API_ENDPOINTS_ANNOTATION = 'wso2.com/api-endpoints';
+const BUSINESS_OWNER_ANNOTATION = 'wso2.com/business-owner';
+const TECHNICAL_OWNER_ANNOTATION = 'wso2.com/technical-owner';
 
 export const EntityWso2ApiOverviewCard = () => {
     // entity: { metadata: { name: 'pizza-shack', annotations: { 'wso2.com/api-id': '...' } }, kind: 'API', ... }
@@ -175,20 +178,34 @@ export const EntityWso2ApiOverviewCard = () => {
 
     return (
         <Grid container spacing={3} alignItems="stretch">
+     
             <Grid item xs={12} md={6}>
-                <InfoCard title="WSO2 details">
+                <InfoCard title="API Details">
                     <ApiDetails details={details} />
                 </InfoCard>
             </Grid>
             <Grid item xs={12} md={6}>
                 <EntityWso2ApiDocumentsCard
-                    title="WSO2 documents"
                     documents={(apiDocumentsState.value?.documents && apiDocumentsState.value.documents.length > 0) ? apiDocumentsState.value.documents : (apiDocuments || [])}
                     loading={apiDocumentsState.loading}
                     error={apiDocumentsState.error}
                     onRefresh={apiDocumentsState.retry}
                 />
             </Grid>
+            {details.endpointURLs && details.endpointURLs.length > 0 && (
+                <Grid item xs={12}>
+                    <InfoCard title="Gateway Endpoints">
+                        <EndpointTable endpoints={details.endpointURLs} />
+                    </InfoCard>
+                </Grid>
+            )}
+            {details.businessInformation && (details.businessInformation.businessOwner || details.businessInformation.technicalOwner) && (
+                <Grid item xs={12}>
+                    <InfoCard title="Business Information">
+                        <BusinessInfoTable info={details.businessInformation} />
+                    </InfoCard>
+                </Grid>
+            )}
             {isApiProduct && productResources.length > 0 && (
                 <Grid item xs={12}>
                     <InfoCard title="Resources">
@@ -214,13 +231,16 @@ export const EntityWso2ApiOverviewCard = () => {
 };
 
 const ProductResourcesTable = ({ resources }: { resources: Wso2ApiProductResource[] }) => {
+    const { entity } = useEntity();
+    const namespace = entity.metadata.namespace || 'default';
+
     const columns = [
         { 
             title: 'API Name', 
             field: 'name',
             render: (rowData: any) => (
                 <Link
-                  href={`/catalog/default/api/${rowData.name.toLowerCase()}`}
+                  href={`/catalog/${namespace}/api/${rowData.name.toLowerCase()}`}
                   style={{ fontWeight: 'bold', color: '#007acc' }}
                 >
                   {rowData.name}
@@ -301,6 +321,49 @@ const getVerbColor = (verb: string) => {
     }
 };
 
+const EndpointTable = ({ endpoints }: { endpoints: any[] }) => {
+    const columns = [
+        { title: 'Environment', field: 'environmentName' },
+        { title: 'Type', field: 'environmentType' },
+        { 
+            title: 'URLs', 
+            field: 'urls',
+            render: (rowData: any) => (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {rowData.urls?.map((url: string) => (
+                        <li key={url}>
+                            <Link href={url} target="_blank" rel="noopener noreferrer">
+                                {url}
+                            </Link>
+                        </li>
+                    ))}
+                </ul>
+            )
+        },
+    ];
+
+    return (
+        <Table
+            options={{ search: false, paging: false, toolbar: false }}
+            columns={columns}
+            data={endpoints}
+        />
+    );
+};
+
+const BusinessInfoTable = ({ info }: { info: any }) => {
+    const metadata: Record<string, string> = {};
+    
+    if (info.businessOwner) {
+        metadata['Business Owner'] = info.businessOwnerEmail ? `${info.businessOwner} (${info.businessOwnerEmail})` : info.businessOwner;
+    }
+    if (info.technicalOwner) {
+        metadata['Technical Owner'] = info.technicalOwnerEmail ? `${info.technicalOwner} (${info.technicalOwnerEmail})` : info.technicalOwner;
+    }
+
+    return <StructuredMetadataTable metadata={metadata} />;
+};
+
 const ApiDetails = ({ details }: { details: Wso2ApiDetail | Wso2ApiProductDetail | Wso2McpDetail }) => {
     const metadata: Record<string, string> = {
         Name: details.name,
@@ -320,6 +383,15 @@ const ApiDetails = ({ details }: { details: Wso2ApiDetail | Wso2ApiProductDetail
     }
     if (details.type) {
         metadata.Type = details.type;
+    }
+    if ((details as Wso2ApiDetail).apiThrottlingPolicy) {
+        metadata['Throttling Policy'] = (details as Wso2ApiDetail).apiThrottlingPolicy!;
+    }
+    if ((details as Wso2ApiDetail).visibility) {
+        metadata.Visibility = (details as Wso2ApiDetail).visibility!;
+    }
+    if ((details as Wso2ApiDetail).transport && (details as Wso2ApiDetail).transport!.length > 0) {
+        metadata.Transports = (details as Wso2ApiDetail).transport!.join(', ');
     }
     if (details.description) {
         metadata.Description = details.description;

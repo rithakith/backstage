@@ -13,11 +13,10 @@ export const wso2ApiManagerPlugin = createBackendPlugin({
         httpRouter: coreServices.httpRouter,
         logger: coreServices.logger,
         config: coreServices.rootConfig,
-        permissions: coreServices.permissions,
         userInfo: coreServices.userInfo,
       },
-      async init({ httpAuth, httpRouter, logger, config, permissions, userInfo }) {
-        httpRouter.use(await createRouter({ httpAuth, logger, config, permissions, userInfo }));
+      async init({ httpAuth, httpRouter, logger, config, userInfo }) {
+        httpRouter.use(await createRouter({ httpAuth, logger, config, userInfo }));
         httpRouter.addAuthPolicy({
           path: '/health',
           allow: 'unauthenticated',

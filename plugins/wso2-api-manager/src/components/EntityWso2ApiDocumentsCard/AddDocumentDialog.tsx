@@ -222,7 +222,7 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
     };
 
     const renderStep0 = () => (
-        <Box display="flex" flexDirection="column" gridGap={24}>
+        <Box display="flex" flexDirection="column" style={{ gap: 24 }}>
             <TextField
                 label="Name"
                 name="name"
@@ -397,7 +397,7 @@ export const AddDocumentDialog = (props: AddDocumentDialogProps) => {
     );
 
     const renderStep1 = () => (
-        <Box display="flex" flexDirection="column" gridGap={16}>
+        <Box display="flex" flexDirection="column" style={{ gap: 16 }}>
             <Box px={1} py={1} bgcolor={theme.palette.background.default} borderRadius={4}>
                 <Box fontSize="caption.fontSize" color="textSecondary">Document Name</Box>
                 <Box fontWeight="bold">{formData.name}</Box>

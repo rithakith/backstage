@@ -254,6 +254,8 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
                                 backgroundColor: '#fff', 
                                 color: '#000', 
                                 padding: '40px', 
+                                maxHeight: 'calc(100vh - 300px)',
+                                overflowY: 'auto',
                                 minHeight: '500px',
                                 border: '1px solid #eee'
                             }}
@@ -261,7 +263,7 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
                             <Typography variant="h4" style={{ fontWeight: 700, marginBottom: 16 }}>
                                 {previewDoc.name}
                             </Typography>
-                            <Box mb={4} display="flex" gap="12px">
+                            <Box mb={4} display="flex" style={{ gap: '12px' }}>
                                 <Chip size="small" label={previewDoc.type} />
                                 <Chip size="small" label={previewDoc.sourceType} variant="outlined" />
                             </Box>

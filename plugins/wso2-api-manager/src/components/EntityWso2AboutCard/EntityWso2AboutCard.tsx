@@ -132,6 +132,12 @@ export const EntityWso2AboutCard = () => {
                 {annotations['wso2.com/api-version'] && (
                     <AboutField label="Version" value={annotations['wso2.com/api-version']} gridSizes={gridSizes} />
                 )}
+                {annotations['wso2.com/technical-owner'] && (
+                    <AboutField label="Technical Owner" value={annotations['wso2.com/technical-owner']} gridSizes={gridSizes} />
+                )}
+                {annotations['wso2.com/business-owner'] && (
+                    <AboutField label="Business Owner" value={annotations['wso2.com/business-owner']} gridSizes={gridSizes} />
+                )}
                 {entity.metadata.description && (
                     <Grid item xs={12}>
                         <AboutField label="Description" value={entity.metadata.description} />

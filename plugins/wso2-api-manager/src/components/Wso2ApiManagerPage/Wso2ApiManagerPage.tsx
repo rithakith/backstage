@@ -79,7 +79,7 @@ export const Wso2ApiManagerPage = () => {
     }
   }, [oauthApi]);
 
-  const [createError] = useState<string | undefined>();
+
 
   const catalogState = useAsyncRetry(async () => {
     // Fetch all API entities from the catalog (increase limit to ensure we get everything)
@@ -98,6 +98,7 @@ export const Wso2ApiManagerPage = () => {
     }).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
       name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      namespace: e.metadata.namespace,
       version: e.metadata.annotations?.['wso2.com/api-version'] as string,
       context: e.metadata.annotations?.['wso2.com/api-context'] as string,
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
@@ -111,6 +112,7 @@ export const Wso2ApiManagerPage = () => {
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
       name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      namespace: e.metadata.namespace,
       version: e.metadata.annotations?.['wso2.com/api-version'] as string,
       context: e.metadata.annotations?.['wso2.com/api-context'] as string,
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
@@ -124,6 +126,7 @@ export const Wso2ApiManagerPage = () => {
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
       name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
+      namespace: e.metadata.namespace,
       version: e.metadata.annotations?.['wso2.com/api-version'] as string,
       context: e.metadata.annotations?.['wso2.com/api-context'] as string,
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
@@ -155,7 +158,7 @@ export const Wso2ApiManagerPage = () => {
     retry: catalogState.retry 
   };
 
-  /* handleCreate is disabled */
+
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
     () => [
@@ -164,7 +167,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
+            href={`/catalog/${rowData.namespace || 'default'}/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -187,7 +190,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
+            href={`/catalog/${rowData.namespace || 'default'}/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -210,7 +213,7 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => (
           <Link
-            href={`/catalog/default/api/${normalizeEntityName(rowData.name)}`}
+            href={`/catalog/${rowData.namespace || 'default'}/api/${normalizeEntityName(rowData.name)}`}
             style={{ fontWeight: 'bold', color: '#007acc' }}
           >
             {rowData.name}
@@ -233,23 +236,10 @@ export const Wso2ApiManagerPage = () => {
           <SupportButton>
             This view lists APIs from WSO2 API Manager.
           </SupportButton>
-          {/* 
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleCreateButtonClick}
-          >
-            Create API
-          </Button>
-          */}
+
         </ContentHeader>
 
-        {createError && (
-          <WarningPanel
-            title="Action Failed"
-            message={createError}
-          />
-        )}
+
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs
@@ -322,14 +312,7 @@ export const Wso2ApiManagerPage = () => {
         )}
       </Content>
 
-      {/* 
-      <CreateApiDialog
-        open={isDialogOpen}
-        errorMessage={createError}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={handleCreate}
-      />
-      */}
+
     </Page>
   );
 };

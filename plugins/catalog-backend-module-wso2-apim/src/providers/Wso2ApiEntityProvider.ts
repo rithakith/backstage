@@ -47,7 +47,9 @@ export class Wso2ApiEntityProvider implements EntityProvider {
         this.logger.info(`Running Wso2ApiEntityProvider`);
 
         // Get the configuration from app-config.yaml
+        // @tharika Do you think we should add fallback values for these?
         const baseUrl = this.config.getOptionalString('catalog.providers.wso2Apim.baseUrl') || 'https://localhost:9447';
+        const namespace = this.config.getOptionalString('catalog.providers.wso2Apim.namespace') || 'default';
         const username = this.config.getOptionalString('catalog.providers.wso2Apim.username') || 'admin';
         const password = this.config.getOptionalString('catalog.providers.wso2Apim.password') || 'admin';
         const clientId = this.config.getOptionalString('wso2ApiManager.auth.clientId') || '';
@@ -108,6 +110,39 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             const apiList = apisData.list || [];
 
             this.logger.info(`[WSO2 APIM Provider] Retrieved ${apiList.length} APIs from Publisher.`);
+
+            // 2.3 Fetch full details for each API to get endpointURLs and other missing fields
+            // We use DevPortal v3 for better endpoint information, with a fallback to Publisher v4
+            for (let i = 0; i < apiList.length; i++) {
+                const apiId = apiList[i].id;
+                const apiName = apiList[i].name || apiId;
+                const publisherDetailUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}`;
+                
+                this.logger.info(`[WSO2 APIM Provider] Fetching detail for API "${apiName}" (${apiId}) from Publisher v4`);
+                
+                try {
+                    let detailResponse = await undiciFetch(publisherDetailUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        dispatcher,
+                    });
+
+                    if (detailResponse.ok) {
+                        const detailData = await detailResponse.json() as any;
+                        const endpointsFound = detailData.endpointURLs?.length || 0;
+                        this.logger.info(`[WSO2 APIM Provider] Successfully fetched detail for API "${apiName}". Endpoints found: ${endpointsFound}`);
+                        // Replace/Enrich the summary with full detail
+                        apiList[i] = { ...apiList[i], ...detailData };
+                    } else {
+                        const errText = await detailResponse.text();
+                        this.logger.warn(`[WSO2 APIM Provider] Failed to fetch full detail for API ${apiId}. Status: ${detailResponse.status}. Response: ${errText}`);
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching full detail for API ${apiId}: ${error}`);
+                }
+            }
 
             // 2.5 Fetch documents for each API
             for (const api of apiList) {
@@ -198,7 +233,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
                     if (detailResponse.ok) {
                         const detailData = await detailResponse.json() as any;
-                        product.apis = detailData.apis || [];
+                        // Fully merge detail data into the product object
+                        Object.assign(product, detailData);
                     } else {
                         product.apis = [];
                     }
@@ -297,6 +333,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     kind: 'API',
                     metadata: {
                         name: normalizedName,
+                        namespace,
                         title: api.displayName || api.name,
                         description: api.description || `WSO2 API: ${api.name}`,
                         annotations: {
@@ -310,12 +347,20 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-type': api.type || '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
+                            'wso2.com/api-endpoints': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
                             'wso2.com/api-raw-json': rawApiJsonString,
+                            'wso2.com/business-owner': api.businessInformation?.businessOwner || '',
+                            'wso2.com/business-owner-email': api.businessInformation?.businessOwnerEmail || '',
+                            'wso2.com/technical-owner': api.businessInformation?.technicalOwner || '',
+                            'wso2.com/technical-owner-email': api.businessInformation?.technicalOwnerEmail || '',
+                            'wso2.com/api-throttling-policy': api.apiThrottlingPolicy || '',
+                            'wso2.com/api-visibility': api.visibility || '',
+                            'wso2.com/api-transports': Array.isArray(api.transport) ? JSON.stringify(api.transport) : '[]',
                         },
                         tags: api.tags || [],
                     },
                     spec: {
-                        type: api.type === 'GRAPHQL' ? 'graphql' : 'openapi',
+                        type: api.type === 'HTTP' ? 'openapi' : 'api',
                         lifecycle: api.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
                         owner: api.provider || 'unknown',
                         definition: api.definition || `WSO2 API: ${api.name}`,
@@ -333,6 +378,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     kind: 'API',
                     metadata: {
                         name: normalizedName,
+                        namespace,
                         title: product.displayName || product.name,
                         description: product.description || `WSO2 API Product: ${product.name}`,
                         annotations: {
@@ -346,8 +392,16 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-type': 'API_PRODUCT',
                             'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
                             'wso2.com/is-api-product': 'true',
+                            'wso2.com/api-endpoints': product.endpointURLs ? JSON.stringify(product.endpointURLs) : '[]',
                             'wso2.com/api-raw-json': rawProductJsonString,
                             'wso2.com/product-resources': product.apis ? JSON.stringify(product.apis) : '[]',
+                            'wso2.com/business-owner': product.businessInformation?.businessOwner || '',
+                            'wso2.com/business-owner-email': product.businessInformation?.businessOwnerEmail || '',
+                            'wso2.com/technical-owner': product.businessInformation?.technicalOwner || '',
+                            'wso2.com/technical-owner-email': product.businessInformation?.technicalOwnerEmail || '',
+                            'wso2.com/api-throttling-policy': product.apiThrottlingPolicy || '',
+                            'wso2.com/api-visibility': product.visibility || '',
+                            'wso2.com/api-transports': Array.isArray(product.transport) ? JSON.stringify(product.transport) : '[]',
                         },
                         tags: product.tags || [],
                     },
@@ -370,6 +424,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     kind: 'API',
                     metadata: {
                         name: normalizedName,
+                        namespace,
                         title: mcp.name,
                         description: mcp.description || `WSO2 MCP Server: ${mcp.name}`,
                         annotations: {

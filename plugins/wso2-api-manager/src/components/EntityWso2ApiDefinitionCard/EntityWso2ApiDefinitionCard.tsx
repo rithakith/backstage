@@ -283,24 +283,19 @@ const formatAsyncApi = (yaml: string): string => {
  * Placeholder component for the Swagger UI 'Try It Out' button when the API is not deployed.
  */
 const NotDeployedTryItOutPlaceholder = () => (
-    <div style={{
-        padding: '8px 12px',
-        backgroundColor: '#fffbe6',
-        border: '1px solid #ffe58f',
-        borderRadius: '4px',
-        color: '#856200',
-        fontSize: '0.875rem',
-        fontWeight: 600,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginTop: '10px',
-        marginBottom: '10px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-    }}>
-        <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-        Interactive testing is disabled: API not deployed to Gateway
-    </div>
+    <Button 
+        variant="contained" 
+        disabled 
+        style={{ 
+            marginTop: '10px', 
+            marginBottom: '10px',
+            textTransform: 'none',
+            fontWeight: 600,
+            cursor: 'not-allowed'
+        }}
+    >
+        Try it out
+    </Button>
 );
 
 /**
@@ -364,11 +359,6 @@ export const EntityWso2ApiDefinitionCard = () => {
 
     // Editor state
     const [activeTab, setActiveTab] = useState(0); // 0=Swagger UI, 1=Source
-    const [isEditing, setIsEditing] = useState(false);
-    const [editContent, setEditContent] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | undefined>();
-    const [saveSuccess, setSaveSuccess] = useState(false);
 
     // Switch to Source tab automatically for GraphQL APIs since SwaggerUI can't render them
     useEffect(() => {
@@ -378,15 +368,11 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDetailState.value]);
 
-    // Identify if this is an API Product (editing is restricted for products)
-    /* isApiProduct not needed for read-only view */
+    const [editContent, setEditContent] = useState('');
 
-    // Permission check - hardcode to false
-    const hasWritePermission = false;
-
-    // Sync editor content when definition loads
+    // Sync display content when definition loads
     useEffect(() => {
-        if (apiDefinitionState.value && !isEditing) {
+        if (apiDefinitionState.value) {
             let content = '';
             if (apiDetailState.value?.type === 'GRAPHQL' && typeof apiDefinitionState.value === 'string') {
                 content = formatGraphQL(apiDefinitionState.value);
@@ -399,9 +385,9 @@ export const EntityWso2ApiDefinitionCard = () => {
             }
             setEditContent(content);
         }
-    }, [apiDefinitionState.value, isEditing, apiDetailState.value]);
+    }, [apiDefinitionState.value, apiDetailState.value]);
 
-    /* Edit, Cancel, Save handlers disabled */
+
 
     // Generate an API test key for the Try it out functionality
     // Generate an API test key for the Try it out functionality
@@ -479,15 +465,16 @@ export const EntityWso2ApiDefinitionCard = () => {
         return (revisionsState.value?.list?.length ?? 0) > 0;
     }, [revisionsState.value]);
 
-    // Swagger UI Plugin to replace the 'Try It Out' button with a message when not deployed
+    // Swagger UI Plugin to replace the 'Try It Out' button with a message when not deployed or for SOAP APIs
     const tryItOutPlugin = useMemo(() => {
-        if (isDeployed) return {};
+        const isSoap = apiDetailState.value?.type === 'SOAP';
+        if (isDeployed && !isSoap) return {};
         return {
             components: {
                 TryItOutButton: NotDeployedTryItOutPlaceholder,
             }
         };
-    }, [isDeployed]);
+    }, [isDeployed, apiDetailState.value]);
 
     // Dynamically rewrite the Swagger/OpenAPI spec URL to hit the API Gateway directly (e.g. 8247)
     const swaggerSpec = useMemo(() => {
@@ -587,7 +574,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                                 apiDetailState.value?.type !== 'WEBSUB' && (
                                     <Tab id="tab-swagger-ui" label="Swagger UI" className={classes.tabRoot} />
                                 )}
-                            <Tab id="tab-source" label="Source Editor" className={classes.tabRoot} />
+                            <Tab id="tab-source" label="View Source" className={classes.tabRoot} />
                         </Tabs>
                     </Box>
 
@@ -617,8 +604,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                                         <Typography variant="body2" style={{ color: '#0050b3', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 500 }}>
                                             <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
                                             <Box>
-                                                <strong>Interactive Testing Disabled:</strong> This API is not currently deployed to the WSO2 Gateway environment. 
-                                                You can view the definition below, but you must deploy the API in the WSO2 Publisher to test it interactively.
+                                                <strong>API is not deployed yet! Please deploy the API before trying out</strong>
                                             </Box>
                                         </Typography>
                                     </Box>
@@ -688,13 +674,13 @@ export const EntityWso2ApiDefinitionCard = () => {
                     {activeTab === 1 && (
                         <SwaggerEditorPanel
                             value={editContent}
-                            readOnly={!isEditing}
-                            onChange={setEditContent}
-                            isEditing={isEditing}
-                            isSaving={isSaving}
-                            saveSuccess={saveSuccess}
-                            saveError={saveError}
-                            hasWritePermission={hasWritePermission}
+                            readOnly
+                            onChange={() => {}}
+                            isEditing={false}
+                            isSaving={false}
+                            saveSuccess={false}
+                            saveError={undefined}
+                            hasWritePermission={false}
                             onEdit={() => {}}
                             onSave={() => {}}
                             onCancel={() => {}}
