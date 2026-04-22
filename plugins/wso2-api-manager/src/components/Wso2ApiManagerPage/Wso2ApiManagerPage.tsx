@@ -24,7 +24,6 @@ import {
   Wso2ApiSummary,
   Wso2ApiProductSummary,
   Wso2McpSummary,
-  wso2ApiManagerApiRef,
   wso2AuthApiRef,
 } from '../../api';
 

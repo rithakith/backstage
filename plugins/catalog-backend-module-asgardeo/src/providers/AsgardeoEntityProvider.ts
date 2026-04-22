@@ -50,7 +50,15 @@ export class AsgardeoEntityProvider implements EntityProvider {
         // Get the credentials from app-config.yaml
         const clientId = this.config.getString('auth.providers.oidc.development.clientId');
         const clientSecret = this.config.getString('auth.providers.oidc.development.clientSecret');
-        const asgardeoOrgName = 'backstageplugin'; // Extracted from metadataUrl
+        
+        // Extract org name from metadataUrl or allow explicit config
+        let asgardeoOrgName = this.config.getOptionalString(`catalog.providers.${this.id}.organization`);
+        if (!asgardeoOrgName) {
+            const metadataUrl = this.config.getString('auth.providers.oidc.development.metadataUrl');
+            // Try to extract from https://api.asgardeo.io/t/<org>/...
+            const match = metadataUrl.match(/\/t\/([^\/]+)\//);
+            asgardeoOrgName = match ? match[1] : 'backstageplugin';
+        }
 
         try {
             // 1. Authenticate to get an access token using Client Credentials

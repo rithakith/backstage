@@ -1,3 +1,4 @@
+export { rootRouteRef } from './routes';
 export {
 	wso2ApiManagerPlugin,
 	Wso2ApiManagerPage,

@@ -155,7 +155,7 @@ function EntityLabels(props: { entity: Entity }) {
       {(entity.spec?.lifecycle || (isWso2Api && wso2Status)) && (
         <HeaderLabel
           label={t('entityLabels.lifecycleLabel')}
-          value={(isWso2Api && wso2Status) || entity.spec.lifecycle?.toString()}
+          value={(isWso2Api && wso2Status) || entity.spec?.lifecycle?.toString()}
         />
       )}
     </>
