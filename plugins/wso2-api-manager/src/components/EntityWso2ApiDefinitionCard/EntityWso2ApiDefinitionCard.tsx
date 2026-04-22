@@ -7,7 +7,7 @@ import {
     EmptyState,
     Link,
 } from '@backstage/core-components';
-import { useApi, alertApiRef, discoveryApiRef } from '@backstage/core-plugin-api';
+import { useApi, alertApiRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
     Box,
@@ -150,18 +150,13 @@ export const EntityWso2ApiDefinitionCard = () => {
     const apiClient = useApi(wso2ApiManagerApiRef);
     const oauthApi = useApi(wso2AuthApiRef);
     const alertApi = useApi(alertApiRef);
-    const discoveryApi = useApi(discoveryApiRef);
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const apiKeyRef = useRef<string | null>(null);
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [expiresIn, setExpiresIn] = useState<number | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
 
-    const [backendProxyUrl, setBackendProxyUrl] = useState('');
 
-    useEffect(() => {
-        discoveryApi.getBaseUrl('wso2-api-manager').then(url => setBackendProxyUrl(url));
-    }, [discoveryApi]);
 
     // Get the user's Asgardeo OAuth token from existing session
     const tokenState = useAsyncRetry(async () => {
@@ -290,7 +285,6 @@ export const EntityWso2ApiDefinitionCard = () => {
 
     // Calculate the Gateway URLs from harvested endpoints
     const gatewayUrls = useMemo<string[]>(() => {
-        const details = apiDetailState.value;
         const endpointsRaw = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
         
         let endpoints: Array<{ 
@@ -311,16 +305,6 @@ export const EntityWso2ApiDefinitionCard = () => {
         if (endpoints && endpoints.length > 0) {
             const prodEnv = endpoints.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
                          || endpoints[0];
-            
-            if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
-                return prodEnv.urls;
-            }
-        }
-
-        // 2. Fallback to what's in the raw JSON (if any)
-        if (details?.endpointURLs && details.endpointURLs.length > 0) {
-            const prodEnv = details.endpointURLs.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
-                         || details.endpointURLs[0];
             
             if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
                 return prodEnv.urls;
@@ -514,18 +498,6 @@ export const EntityWso2ApiDefinitionCard = () => {
                                         plugins={[tryItOutPlugin]}
                                         supportedSubmitMethods={['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']}
                                         requestInterceptor={(req: any) => {
-                                            // If the request targets a WSO2 Gateway, proxy it through the Backstage backend to bypass CORS
-                                            const isGatewayRequest = gatewayUrls.some(baseUrl => req.url.startsWith(baseUrl));
-                                            
-                                            if (isGatewayRequest && backendProxyUrl) {
-                                                console.log(`🛡️ [WSO2-Proxy] Routing request through backend proxy: ${req.url}`);
-                                                req.headers['x-target-url'] = req.url;
-                                                req.url = `${backendProxyUrl}/proxy`;
-                                            }
-
-                                            // Set credentials to 'omit' to avoid CORS issues with wildcard origins
-                                            req.credentials = 'omit';
-
                                             if (apiKey) {
                                                 console.log('🚀 [WSO2-Auth] Injecting Internal-Key into request:', req.url);
                                                 // WSO2 Gateway expects testing keys in 'Internal-Key' header

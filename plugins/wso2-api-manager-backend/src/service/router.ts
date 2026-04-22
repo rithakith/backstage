@@ -138,55 +138,7 @@ export async function createRouter(
     }
   });
 
-  router.all('/proxy', async (req, res) => {
-    const targetUrl = req.headers['x-target-url'] as string;
-    if (!targetUrl) {
-      res.status(400).json({ message: 'Missing x-target-url header' });
-      return;
-    }
-
-    try {
-      // Re-use the agent from config to handle rejectUnauthorized
-      const dispatcher = new Agent({
-        connect: { rejectUnauthorized: wso2Config.tls.rejectUnauthorized === false ? false : true },
-      });
-
-      // Filter headers to pass to the target
-      const headers: Record<string, string> = {};
-      const sensitiveHeaders = ['authorization', 'internal-key', 'content-type', 'accept'];
-      
-      Object.keys(req.headers).forEach(key => {
-        if (sensitiveHeaders.includes(key.toLowerCase()) || key.toLowerCase().startsWith('x-')) {
-          if (key.toLowerCase() !== 'x-target-url' && key.toLowerCase() !== 'host' && key.toLowerCase() !== 'origin') {
-            headers[key] = req.headers[key] as string;
-          }
-        }
-      });
-
-      const response = await undiciFetch(targetUrl, {
-        method: req.method,
-        headers,
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body),
-        dispatcher,
-      });
-
-      const data = await response.text();
-      
-      // Copy response headers back
-      const responseHeaders = ['content-type', 'cache-control', 'expires', 'pragma'];
-      responseHeaders.forEach(h => {
-        const val = response.headers.get(h);
-        if (val) res.setHeader(h, val);
-      });
-
-      res.status(response.status).send(data);
-    } catch (e: any) {
-      logger.error(`Proxy request to ${targetUrl} failed: ${e.message}`);
-      res.status(500).json({ message: `Proxy error: ${e.message}` });
-    }
-  });
-
-  logger.info('WSO2 API Manager backend router initialized with Proxy capabilities');
+  logger.info('WSO2 API Manager backend router initialized');
   return router;
 }
 
