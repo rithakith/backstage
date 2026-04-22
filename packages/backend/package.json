@@ -69,7 +69,7 @@
     "@backstage/plugin-search-backend-node": "workspace:^",
     "@backstage/plugin-signals-backend": "workspace:^",
     "@backstage/plugin-techdocs-backend": "workspace:^",
-    "@internal/catalog-backend-module-asgardeo": "workspace:^",
+    "@rk-apim/backstage-plugin-catalog-backend-module-asgardeo": "workspace:^",
     "@opentelemetry/auto-instrumentations-node": "^0.67.0",
     "@opentelemetry/exporter-prometheus": "^0.211.0",
     "@opentelemetry/sdk-node": "^0.211.0",
