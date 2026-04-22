@@ -5,13 +5,15 @@ import {
   Tabs,
   Tab,
   Box,
+  CircularProgress,
+  Typography,
 } from '@material-ui/core';
 import {
   Content,
   ContentHeader,
+  EmptyState,
   Header,
   Page,
-  Progress,
   SupportButton,
   Table,
   TableColumn,
@@ -255,14 +257,30 @@ export const Wso2ApiManagerPage = () => {
 
         {tabValue === 0 && (
           <>
-            {apiListState.loading && <Progress />}
+            {apiListState.loading && (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
+                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+                <Box mt={2}>
+                  <Typography variant="h6" color="textSecondary">
+                    Fetching APIs from WSO2...
+                  </Typography>
+                </Box>
+              </Box>
+            )}
             {apiListState.error && (
               <WarningPanel
                 title="Failed to load APIs"
                 message={apiListState.error.message}
               />
             )}
-            {apiListState.value?.apis && (
+            {!apiListState.loading && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
+              <EmptyState
+                missing="content"
+                title="No APIs Found"
+                description="If you have recently configured the WSO2 provider, the catalog might still be synchronizing. Please wait a few moments or check your backend logs for [WSO2-DISCOVERY] messages."
+              />
+            )}
+            {apiListState.value?.apis && apiListState.value.apis.length > 0 && (
               <Table
                 options={{ paging: false, search: true }}
                 columns={columns}
@@ -274,14 +292,30 @@ export const Wso2ApiManagerPage = () => {
 
         {tabValue === 1 && (
           <>
-            {apiProductListState.loading && <Progress />}
+            {apiProductListState.loading && (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
+                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+                <Box mt={2}>
+                  <Typography variant="h6" color="textSecondary">
+                    Fetching API Products...
+                  </Typography>
+                </Box>
+              </Box>
+            )}
             {apiProductListState.error && (
               <WarningPanel
                 title="Failed to load API Products"
                 message={apiProductListState.error.message}
               />
             )}
-            {apiProductListState.value?.apiProducts && (
+            {!apiProductListState.loading && (!apiProductListState.value?.apiProducts || apiProductListState.value.apiProducts.length === 0) && (
+              <EmptyState
+                missing="content"
+                title="No API Products Found"
+                description="No API Products were discovered in the catalog."
+              />
+            )}
+            {apiProductListState.value?.apiProducts && apiProductListState.value.apiProducts.length > 0 && (
               <Table
                 options={{ paging: false, search: true }}
                 columns={productColumns}
@@ -293,14 +327,30 @@ export const Wso2ApiManagerPage = () => {
 
         {tabValue === 2 && (
           <>
-            {mcpListState.loading && <Progress />}
+            {mcpListState.loading && (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
+                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+                <Box mt={2}>
+                  <Typography variant="h6" color="textSecondary">
+                    Fetching MCP Servers...
+                  </Typography>
+                </Box>
+              </Box>
+            )}
             {mcpListState.error && (
               <WarningPanel
                 title="Failed to load MCP Servers"
                 message={mcpListState.error.message}
               />
             )}
-            {mcpListState.value?.mcpServers && (
+            {!mcpListState.loading && (!mcpListState.value?.mcpServers || mcpListState.value.mcpServers.length === 0) && (
+              <EmptyState
+                missing="content"
+                title="No MCP Servers Found"
+                description="No MCP Servers were discovered in the catalog."
+              />
+            )}
+            {mcpListState.value?.mcpServers && mcpListState.value.mcpServers.length > 0 && (
               <Table
                 options={{ paging: false, search: true }}
                 columns={mcpColumns}
