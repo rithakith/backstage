@@ -47,13 +47,12 @@ export class Wso2ApiEntityProvider implements EntityProvider {
         this.logger.info(`Running Wso2ApiEntityProvider`);
 
         // Get the configuration from app-config.yaml
-        // @tharika Do you think we should add fallback values for these?
-        const baseUrl = this.config.getOptionalString('catalog.providers.wso2Apim.baseUrl') || 'https://localhost:9447';
+        const baseUrl = this.config.getString('catalog.providers.wso2Apim.baseUrl');
         const namespace = this.config.getOptionalString('catalog.providers.wso2Apim.namespace') || 'default';
-        const username = this.config.getOptionalString('catalog.providers.wso2Apim.username') || 'admin';
-        const password = this.config.getOptionalString('catalog.providers.wso2Apim.password') || 'admin';
-        const clientId = this.config.getOptionalString('wso2ApiManager.auth.clientId') || '';
-        const clientSecret = this.config.getOptionalString('wso2ApiManager.auth.clientSecret') || '';
+        const username = this.config.getString('catalog.providers.wso2Apim.username');
+        const password = this.config.getString('catalog.providers.wso2Apim.password');
+        const clientId = this.config.getString('wso2ApiManager.auth.clientId');
+        const clientSecret = this.config.getString('wso2ApiManager.auth.clientSecret');
 
         // Temporary measure: Ignore self-signed certificates in local WSO2 setup
         const dispatcher = new Agent({
@@ -129,8 +128,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
             this.logger.info(`[WSO2 APIM Provider] Retrieved ${apiList.length} APIs from Publisher.`);
 
-            // 2.3 Fetch full details for each API to get endpointURLs and other missing fields
-            // We use DevPortal v3 for better endpoint information, with a fallback to Publisher v4
+            // 2.3 Fetch full details for each API to get authoritative metadata
+            // We use Publisher v4 for all details to ensure consistency across environments
             for (let i = 0; i < apiList.length; i++) {
                 const apiId = apiList[i].id;
                 const apiName = apiList[i].name || apiId;
@@ -149,10 +148,34 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
                     if (detailResponse.ok) {
                         const detailData = await detailResponse.json() as any;
-                        const endpointsFound = detailData.endpointURLs?.length || 0;
-                        this.logger.info(`[WSO2 APIM Provider] Successfully fetched detail for API "${apiName}". Endpoints found: ${endpointsFound}`);
+                        this.logger.info(`[WSO2 APIM Provider] Successfully fetched detail for API "${apiName}".`);
                         // Replace/Enrich the summary with full detail
                         apiList[i] = { ...apiList[i], ...detailData };
+
+                        // Fetch deployed revisions to get accurate gateway deployment info
+                        const revisionsUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}/revisions?query=deployed:true`;
+                        try {
+                            const revisionsResponse = await undiciFetch(revisionsUrl, {
+                                headers: {
+                                    'Authorization': `Bearer ${accessToken}`,
+                                    'Accept': 'application/json'
+                                },
+                                dispatcher,
+                            });
+                            if (revisionsResponse.ok) {
+                                const revisionsData = await revisionsResponse.json() as any;
+                                const deployedEnvNames = new Set<string>();
+                                (revisionsData.list || []).forEach((rev: any) => {
+                                    (rev.deploymentInfo || []).forEach((dep: any) => {
+                                        if (dep.name) deployedEnvNames.add(dep.name.toUpperCase());
+                                    });
+                                });
+                                apiList[i].deployedGatewayNames = Array.from(deployedEnvNames);
+                                this.logger.info(`[WSO2 APIM Provider] API "${apiName}" is deployed to: ${apiList[i].deployedGatewayNames.join(', ') || 'None'}`);
+                            }
+                        } catch (error) {
+                            this.logger.error(`[WSO2 APIM Provider] Error fetching revisions for API ${apiId}: ${error}`);
+                        }
                     } else {
                         const errText = await detailResponse.text();
                         this.logger.warn(`[WSO2 APIM Provider] Failed to fetch full detail for API ${apiId}. Status: ${detailResponse.status}. Response: ${errText}`);
@@ -301,6 +324,34 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 }
             }
 
+            // 2.7.7 Fetch deployed revisions for each API Product
+            for (const product of productList) {
+                const productId = product.id;
+                const revisionsUrl = `${baseUrl}/api/am/publisher/v4/api-products/${productId}/revisions?query=deployed:true`;
+                try {
+                    const revisionsResponse = await undiciFetch(revisionsUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Accept': 'application/json'
+                        },
+                        dispatcher,
+                    });
+                    if (revisionsResponse.ok) {
+                        const revisionsData = await revisionsResponse.json() as any;
+                        const deployedEnvNames = new Set<string>();
+                        (revisionsData.list || []).forEach((rev: any) => {
+                            (rev.deploymentInfo || []).forEach((dep: any) => {
+                                if (dep.name) deployedEnvNames.add(dep.name.toUpperCase());
+                            });
+                        });
+                        product.deployedGatewayNames = Array.from(deployedEnvNames);
+                        this.logger.info(`[WSO2 APIM Provider] Product "${product.name}" is deployed to: ${product.deployedGatewayNames.join(', ') || 'None'}`);
+                    }
+                } catch (error) {
+                    this.logger.error(`[WSO2 APIM Provider] Error fetching revisions for API Product ${productId}: ${error}`);
+                }
+            }
+
             // 2.8 Fetch MCP Servers from Publisher API v4
             this.logger.info(`[WSO2 APIM Provider] Fetching MCP Servers from ${baseUrl}/api/am/publisher/v4/mcp-servers`);
             let mcpList: any[] = [];
@@ -409,54 +460,91 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
                             'wso2.com/api-endpoints': (() => {
-                                // Strictly use global settings to reconstruct URLs, ignoring potentially incorrect WSO2 defaults
+                                // Match the API's gateway targets with the available environments in global settings
                                 if (globalSettings && globalSettings.environment) {
-                                    const enrichedEndpoints = globalSettings.environment.map((env: any) => {
-                                        const vhost = env.vhosts?.[0]; // Use first vhost
-                                        if (!vhost) return null;
+                                    const deployedGateways = Array.isArray(api.deployedGatewayNames) ? api.deployedGatewayNames.map((g: any) => String(g).toUpperCase()) : [];
 
-                                        let host = vhost.host;
-                                        // Replace common placeholders (e.g. for AWS gateways)
-                                        if (host.includes('{apiId}')) host = host.replace('{apiId}', api.id);
+                                    const matchedEnvs = globalSettings.environment.filter((env: any) => {
+                                        const envName = (env.name || '').toUpperCase();
                                         
-                                        // Handle additional properties from settings
-                                        if (env.additionalProperties) {
-                                            env.additionalProperties.forEach((prop: any) => {
-                                                const placeholder = `{${prop.key}}`;
-                                                if (host.includes(placeholder)) {
-                                                    host = host.replace(placeholder, prop.value);
+                                        // Use authoritative deployment data from WSO2 Revisions to ensure precision
+                                        if (deployedGateways.includes(envName)) {
+                                            this.logger.info(`[WSO2-DISCOVERY] API "${api.name}" is verified as DEPLOYED to environment "${envName}".`);
+                                            return true;
+                                        }
+                                        return false;
+                                    });
+
+                                    if (matchedEnvs.length === 0) {
+                                        this.logger.warn(`[WSO2-DISCOVERY] WARNING: No matching gateway environment found for API "${api.name}". Deployed Gateways: ${deployedGateways.join(', ') || 'None'}.`);
+                                        return '[]';
+                                    }
+
+                                    const enrichedEndpoints = matchedEnvs
+                                        .map((env: any) => {
+                                            // 1. Check if the environment settings already provide the final gateway endpoints
+                                            if (Array.isArray(env.endpoints) && env.endpoints.length > 0) {
+                                                const urls = env.endpoints
+                                                    .map((ep: any) => ep.url || ep.endpointURL)
+                                                    .filter(Boolean);
+                                                if (urls.length > 0) {
+                                                    this.logger.info(`[WSO2-DISCOVERY] Using ${urls.length} pre-defined endpoints from settings for API "${api.name}" in environment "${env.name}".`);
+                                                    return { environmentName: env.name, environmentType: env.type, urls };
                                                 }
-                                            });
-                                        }
+                                            }
 
-                                        // Ensure context starts with / and ends with the version
-                                        let fullContext = api.context ? (api.context.startsWith('/') ? api.context : `/${api.context}`) : '';
-                                        if (api.version && !fullContext.endsWith(api.version)) {
-                                            fullContext = `${fullContext.replace(/\/$/, '')}/${api.version}`;
-                                        }
+                                            // 2. Fallback to vhost-based reconstruction
+                                            const vhost = env.vhosts?.[0];
+                                            if (!vhost) {
+                                                this.logger.warn(`[WSO2-DISCOVERY] Environment "${env.name}" matched but has no vhosts or endpoints defined. Skipping.`);
+                                                return null;
+                                            }
 
-                                        const urls: string[] = [];
-                                        
-                                        // Add HTTPS URL if port available
-                                        if (vhost.httpsPort) {
-                                            const httpsPortString = (vhost.httpsPort === 443) ? '' : `:${vhost.httpsPort}`;
-                                            urls.push(`https://${host}${httpsPortString}${fullContext}`);
-                                        }
-                                        
-                                        // Add HTTP URL if port available
-                                        if (vhost.httpPort) {
-                                            const httpPortString = (vhost.httpPort === 80) ? '' : `:${vhost.httpPort}`;
-                                            urls.push(`http://${host}${httpPortString}${fullContext}`);
-                                        }
+                                            let host = vhost.host;
+                                            // Replace common placeholders (e.g. for AWS gateways)
+                                            if (host.includes('{apiId}')) host = host.replace('{apiId}', api.id);
+                                            
+                                            // Handle additional properties from settings
+                                            if (env.additionalProperties) {
+                                                env.additionalProperties.forEach((prop: any) => {
+                                                    const placeholder = `{${prop.key}}`;
+                                                    if (host.includes(placeholder)) host = host.replace(placeholder, prop.value);
+                                                });
+                                            }
 
-                                        this.logger.info(`[WSO2-DEBUG] Reconstructed ${urls.length} Gateway URLs for API "${api.name}" in Env "${env.name}": ${urls.join(', ')}`);
+                                            // Build the full context, ensuring we don't double-up on the version or base path
+                                            let context = api.context || '';
+                                            if (!context.startsWith('/')) context = `/${context}`;
+                                            
+                                            const basePath = vhost.basePath || '';
+                                            let fullPath = context;
+                                            if (basePath && !fullPath.startsWith(basePath)) {
+                                                fullPath = `${basePath.replace(/\/$/, '')}/${fullPath.replace(/^\//, '')}`;
+                                            }
 
-                                        return {
-                                            environmentName: env.name,
-                                            environmentType: env.type,
-                                            urls
-                                        };
-                                    }).filter(Boolean);
+                                            // Append version if it's not already in the context
+                                            if (api.version && !fullPath.endsWith(api.version) && !fullPath.includes(`/${api.version}/`)) {
+                                                fullPath = `${fullPath.replace(/\/$/, '')}/${api.version}`;
+                                            }
+
+                                            const urls: string[] = [];
+                                            if (vhost.httpsPort) {
+                                                const port = vhost.httpsPort === 443 ? '' : `:${vhost.httpsPort}`;
+                                                urls.push(`https://${host}${port}${fullPath}`);
+                                            }
+                                            if (vhost.httpPort) {
+                                                const port = vhost.httpPort === 80 ? '' : `:${vhost.httpPort}`;
+                                                urls.push(`http://${host}${port}${fullPath}`);
+                                            }
+
+                                            this.logger.info(`[WSO2-DISCOVERY] Reconstructed ${urls.length} Gateway URLs for API "${api.name}" in Env "${env.name}" using vhost ${host}. Path: ${fullPath}`);
+
+                                            return {
+                                                environmentName: env.name,
+                                                environmentType: env.type,
+                                                urls
+                                            };
+                                        }).filter(Boolean);
 
                                     if (enrichedEndpoints.length > 0) {
                                         this.logger.debug(`[WSO2 APIM Provider] Enriched endpoint URLs for API ${api.name} using global settings.`);
@@ -517,38 +605,74 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
                             'wso2.com/is-api-product': 'true',
                             'wso2.com/api-endpoints': (() => {
-                                // Strictly use global settings to reconstruct URLs for API Products
+                                // Match the API Product's gateway targets with global settings
                                 if (globalSettings && globalSettings.environment) {
-                                    const enrichedEndpoints = globalSettings.environment.map((env: any) => {
-                                        const vhost = env.vhosts?.[0];
-                                        if (!vhost) return null;
-                                        let host = vhost.host;
-                                        if (host.includes('{apiId}')) host = host.replace('{apiId}', product.id);
-                                        if (env.additionalProperties) {
-                                            env.additionalProperties.forEach((prop: any) => {
-                                                const placeholder = `{${prop.key}}`;
-                                                if (host.includes(placeholder)) host = host.replace(placeholder, prop.value);
-                                            });
-                                        }
-                                        let fullContext = product.context ? (product.context.startsWith('/') ? product.context : `/${product.context}`) : '';
-                                        // API Products might not always have versions in same way, but we apply same logic if present
-                                        if (product.version && !fullContext.endsWith(product.version)) {
-                                            fullContext = `${fullContext.replace(/\/$/, '')}/${product.version}`;
-                                        }
+                                    const deployedGateways = Array.isArray(product.deployedGatewayNames) ? product.deployedGatewayNames.map((g: any) => String(g).toUpperCase()) : [];
 
-                                        const urls: string[] = [];
-                                        if (vhost.httpsPort) {
-                                            const httpsPortString = (vhost.httpsPort === 443) ? '' : `:${vhost.httpsPort}`;
-                                            urls.push(`https://${host}${httpsPortString}${fullContext}`);
+                                    const matchedEnvs = globalSettings.environment.filter((env: any) => {
+                                        const envName = (env.name || '').toUpperCase();
+
+                                        if (deployedGateways.includes(envName)) {
+                                            this.logger.info(`[WSO2-DISCOVERY] Product "${product.name}" is verified as DEPLOYED to environment "${envName}".`);
+                                            return true;
                                         }
-                                        if (vhost.httpPort) {
-                                            const httpPortString = (vhost.httpPort === 80) ? '' : `:${vhost.httpPort}`;
-                                            urls.push(`http://${host}${httpPortString}${fullContext}`);
-                                        }
-                                        
-                                        this.logger.info(`[WSO2-DEBUG-PRODUCT] Reconstructed ${urls.length} Gateway URLs for Product "${product.name}" in Env "${env.name}": ${urls.join(', ')}`);
-                                        return { environmentName: env.name, environmentType: env.type, urls };
-                                    }).filter(Boolean);
+                                        return false;
+                                    });
+
+                                    if (matchedEnvs.length === 0) {
+                                        this.logger.warn(`[WSO2-DISCOVERY] WARNING: No matching environment for Product "${product.name}". Deployed Gateways: ${deployedGateways.join(', ') || 'None'}.`);
+                                        return '[]';
+                                    }
+
+                                    const enrichedEndpoints = matchedEnvs
+                                        .map((env: any) => {
+                                            if (Array.isArray(env.endpoints) && env.endpoints.length > 0) {
+                                                const urls = env.endpoints
+                                                    .map((ep: any) => ep.url || ep.endpointURL)
+                                                    .filter(Boolean);
+                                                if (urls.length > 0) {
+                                                    this.logger.info(`[WSO2-DISCOVERY] Using ${urls.length} pre-defined endpoints for Product "${product.name}".`);
+                                                    return { environmentName: env.name, environmentType: env.type, urls };
+                                                }
+                                            }
+
+                                            const vhost = env.vhosts?.[0];
+                                            if (!vhost) return null;
+                                            let host = vhost.host;
+                                            if (host.includes('{apiId}')) host = host.replace('{apiId}', product.id);
+                                            if (env.additionalProperties) {
+                                                env.additionalProperties.forEach((prop: any) => {
+                                                    const placeholder = `{${prop.key}}`;
+                                                    if (host.includes(placeholder)) host = host.replace(placeholder, prop.value);
+                                                });
+                                            }
+
+                                            let context = product.context || '';
+                                            if (!context.startsWith('/')) context = `/${context}`;
+                                            
+                                            const basePath = vhost.basePath || '';
+                                            let fullPath = context;
+                                            if (basePath && !fullPath.startsWith(basePath)) {
+                                                fullPath = `${basePath.replace(/\/$/, '')}/${fullPath.replace(/^\//, '')}`;
+                                            }
+
+                                            if (product.version && !fullPath.endsWith(product.version) && !fullPath.includes(`/${product.version}/`)) {
+                                                fullPath = `${fullPath.replace(/\/$/, '')}/${product.version}`;
+                                            }
+
+                                            const urls: string[] = [];
+                                            if (vhost.httpsPort) {
+                                                const port = vhost.httpsPort === 443 ? '' : `:${vhost.httpsPort}`;
+                                                urls.push(`https://${host}${port}${fullPath}`);
+                                            }
+                                            if (vhost.httpPort) {
+                                                const port = vhost.httpPort === 80 ? '' : `:${vhost.httpPort}`;
+                                                urls.push(`http://${host}${port}${fullPath}`);
+                                            }
+                                            
+                                            this.logger.info(`[WSO2-DISCOVERY] Reconstructed URLs for Product "${product.name}" in Env "${env.name}" using vhost ${host}.`);
+                                            return { environmentName: env.name, environmentType: env.type, urls };
+                                        }).filter(Boolean);
                                     if (enrichedEndpoints.length > 0) return JSON.stringify(enrichedEndpoints);
                                 }
                                 return '[]';

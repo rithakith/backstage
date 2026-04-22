@@ -285,7 +285,6 @@ export const EntityWso2ApiDefinitionCard = () => {
 
     // Calculate the Gateway URLs from harvested endpoints
     const gatewayUrls = useMemo<string[]>(() => {
-        const details = apiDetailState.value;
         const endpointsRaw = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
         
         let endpoints: Array<{ 
@@ -306,16 +305,6 @@ export const EntityWso2ApiDefinitionCard = () => {
         if (endpoints && endpoints.length > 0) {
             const prodEnv = endpoints.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
                          || endpoints[0];
-            
-            if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
-                return prodEnv.urls;
-            }
-        }
-
-        // 2. Fallback to what's in the raw JSON (if any)
-        if (details?.endpointURLs && details.endpointURLs.length > 0) {
-            const prodEnv = details.endpointURLs.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
-                         || details.endpointURLs[0];
             
             if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
                 return prodEnv.urls;
