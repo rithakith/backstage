@@ -16,6 +16,7 @@ import {
     Button,
     TextField,
     Typography,
+    CircularProgress,
 } from '@material-ui/core';
 import {
     wso2ApiManagerApiRef,
@@ -373,25 +374,40 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDefinitionState.value, gatewayUrls]);
 
+    // Detect if the definition is still just a placeholder from the backend
+    const isPlaceholder = useMemo(() => {
+        const val = apiDefinitionState.value;
+        return typeof val === 'string' && val.includes('WSO2 API Document content placeholder');
+    }, [apiDefinitionState.value]);
+
     if (!apiId) {
         return null; // Not a WSO2 API
     }
 
+    const isLoading = apiDefinitionState.loading || apiDetailState.loading || revisionsState.loading || (isDeployed && generateKeyState.loading && !apiKey);
+
     return (
         <InfoCard title="API Definition" >
-            {(apiDefinitionState.loading || apiDetailState.loading) && <Progress />}
+            {(isLoading || isPlaceholder) && (
+                <Box display="flex" justifyContent="center" alignItems="center" height={200} flexDirection="column">
+                    <CircularProgress size={40} thickness={4} style={{ color: '#ff5000' }} />
+                    <Box mt={2}>
+                        <Typography variant="body2" color="textSecondary">
+                            {isPlaceholder ? 'Syncing with WSO2 Gateway...' : 'Loading API Definition...'}
+                        </Typography>
+                    </Box>
+                </Box>
+            )}
 
-            {!apiDefinitionState.loading && apiDefinitionState.value === null && (
+            {!isLoading && !isPlaceholder && apiDefinitionState.value === null && (
                 <EmptyState
                     title="No Definition"
                     missing="info"
-                    description={apiDetailState.value?.type === 'GRAPHQL'
-                        ? "This API does not have a GraphQL schema available."
-                        : "This API does not have an OpenAPI/Swagger definition available."}
+                    description="This API does not have a definition available in the catalog."
                 />
             )}
 
-            {apiDefinitionState.value && (
+            {apiDefinitionState.value && !isPlaceholder && (
                 <>
                     {/* Authentication Status for 'Try it out' */}
                     {!tokenState.loading && !tokenState.value && (
