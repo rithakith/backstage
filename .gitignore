@@ -150,6 +150,7 @@ dist-workspace
 site
 
 # Local configuration files
+app-config.yaml
 *.local.yaml
 !packages/create-app/templates/default-app/app-config.local.yaml
 
