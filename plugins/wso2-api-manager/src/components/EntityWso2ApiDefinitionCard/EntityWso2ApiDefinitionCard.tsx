@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { useAsync, useAsyncRetry } from 'react-use';
 import {
     InfoCard,
-    Progress,
     WarningPanel,
     EmptyState,
     Link,
@@ -17,6 +16,7 @@ import {
     TextField,
     Typography,
     CircularProgress,
+    Tooltip,
 } from '@material-ui/core';
 import {
     wso2ApiManagerApiRef,
@@ -92,7 +92,7 @@ const formatGraphQL = (sdl: string): string => {
 /**
  * Helper to check if an API type is event-driven/async and should use the Source tab only.
  */
-const isAsyncType = (type?: string) => 
+const isAsyncType = (type?: string) =>
     ['ASYNC', 'WS', 'SSE', 'WEBHOOK', 'WEBSUB'].includes(type || '');
 
 /**
@@ -123,22 +123,26 @@ const formatAsyncApi = (yaml: string): string => {
 };
 
 /**
- * Placeholder component for the Swagger UI 'Try It Out' button when the API is not deployed.
+ * A disabled "Try it out" button with a tooltip explanation.
  */
-const NotDeployedTryItOutPlaceholder = () => (
-    <Button 
-        variant="contained" 
-        disabled 
-        style={{ 
-            marginTop: '10px', 
-            marginBottom: '10px',
-            textTransform: 'none',
-            fontWeight: 600,
-            cursor: 'not-allowed'
-        }}
-    >
-        Try it out
-    </Button>
+const DisabledTryItOutButton = ({ message }: { message: string }) => (
+    <Tooltip title={message} arrow placement="top">
+        <span style={{ cursor: 'not-allowed' }}>
+            <Button 
+                variant="contained" 
+                disabled 
+                style={{ 
+                    backgroundColor: '#f5f5f5',
+                    color: 'rgba(0, 0, 0, 0.26)',
+                    textTransform: 'none',
+                    fontWeight: 'bold',
+                    padding: '4px 12px'
+                }}
+            >
+                Try it out
+            </Button>
+        </span>
+    </Tooltip>
 );
 
 /**
@@ -156,8 +160,6 @@ export const EntityWso2ApiDefinitionCard = () => {
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [expiresIn, setExpiresIn] = useState<number | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number>(Date.now());
-
-
 
     // Get the user's Asgardeo OAuth token from existing session
     const tokenState = useAsyncRetry(async () => {
@@ -235,8 +237,6 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDefinitionState.value, apiDetailState.value]);
 
-
-
     // Generate an API test key for the Try it out functionality
     const generateKeyState = useAsyncRetry(async () => {
         // We need the user token to request an Internal Key from WSO2
@@ -284,38 +284,41 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [generateKeyState.value, generateKeyState.error, alertApi]);
 
-    // Calculate the Gateway URLs from harvested endpoints
-    const gatewayUrls = useMemo<string[]>(() => {
-        const endpointsRaw = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
-        
-        let endpoints: Array<{ 
-            urls: string[], 
-            environmentType?: string, 
-            environmentName?: string 
-        }> = [];
+    // Extract Gateway URLs from annotation (supports multiple environments)
+    const gatewayUrls = useMemo(() => {
+        const annotationValue = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
+        if (!annotationValue) return [];
+        try {
+            const environments = JSON.parse(annotationValue);
+            if (!Array.isArray(environments)) return [];
 
-        if (endpointsRaw) {
-            try {
-                endpoints = JSON.parse(endpointsRaw);
-            } catch (e) {
-                console.error('Failed to parse api-endpoints annotation:', e);
-            }
+            // Sort so PRODUCTION comes first
+            const sortedEnvs = [...environments].sort((a: any, b: any) => {
+                const typeA = (a.environmentType || '').toUpperCase();
+                const typeB = (b.environmentType || '').toUpperCase();
+                if (typeA === 'PRODUCTION' && typeB !== 'PRODUCTION') return -1;
+                if (typeA !== 'PRODUCTION' && typeB === 'PRODUCTION') return 1;
+                return 0;
+            });
+
+            return sortedEnvs.flatMap((env: any) =>
+                (env.urls || []).map((url: string) => ({
+                    url,
+                    description: `${env.environmentName} (${env.environmentType})`,
+                    environmentName: env.environmentName,
+                    environmentType: env.environmentType
+                }))
+            );
+        } catch (e) {
+            console.error('Failed to parse gateway endpoints annotation:', e);
+            return [];
         }
+    }, [entity]);
 
-        // 1. Try dedicated endpoints annotation first (enriched by backend)
-        if (endpoints && endpoints.length > 0) {
-            const prodEnv = endpoints.find((e: any) => e.environmentType?.toUpperCase() === 'PRODUCTION') 
-                         || endpoints[0];
-            
-            if (prodEnv && prodEnv.urls && prodEnv.urls.length > 0) {
-                return prodEnv.urls;
-            }
-        }
+    const isDeployed = gatewayUrls.length > 0;
+    const isDiscovered = entity.metadata.annotations?.['wso2.com/is-discovered'] === 'true';
 
-        return [];
-    }, [apiDetailState.value, entity.metadata.annotations]);
-
-    // Check if API is deployed
+    // Check if API is deployed according to revisions (used for deploy warning message)
     const revisionsState = useAsync(async () => {
         if (!apiId || tokenState.loading) return undefined;
         try {
@@ -326,50 +329,76 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiClient, apiId, tokenState.value, tokenState.loading]);
 
-    const isDeployed = useMemo(() => {
-        return (revisionsState.value?.list?.length ?? 0) > 0;
-    }, [revisionsState.value]);
 
     // Swagger UI Plugin to replace the 'Try It Out' button with a message when not deployed or for SOAP APIs
     const tryItOutPlugin = useMemo(() => {
         const isSoap = apiDetailState.value?.type === 'SOAP';
+        
+        if (isDiscovered) {
+            return {
+                components: {
+                    TryItOutButton: () => <DisabledTryItOutButton message="Try it out is disabled for discovered APIs" />,
+                }
+            };
+        }
+
         if (isDeployed && !isSoap) return {};
+        
         return {
             components: {
-                TryItOutButton: NotDeployedTryItOutPlaceholder,
+                TryItOutButton: () => (
+                    <DisabledTryItOutButton 
+                        message={isSoap ? "Try it out is not supported for SOAP APIs" : "API must be deployed to a gateway to enable Try it out"} 
+                    />
+                ),
             }
         };
-    }, [isDeployed, apiDetailState.value]);
+    }, [isDeployed, isDiscovered, apiDetailState.value]);
 
-    // Dynamically rewrite the Swagger/OpenAPI spec URL to hit the API Gateway directly (e.g. 8247)
+    // Dynamically rewrite the Swagger/OpenAPI spec to hit the API Gateway directly
     const swaggerSpec = useMemo(() => {
-        if (!apiDefinitionState.value || gatewayUrls.length === 0) return apiDefinitionState.value;
-
+        if (!apiDefinitionState.value) return undefined;
         try {
-            const spec = JSON.parse(JSON.stringify(apiDefinitionState.value));
+            let spec = typeof apiDefinitionState.value === 'string'
+                ? JSON.parse(apiDefinitionState.value)
+                : { ...apiDefinitionState.value };
 
-            if (spec.openapi) { // OpenAPI 3 Support
-                spec.servers = gatewayUrls.map(url => ({
-                    url
-                }));
-                // Clear overlapping servers in paths
-                if (spec.paths) {
-                    for (const pathKey of Object.keys(spec.paths)) {
-                        if (spec.paths[pathKey].servers) {
-                            delete spec.paths[pathKey].servers;
-                        }
+            // Handle Gateway URLs based on spec version
+            if (gatewayUrls.length > 0) {
+                if (spec.openapi) {
+                    // OpenAPI 3.x: Supports multiple servers
+                    spec.servers = gatewayUrls.map(gw => ({
+                        url: gw.url,
+                        description: gw.description
+                    }));
+                } else if (spec.swagger === '2.0') {
+                    // Swagger 2.0: Supports only one host/basePath
+                    try {
+                        const firstGw = gatewayUrls[0];
+                        const urlObj = new URL(firstGw.url);
+                        spec.host = urlObj.host;
+                        spec.basePath = urlObj.pathname !== '/' ? urlObj.pathname : (spec.basePath || '/');
+                        
+                        // Collect all unique schemes from all gateway URLs
+                        const schemes = new Set<string>();
+                        gatewayUrls.forEach(gw => {
+                            try {
+                                schemes.add(new URL(gw.url).protocol.replace(':', ''));
+                            } catch (e) { /* ignore */ }
+                        });
+                        spec.schemes = Array.from(schemes);
+                    } catch (e) {
+                        console.warn('Failed to parse gateway URL for Swagger 2.0:', e);
                     }
                 }
-            } else if (spec.swagger) { // Swagger 2 Support
-                const urlObj = new URL(gatewayUrls[0]); // Fallback to first URL for Swagger 2
-                spec.host = urlObj.host;
-                spec.schemes = gatewayUrls.map(u => u.split(':')[0]);
-                spec.basePath = urlObj.pathname !== '/' ? urlObj.pathname : '/';
             }
+
+            // Always ensure paths exists to avoid Swagger UI crashes (entrySeq error)
+            if (!spec.paths) spec.paths = {};
 
             return spec;
         } catch (e) {
-            console.warn('[WSO2-DefinitionCard] Failed to rewrite Swagger spec URLs', e);
+            console.warn('Failed to process Swagger spec for UI:', e);
             return apiDefinitionState.value;
         }
     }, [apiDefinitionState.value, gatewayUrls]);
@@ -387,7 +416,20 @@ export const EntityWso2ApiDefinitionCard = () => {
     const isLoading = apiDefinitionState.loading || apiDetailState.loading || revisionsState.loading || (isDeployed && generateKeyState.loading && !apiKey);
 
     return (
-        <InfoCard title="API Definition" >
+        <InfoCard 
+            title={
+                <Box display="flex" alignItems="center">
+                    <Typography variant="h6">API Definition</Typography>
+                    {isDiscovered && (
+                        <Box ml={2} px={1} py={0.5} bgcolor="#e6f7ff" border={1} borderColor="#91d5ff" borderRadius={4}>
+                            <Typography variant="caption" style={{ color: '#0050b3', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                Discovered API
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
+            }
+        >
             {(isLoading || isPlaceholder) && (
                 <Box display="flex" justifyContent="center" alignItems="center" height={200} flexDirection="column">
                     <CircularProgress size={40} thickness={4} style={{ color: '#ff5000' }} />
@@ -419,8 +461,8 @@ export const EntityWso2ApiDefinitionCard = () => {
                         </Box>
                     )}
 
-                    {/* Gateway Error for 'Try it out' */}
-                    {generateKeyState.value === null && (
+                    {/* Gateway Error for 'Try it out' - Only for non-discovered APIs */}
+                    {!isDiscovered && generateKeyState.value === null && (
                         <Box mb={2}>
                             <WarningPanel
                                 title="Gateway Access Failed"
@@ -452,7 +494,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                                 {/* Discreet SSL troubleshooting link */}
                                 <Box display="flex" justifyContent="flex-end" px={2} pt={1}>
                                     <Link
-                                        to={gatewayUrls.find(u => u.startsWith('https')) || gatewayUrls[0]}
+                                        to={gatewayUrls.find(u => u.url.startsWith('https'))?.url || gatewayUrls[0]?.url || '#'}
                                         target="_blank"
                                         style={{ fontSize: '0.75rem', opacity: 0.7 }}
                                     >
@@ -461,7 +503,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                                 </Box>
 
                                 {/* Deployment Status Info Message - High Visibility */}
-                                {!revisionsState.loading && !isDeployed && (
+                                {!revisionsState.loading && !isDeployed && !isDiscovered && (
                                     <Box mx={2} my={2} p={2.5} border={1} borderColor="#91d5ff" borderRadius={4} bgcolor="#e6f7ff">
                                         <Typography variant="body2" style={{ color: '#0050b3', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 500 }}>
                                             <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
@@ -472,8 +514,8 @@ export const EntityWso2ApiDefinitionCard = () => {
                                     </Box>
                                 )}
 
-                                {/* Internal API Key Display and Regeneration */}
-                                {isDeployed && (
+                                {/* Internal API Key Display and Regeneration - Only for deployed, non-discovered APIs */}
+                                {isDeployed && !isDiscovered && (
                                     <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
                                         <Box display="flex" alignItems="center" justifyContent="space-between">
                                             <TextField

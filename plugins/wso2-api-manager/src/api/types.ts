@@ -9,6 +9,7 @@ export type Wso2ApiSummary = {
   context?: string;
   lifeCycleStatus?: string;
   type?: string;
+  isDiscovered?: boolean;
 };
 export type Wso2ApiProductSummary = {
   id: string;
@@ -19,6 +20,7 @@ export type Wso2ApiProductSummary = {
   context?: string;
   lifeCycleStatus?: string;
   type?: string;
+  isDiscovered?: boolean;
 };
 
 export type Wso2ApiProductOperation = {
@@ -54,6 +56,7 @@ export type Wso2McpSummary = {
   provider?: string;
   context?: string;
   lifeCycleStatus?: string;
+  isDiscovered?: boolean;
   tools?: Wso2McpTool[];
 };
 

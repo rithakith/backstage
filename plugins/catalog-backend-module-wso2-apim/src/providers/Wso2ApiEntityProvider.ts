@@ -458,6 +458,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-provider': api.provider || '',
                             'wso2.com/api-type': api.type || '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
+                            'wso2.com/initiated-from-gateway': String(api.initiatedFromGateway ?? ''),
+                            'wso2.com/is-discovered': api.initiatedFromGateway === true ? 'true' : 'false',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
                             'wso2.com/api-endpoints': (() => {
                                 // Match the API's gateway targets with the available environments in global settings
@@ -563,7 +565,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-visibility': api.visibility || '',
                             'wso2.com/api-transports': Array.isArray(api.transport) ? JSON.stringify(api.transport) : '[]',
                         },
-                        tags: api.tags || [],
+                        tags: [...(api.tags || []), ...(api.initiatedFromGateway === true ? ['wso2-discovered'] : [])],
                     },
                     spec: {
                         type: (() => {
@@ -603,6 +605,8 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-provider': product.provider || '',
                             'wso2.com/api-type': 'API_PRODUCT',
                             'wso2.com/api-lifecycle-status': product.lifeCycleStatus || '',
+                            'wso2.com/initiated-from-gateway': String(product.initiatedFromGateway ?? ''),
+                            'wso2.com/is-discovered': product.initiatedFromGateway === true ? 'true' : 'false',
                             'wso2.com/is-api-product': 'true',
                             'wso2.com/api-endpoints': (() => {
                                 // Match the API Product's gateway targets with global settings
@@ -687,7 +691,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-visibility': product.visibility || '',
                             'wso2.com/api-transports': Array.isArray(product.transport) ? JSON.stringify(product.transport) : '[]',
                         },
-                        tags: product.tags || [],
+                        tags: [...(product.tags || []), ...(product.initiatedFromGateway === true ? ['wso2-discovered'] : [])],
                     },
                     spec: {
                         type: 'openapi',

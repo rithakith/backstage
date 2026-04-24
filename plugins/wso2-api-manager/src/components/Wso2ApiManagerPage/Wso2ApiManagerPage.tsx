@@ -105,6 +105,7 @@ export const Wso2ApiManagerPage = () => {
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
       lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
       type: e.metadata.annotations?.['wso2.com/api-type'] as string,
+      isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
     }));
 
     // Filter to API Products
@@ -119,6 +120,7 @@ export const Wso2ApiManagerPage = () => {
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
       lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
       type: 'API_PRODUCT',
+      isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
     }));
 
     // Filter to MCP Servers
@@ -132,6 +134,7 @@ export const Wso2ApiManagerPage = () => {
       context: e.metadata.annotations?.['wso2.com/api-context'] as string,
       provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
       lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
+      isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
     }));
 
     return { apis, apiProducts, mcpServers };
@@ -177,7 +180,11 @@ export const Wso2ApiManagerPage = () => {
       },
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
-      { title: 'Provider', field: 'provider' },
+      { 
+        title: 'Discovered', 
+        field: 'isDiscovered',
+        render: rowData => rowData.isDiscovered ? 'Yes' : 'No'
+      },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
     ],
@@ -200,7 +207,11 @@ export const Wso2ApiManagerPage = () => {
       },
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
-      { title: 'Provider', field: 'provider' },
+      { 
+        title: 'Discovered', 
+        field: 'isDiscovered',
+        render: rowData => rowData.isDiscovered ? 'Yes' : 'No'
+      },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
     ],
@@ -222,7 +233,11 @@ export const Wso2ApiManagerPage = () => {
         ),
       },
       { title: 'Version', field: 'version' },
-      { title: 'Provider', field: 'provider' },
+      { 
+        title: 'Discovered', 
+        field: 'isDiscovered',
+        render: rowData => rowData.isDiscovered ? 'Yes' : 'No'
+      },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
     ],
