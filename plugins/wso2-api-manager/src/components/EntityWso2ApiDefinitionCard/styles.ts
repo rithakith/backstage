@@ -12,6 +12,14 @@ export const useStyles = makeStyles(theme => ({
             [`& .scheme-container`]: {
                 backgroundColor: theme.palette.background.default,
             },
+            [`& input, & select, & textarea`]: {
+                backgroundColor: theme.palette.background.paper,
+                color: theme.palette.text.primary,
+                borderColor: theme.palette.divider,
+                '&::placeholder': {
+                    color: theme.palette.text.disabled,
+                },
+            },
             [`& .opblock-tag,
           .opblock-tag small,
           table thead tr td,
