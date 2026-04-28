@@ -24,6 +24,7 @@ import { EntityWso2ApiDocumentsCard } from '../EntityWso2ApiDocumentsCard';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const API_DOCUMENTS_ANNOTATION = 'wso2.com/api-documents';
+const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
 
 
 export const EntityWso2ApiOverviewCard = () => {
@@ -34,6 +35,7 @@ export const EntityWso2ApiOverviewCard = () => {
 
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const apiDocumentsRaw = entity.metadata.annotations?.[API_DOCUMENTS_ANNOTATION];
+    const isSelfHosted = entity.metadata.annotations?.[DISCOVERY_TYPE_ANNOTATION] === 'self-hosted-gateway';
 
     const apiDocuments = useMemo(() => {
         if (!apiDocumentsRaw) return [];
@@ -87,7 +89,7 @@ export const EntityWso2ApiOverviewCard = () => {
                     loading={false}
                 />
             </Grid>
-            { 'endpointURLs' in details && details.endpointURLs && details.endpointURLs.length > 0 && (
+            { 'endpointURLs' in details && details.endpointURLs && details.endpointURLs.length > 0 && !isSelfHosted && (
                 <Grid item xs={12}>
                     <InfoCard title="Gateway Endpoints">
                         <EndpointTable endpoints={details.endpointURLs} />

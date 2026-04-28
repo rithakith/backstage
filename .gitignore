@@ -196,3 +196,4 @@ dist-storybook/
 *.sqlite
 .backstage-data/
 *.ps1
+*.zip

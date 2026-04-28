@@ -70,4 +70,18 @@ export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
 
     return (await response.json()) as Wso2ApiRevisionsResponse;
   }
+  async getGateways(token?: string): Promise<any[]> {
+    const baseUrl = await this.getBaseUrl();
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+    const response = await this.fetchApi.fetch(`${baseUrl}/gateways`, { headers });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch gateways, status ${response.status}`);
+    }
+    return await response.json();
+  }
 }

@@ -60,6 +60,14 @@ export type Wso2ApiManagerConfig = {
   tls: {
     rejectUnauthorized: boolean;
   };
+  selfHostedGateways: Array<{
+    name: string;
+    urls: string[];
+    discoveryUrl?: string;
+    discoveryAuth?: string;
+    environmentType: string;
+    description?: string;
+  }>;
 };
 
 export function readWso2ApiManagerConfig(
@@ -98,6 +106,14 @@ export function readWso2ApiManagerConfig(
     tls: {
       rejectUnauthorized: tlsRejectUnauthorized,
     },
+    selfHostedGateways: wso2Config.getOptionalConfigArray('selfHostedGateways')?.map(gw => ({
+      name: gw.getString('name'),
+      urls: gw.getStringArray('urls'),
+      discoveryUrl: gw.getOptionalString('discoveryUrl'),
+      discoveryAuth: gw.getOptionalString('discoveryAuth'),
+      environmentType: gw.getOptionalString('environmentType') || 'PRODUCTION',
+      description: gw.getOptionalString('description'),
+    })) || [],
   };
 }
 
@@ -180,6 +196,66 @@ export class Wso2ApiManagerClient {
 
   async getDocumentContentStream(apiId: string, documentId: string, token?: string): Promise<Response> {
     return await this.fetchWithFallback(`/apis/${apiId}/documents/${documentId}/content?t=${Date.now()}`, {}, token);
+  }
+
+  async getSettings(token?: string): Promise<any> {
+    return await this.requestPublisher<any>('/settings', {}, token);
+  }
+
+  getConfig(): Wso2ApiManagerConfig {
+    return this.config;
+  }
+
+  async getGatewayApis(discoveryUrl: string, auth?: string): Promise<any[]> {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (auth) {
+      headers['Authorization'] = auth;
+    }
+    
+    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Attempting to fetch APIs from gateway discovery URL: ${discoveryUrl}`);
+    
+    try {
+      const response = await undiciFetch(discoveryUrl, { 
+        headers,
+        dispatcher: this.dispatcher,
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Gateway Discovery failed for ${discoveryUrl}. Status: ${response.status}. Response: ${errText}`);
+        throw new Error(`Failed to fetch APIs from gateway ${discoveryUrl}, status ${response.status}`);
+      }
+
+      const data = (await response.json()) as any;
+      
+      // If it's an array, we can log the count
+      if (Array.isArray(data)) {
+        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully discovered ${data.length} APIs (Array) from gateway: ${discoveryUrl}`);
+        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] API Names: ${data.map((a: any) => a.name || a.id).join(', ')}`);
+        return data;
+      }
+      
+      // If it's an object, check for common list patterns
+      const list = data.list || data.apis || data.items || [];
+      const count = Array.isArray(list) ? list.length : (data.count ?? 'unknown');
+      
+      this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully discovered ${count} APIs (Object) from gateway: ${discoveryUrl}`);
+      this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Response keys: ${Object.keys(data).join(', ')}`);
+      
+      if (Array.isArray(list)) {
+        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Full API Details: ${JSON.stringify(list, null, 2)}`);
+      } else {
+        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Raw Response snippet: ${JSON.stringify(data).substring(0, 1000)}`);
+      }
+      
+      return Array.isArray(list) ? list : [data]; // Fallback to wrapping the object in an array
+    } catch (error: any) {
+      const errorDetails = error.cause ? `${error.message} (Cause: ${error.cause})` : error.message;
+      this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error during gateway discovery for ${discoveryUrl}: ${errorDetails}`);
+      throw error;
+    }
   }
 
   private cachedAccessToken: string | null = null;
