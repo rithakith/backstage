@@ -32,6 +32,8 @@ import { useStyles } from './styles';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const API_ENDPOINTS_ANNOTATION = 'wso2.com/api-endpoints';
+const GATEWAY_ENDPOINTS_ANNOTATION = 'wso2-gateway.com/api-endpoints';
+const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
 
 /**
  * Quick and dirty GraphQL SDL formatter since we don't have a dedicated library in the frontend.
@@ -237,10 +239,13 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [apiDefinitionState.value, apiDetailState.value]);
 
+    const isSelfHosted = entity.metadata.annotations?.[DISCOVERY_TYPE_ANNOTATION] === 'self-hosted-gateway';
+
     // Generate an API test key for the Try it out functionality
     const generateKeyState = useAsyncRetry(async () => {
         // We need the user token to request an Internal Key from WSO2
-        if (!apiId || tokenState.loading || !tokenState.value) {
+        // Skip key generation for self-hosted gateways as they don't use the Publisher's key API
+        if (!apiId || tokenState.loading || !tokenState.value || isSelfHosted) {
             return undefined;
         }
         try {
@@ -250,7 +255,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             console.error('[WSO2-DefinitionCard] Failed to generate API Key:', e.message);
             return null;
         }
-    }, [apiClient, apiId, tokenState.value, tokenState.loading]);
+    }, [apiClient, apiId, tokenState.value, tokenState.loading, isSelfHosted]);
 
     // Update the ref and state whenever the key changes
     useEffect(() => {
@@ -284,12 +289,33 @@ export const EntityWso2ApiDefinitionCard = () => {
         }
     }, [generateKeyState.value, generateKeyState.error, alertApi]);
 
-    // Extract Gateway URLs from annotation (supports multiple environments)
+    // Extract Gateway URLs from annotations (supports both standard and gateway-discovered APIs)
     const gatewayUrls = useMemo(() => {
-        const annotationValue = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
-        if (!annotationValue) return [];
+        const standardEndpoints = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
+        const gatewayEndpoints = entity.metadata.annotations?.[GATEWAY_ENDPOINTS_ANNOTATION];
+        
+        let allEnvs: any[] = [];
         try {
-            const environments = JSON.parse(annotationValue);
+            if (gatewayEndpoints) {
+                const parsed = JSON.parse(gatewayEndpoints);
+                if (Array.isArray(parsed)) allEnvs = [...allEnvs, ...parsed];
+            }
+            if (standardEndpoints) {
+                const parsed = JSON.parse(standardEndpoints);
+                if (Array.isArray(parsed)) {
+                    const existingNames = new Set(allEnvs.map(e => (e.environmentName || '').toUpperCase()));
+                    const uniqueStandard = parsed.filter(e => !existingNames.has((e.environmentName || '').toUpperCase()));
+                    allEnvs = [...allEnvs, ...uniqueStandard];
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse gateway endpoints annotation:', e);
+        }
+
+        if (allEnvs.length === 0) return [];
+        
+        try {
+            const environments = allEnvs;
             if (!Array.isArray(environments)) return [];
 
             // Sort so PRODUCTION comes first
@@ -304,7 +330,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             return sortedEnvs.flatMap((env: any) =>
                 (env.urls || []).map((url: string) => ({
                     url,
-                    description: `${env.environmentName} (${env.environmentType})`,
+                    description: env.displayName || env.environmentName,
                     environmentName: env.environmentName,
                     environmentType: env.environmentType
                 }))
@@ -330,30 +356,38 @@ export const EntityWso2ApiDefinitionCard = () => {
     }, [apiClient, apiId, tokenState.value, tokenState.loading]);
 
 
-    // Swagger UI Plugin to replace the 'Try It Out' button with a message when not deployed or for SOAP APIs
+    // Swagger UI Plugin to replace the 'Try It Out' button based on deployment and discovery type
     const tryItOutPlugin = useMemo(() => {
-        const isSoap = apiDetailState.value?.type === 'SOAP';
-        
-        if (isDiscovered) {
-            return {
-                components: {
-                    TryItOutButton: () => <DisabledTryItOutButton message="Try it out is disabled for discovered APIs" />,
-                }
-            };
+        const type = (apiDetailState.value?.type || '').toUpperCase();
+        const isSoap = type === 'SOAP';
+        const isAsync = isAsyncType(type);
+
+        // Enable Try it out only for:
+        // - Standard WSO2 Synapse HTTP/AI APIs (if deployed and not SOAP/Async)
+        // - Self-hosted gateway APIs
+        // Disable for:
+        // - Publisher-discovered APIs (not managed in Publisher)
+        const canTry = isDeployed && !isSoap && !isAsync && (!isDiscovered || isSelfHosted);
+
+        if (canTry) {
+            return {}; // Use default Swagger UI button
         }
 
-        if (isDeployed && !isSoap) return {};
-        
+        // Return disabled button with descriptive message for other cases
+        let message = "Try it out is not available for this API";
+        if (isSoap) message = "Try it out is not supported for SOAP APIs";
+        else if (isAsync) message = "Try it out is not supported for Async APIs";
+        else if (isDiscovered && !isSelfHosted) message = "Try it out is not enabled for discovered APIs";
+        else if (!isDeployed) message = "API is not deployed to any gateway";
+
         return {
             components: {
                 TryItOutButton: () => (
-                    <DisabledTryItOutButton 
-                        message={isSoap ? "Try it out is not supported for SOAP APIs" : "API must be deployed to a gateway to enable Try it out"} 
-                    />
+                    <DisabledTryItOutButton message={message} />
                 ),
             }
         };
-    }, [isDeployed, isDiscovered, apiDetailState.value]);
+    }, [isDeployed, isSelfHosted, apiDetailState.value]);
 
     // Dynamically rewrite the Swagger/OpenAPI spec to hit the API Gateway directly
     const swaggerSpec = useMemo(() => {
@@ -514,8 +548,8 @@ export const EntityWso2ApiDefinitionCard = () => {
                                     </Box>
                                 )}
 
-                                {/* Internal API Key Display and Regeneration - Only for deployed, non-discovered APIs */}
-                                {isDeployed && !isDiscovered && (
+                                {/* Internal API Key Display and Regeneration - Only for deployed, non-discovered, non-self-hosted APIs */}
+                                {isDeployed && !isDiscovered && !isSelfHosted && (
                                     <Box mx={2} my={1} p={2} border={1} borderColor="divider" borderRadius={4} bgcolor="background.paper">
                                         <Box display="flex" alignItems="center" justifyContent="space-between">
                                             <TextField

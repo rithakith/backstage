@@ -51,6 +51,57 @@ export async function createRouter(
     res.json({ status: 'ok' });
   });
 
+  router.get('/gateways', async (req, res) => {
+    try {
+      const token = await ensureAuthenticated(req);
+      
+      // 1. Get APIM environments from settings
+      let apimGateways: any[] = [];
+      try {
+        // Use service account directly for settings to avoid 401 user token retries
+        const settings = await client.getSettings();
+        apimGateways = (settings?.environment || []).map((env: any) => ({
+          name: env.name,
+          type: env.type,
+          description: env.description || `APIM Environment: ${env.name}`,
+          source: 'APIM',
+          urls: (env.endpoints || []).map((ep: any) => ep.url || ep.endpointURL).filter(Boolean),
+          status: 'Online', // APIM settings usually implies online
+        }));
+      } catch (err) {
+        logger.warn(`Failed to fetch APIM settings: ${err}`);
+      }
+
+      // 2. Get self-hosted gateways from config
+      const selfHosted = await Promise.all(client.getConfig().selfHostedGateways.map(async gw => {
+        let discoveredApis: any[] = [];
+        let status = 'Online';
+        if (gw.discoveryUrl) {
+          try {
+            discoveredApis = await client.getGatewayApis(gw.discoveryUrl, gw.discoveryAuth);
+          } catch (err) {
+            logger.warn(`Failed to discover APIs from gateway ${gw.name}: ${err}`);
+            status = 'Offline';
+          }
+        }
+        return {
+          name: gw.name,
+          type: gw.environmentType,
+          description: gw.description || `Self-hosted Gateway: ${gw.name}`,
+          source: 'Config',
+          urls: gw.urls,
+          status,
+          discoveredApis,
+        };
+      }));
+
+      res.json([...apimGateways, ...selfHosted]);
+    } catch (e: any) {
+      logger.error(`Failed to fetch gateways: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   router.post('/apis/:apiId/generate-key', async (req, res) => {
     try {
       const token = await ensureAuthenticated(req);

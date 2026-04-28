@@ -27,6 +27,8 @@ import { Wso2ApiDocument } from '../../api';
 
 const WSO2_API_DOCS_ANNOTATION = 'wso2.com/api-documents';
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
+const WSO2_ORGANIZATION_ID_ANNOTATION = 'wso2.com/organization-id';
+const WSO2_API_DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
 
 export interface EntityWso2ApiDocumentsCardProps {
     title?: string;
@@ -45,8 +47,14 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
     const [previewDoc, setPreviewDoc] = useState<Wso2ApiDocument | null>(null);
     const [previewContent, setPreviewContent] = useState<string | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
+    const [fetchedDocuments, setFetchedDocuments] = useState<Wso2ApiDocument[] | null>(null);
+    const [fetchingDocuments, setFetchingDocuments] = useState(false);
+    const [fetchError, setFetchError] = useState<Error | null>(null);
 
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
+    const organizationId = entity.metadata.annotations?.[WSO2_ORGANIZATION_ID_ANNOTATION];
+    const discoveryType = entity.metadata.annotations?.[WSO2_API_DISCOVERY_TYPE_ANNOTATION];
+    const isSelfHostedGateway = discoveryType === 'self-hosted-gateway';
     const backendUrl = config.getString('backend.baseUrl');
 
     const handleDownload = async (rowData: Wso2ApiDocument) => {
@@ -65,7 +73,13 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         }
 
         try {
-            const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+            let url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+            
+            if (isSelfHostedGateway && organizationId) {
+                // For self-hosted gateway APIs, we fetch directly from Choreo
+                url = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/documents/${docId}/content?organizationId=${organizationId}`;
+            }
+
             const response = await fetch(url, { method: 'GET' });
 
             if (!response.ok) {
@@ -134,7 +148,12 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         setPreviewContent(null);
 
         try {
-            const url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+            let url = `${backendUrl}/api/wso2-api-manager/apis/${apiId}/documents/${docId}/content`;
+            
+            if (isSelfHostedGateway && organizationId) {
+                url = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/documents/${docId}/content?organizationId=${organizationId}`;
+            }
+
             const response = await fetch(url, { method: 'GET' });
             if (!response.ok) throw new Error(`Failed to load: ${response.statusText}`);
             const content = await response.text();
@@ -147,8 +166,35 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         }
     };
 
-    const isLoading = propLoading;
-    const error = propError;
+    const isLoading = propLoading || fetchingDocuments;
+    const error = propError || fetchError;
+
+    // Fetch documents if it's a self-hosted gateway API and they aren't provided via props
+    useEffect(() => {
+        if (isSelfHostedGateway && organizationId && apiId && !propDocuments) {
+            const fetchDocs = async () => {
+                setFetchingDocuments(true);
+                setFetchError(null);
+                try {
+                    const url = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/documents?organizationId=${organizationId}`;
+                    const response = await fetch(url, { method: 'GET' });
+                    if (!response.ok) throw new Error(`Failed to fetch documents: ${response.statusText}`);
+                    const data = await response.json();
+                    const docs = (data.list || []).map((doc: any) => ({
+                        ...doc,
+                        id: doc.id || doc.documentId
+                    }));
+                    setFetchedDocuments(docs);
+                } catch (e: any) {
+                    console.error('Failed to fetch documents from Choreo:', e);
+                    setFetchError(e);
+                } finally {
+                    setFetchingDocuments(false);
+                }
+            };
+            fetchDocs();
+        }
+    }, [isSelfHostedGateway, organizationId, apiId, propDocuments, fetch]);
 
     if (isLoading) {
         return (
@@ -168,7 +214,7 @@ export const EntityWso2ApiDocumentsCard = (props: EntityWso2ApiDocumentsCardProp
         );
     }
 
-    let documents: Wso2ApiDocument[] = (propDocuments || []).map((doc: any) => ({
+    let documents: Wso2ApiDocument[] = (propDocuments || fetchedDocuments || []).map((doc: any) => ({
         ...doc,
         id: doc.id || doc.documentId,
     }));

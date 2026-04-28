@@ -3,6 +3,8 @@
 export type Wso2ApiSummary = {
   id: string;
   name: string;
+  displayName?: string;
+  entityName?: string;
   namespace?: string;
   version?: string;
   provider?: string;
@@ -14,6 +16,8 @@ export type Wso2ApiSummary = {
 export type Wso2ApiProductSummary = {
   id: string;
   name: string;
+  displayName?: string;
+  entityName?: string;
   namespace?: string;
   version?: string;
   provider?: string;
@@ -117,4 +121,5 @@ export interface Wso2ApiManagerApi {
     apiId: string,
     options?: { query?: string; token?: string },
   ): Promise<Wso2ApiRevisionsResponse>;
+  getGateways(token?: string): Promise<any[]>;
 }
