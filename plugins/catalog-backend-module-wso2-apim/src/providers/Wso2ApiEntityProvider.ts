@@ -13,6 +13,16 @@ function normalizeEntityName(name: string): string {
 }
 
 /**
+ * Normalizes gateway types for consistent display.
+ */
+function normalizeGatewayType(type?: string): string {
+    const t = (type || '').toLowerCase().trim();
+    if (t === 'wso2/synapse' || t === 'synapse' || t === 'regular' || t === 'wso2') return 'wso2';
+    if (!t || t === 'self-hosted' || t === 'production' || t === 'sandbox' || t === 'apiplatform') return 'apiplatform';
+    return t;
+}
+
+/**
  * Provides API entities from WSO2 Publisher API.
  */
 export class Wso2ApiEntityProvider implements EntityProvider {
@@ -55,7 +65,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
         const clientSecret = this.config.getString('wso2ApiManager.auth.clientSecret');
         
         // Load self-hosted gateways from configuration
-        const selfHostedGateways = this.config.getOptionalConfigArray('wso2ApiManager.APIPlatformGateways')?.map(gw => ({
+        const selfHostedGateways = this.config.getOptionalConfigArray('wso2PlatformGateway')?.map(gw => ({
             environmentName: gw.getString('name'),
             environmentType: gw.getOptionalString('environmentType') || 'PRODUCTION',
             urls: gw.getStringArray('urls'),
@@ -499,27 +509,27 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             fullConfig: apiConfig.configuration || apiConfig,
                                         });
 
-                                        // Fetch full Swagger from Choreo if organizationId is available
                                         if (gw.organizationId) {
-                                            const choreoHeaders = { 'Accept': 'application/json', 'User-Agent': 'Backstage/1.0' };
+                                            // Fetch full Swagger + Documents from Choreo (org ID = Choreo managed)
+                                            const choreoHeaders = { 'Accept': 'application/json', 'User-Agent': 'Backstage/1.0', 'X-WSO2-Organization-ID': gw.organizationId };
                                             
-                                            // 1. Fetch Swagger
+                                            // 1. Fetch Swagger from Choreo
                                             const swaggerUrl = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/swagger?organizationId=${gw.organizationId}`;
-                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching full Swagger from ${swaggerUrl}`);
+                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching Choreo Swagger from ${swaggerUrl}`);
                                             try {
                                                 const swaggerResponse = await undiciFetch(swaggerUrl, { headers: choreoHeaders, dispatcher });
                                                 if (swaggerResponse.ok) {
                                                     const swaggerData = await swaggerResponse.json() as any;
                                                     discoveredGatewayApis[discoveredGatewayApis.length - 1].fetchedSwagger = JSON.stringify(swaggerData, null, 2);
-                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched full Swagger for ${apiId}`);
+                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched Choreo Swagger for ${apiId}`);
                                                 }
                                             } catch (err) {
-                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Swagger for ${apiId}: ${err}`);
+                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Choreo Swagger for ${apiId}: ${err}`);
                                             }
 
-                                            // 2. Fetch Documents
+                                            // 2. Fetch Documents from Choreo
                                             const docsUrl = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/documents?organizationId=${gw.organizationId}`;
-                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching documents from ${docsUrl}`);
+                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching Choreo documents from ${docsUrl}`);
                                             try {
                                                 const docsResponse = await undiciFetch(docsUrl, { headers: choreoHeaders, dispatcher });
                                                 if (docsResponse.ok) {
@@ -529,11 +539,18 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                                         id: doc.id || doc.documentId
                                                     }));
                                                     discoveredGatewayApis[discoveredGatewayApis.length - 1].documents = docsList;
-                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched ${docsList.length} documents for ${apiId}`);
+                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched ${docsList.length} Choreo documents for ${apiId}`);
                                                 }
                                             } catch (err) {
-                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching documents for ${apiId}: ${err}`);
+                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Choreo documents for ${apiId}: ${err}`);
                                             }
+                                        } else {
+                                            // No org ID = pure self-hosted gateway.
+                                            // The full definition IS the gateway response itself (contains 'operations').
+                                            // Store the raw spec from the gateway detail response directly.
+                                            const gwSpec = apiConfig.configuration?.spec || apiConfig.spec || apiConfig;
+                                            discoveredGatewayApis[discoveredGatewayApis.length - 1].fetchedSwagger = JSON.stringify(gwSpec, null, 2);
+                                            this.logger.info(`[WSO2-GATEWAY-DISCOVERY] No org ID for ${apiId} — stored gateway spec directly (operations-based definition).`);
                                         }
                                     } else {
                                         this.logger.warn(`[WSO2-GATEWAY-DISCOVERY] Failed to fetch details for ${apiId}. Status: ${detailResponse.status}`);
@@ -577,7 +594,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-provider': api.provider || '',
                             'wso2.com/api-type': api.type || '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
-                            'wso2.com/api-gateway-vendor': (api.gatewayType || api.gatewayVendor || 'wso2').toLowerCase(),
+                            'wso2.com/api-gateway-vendor': normalizeGatewayType(api.gatewayType || api.gatewayVendor),
                             'wso2.com/initiated-from-gateway': String(api.initiatedFromGateway ?? ''),
                             'wso2.com/is-discovered': api.initiatedFromGateway === true ? 'true' : 'false',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
@@ -685,7 +702,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             return {
                                                 environmentName: env.name,
                                                 environmentType: env.type,
-                                                gatewayType: env.gatewayType || 'WSO2',
+                                                gatewayType: normalizeGatewayType(env.gatewayType),
                                                 displayName: env.displayName || env.name,
                                                 urls
                                             };
@@ -702,7 +719,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                     return JSON.stringify(selfHostedGateways.map(gw => ({
                                         environmentName: gw.environmentName,
                                         environmentType: gw.environmentType || 'PRODUCTION',
-                                        gatewayType: 'Self-hosted',
+                                        gatewayType: normalizeGatewayType('Self-hosted'),
                                         displayName: gw.environmentName,
                                         urls: gw.urls.map(u => {
                                             const base = u.replace(/\/$/, '');
@@ -919,8 +936,9 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const normalizedName = normalizeEntityName(displayName);
                 const discoveryNamespace = 'wso2-gateways';
 
-                // Use the fetched Swagger definition, or a placeholder if it failed/wasn't found
-                const definition = api.fetchedSwagger || `WSO2 Discovered API: ${displayName}. (Full definition not available)`;
+                // Use the fetched definition (Swagger string or gateway spec JSON).
+                // fetchedSwagger is always populated now — either from Choreo (if org ID) or from the gateway spec directly.
+                const definition = api.fetchedSwagger || JSON.stringify(api.fullConfig || { displayName, operations: [] }, null, 2);
 
                 return {
                     apiVersion: 'backstage.io/v1alpha1',
@@ -941,7 +959,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2-gateway.com/api-endpoints': JSON.stringify([{
                                 environmentName: api.discoveredFrom,
                                 environmentType: 'PRODUCTION',
-                                gatewayType: 'Self-hosted',
+                                gatewayType: normalizeGatewayType('Self-hosted'),
                                 displayName: api.discoveredFrom,
                                 urls: (api.gatewayUrls || []).map((u: string) => {
                                     const base = u.replace(/\/$/, '');
@@ -952,7 +970,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-id': api.id,
                             'wso2.com/organization-id': api.organizationId || '',
                             'wso2.com/api-discovery-type': 'self-hosted-gateway',
-                            'wso2.com/api-gateway-vendor': 'wso2',
+                            'wso2.com/api-gateway-vendor': normalizeGatewayType('wso2'),
                             'wso2.com/is-discovered': 'false',
                             'wso2.com/api-raw-json': JSON.stringify({
                                 id: api.id,

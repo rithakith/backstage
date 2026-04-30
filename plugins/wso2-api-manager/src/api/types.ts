@@ -1,4 +1,9 @@
 
+export type Wso2GatewayInfo = {
+  name: string;
+  displayName: string;
+  gatewayType: string;
+};
 
 export type Wso2ApiSummary = {
   id: string;
@@ -12,6 +17,7 @@ export type Wso2ApiSummary = {
   lifeCycleStatus?: string;
   type?: string;
   isDiscovered?: boolean;
+  gateways?: Wso2GatewayInfo[];
 };
 export type Wso2ApiProductSummary = {
   id: string;
@@ -25,6 +31,7 @@ export type Wso2ApiProductSummary = {
   lifeCycleStatus?: string;
   type?: string;
   isDiscovered?: boolean;
+  gateways?: Wso2GatewayInfo[];
 };
 
 export type Wso2ApiProductOperation = {
