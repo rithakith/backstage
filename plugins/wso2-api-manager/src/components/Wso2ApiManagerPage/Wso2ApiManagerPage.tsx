@@ -56,8 +56,8 @@ const useStyles = makeStyles(_theme => ({
  * Normalizes a name for use as a Backstage entity name.
  * Matches the logic in Wso2ApiEntityProvider.ts
  */
-function normalizeEntityName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+function normalizeEntityName(name?: string): string {
+  return (name || '').replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
 }
 
 /**
@@ -214,9 +214,9 @@ export const Wso2ApiManagerPage = () => {
     // Filter to regular APIs (those with wso2-id but NOT products/mcps)
     const apis = allEntities.filter(e => {
       const ann = e.metadata.annotations || {};
-      return (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) && 
-             ann['wso2.com/is-api-product'] !== 'true' && 
-             ann['wso2.com/is-mcp-server'] !== 'true';
+      return (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) &&
+        ann['wso2.com/is-api-product'] !== 'true' &&
+        ann['wso2.com/is-mcp-server'] !== 'true';
     }).map(e => {
       const ann = e.metadata.annotations || {};
       const displayName = ann['wso2.com/api-name'] || ann['wso2-gateway.com/api-name'] || e.metadata.name;
@@ -241,7 +241,7 @@ export const Wso2ApiManagerPage = () => {
     });
 
     // Filter to API Products
-    const apiProducts = allEntities.filter(e => 
+    const apiProducts = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
@@ -258,7 +258,7 @@ export const Wso2ApiManagerPage = () => {
     }));
 
     // Filter to MCP Servers
-    const mcpServers = allEntities.filter(e => 
+    const mcpServers = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true'
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
@@ -275,93 +275,94 @@ export const Wso2ApiManagerPage = () => {
   }, [catalogApi, tabValue]);
 
   // Map the single catalog state to the three expected list states
-  const apiListState = { 
-    loading: catalogState.loading || gatewaysState.loading, 
+  const apiListState = {
+    loading: catalogState.loading || gatewaysState.loading,
     value: useMemo(() => {
-        if (!catalogState.value?.apis) return undefined;
-        
-        // Start with Catalog APIs
-        const combinedApis = [...catalogState.value.apis];
-        const apiMap = new Map(combinedApis.map(a => [a.id, a]));
-        
-        let liveCount = 0;
-        let mergedCount = 0;
+      if (!catalogState.value?.apis) return undefined;
 
-        // Merge in Live Discovery APIs from gateways
-        if (gatewaysState.value) {
-            gatewaysState.value.forEach((gw: any) => {
-                if (gw.discoveredApis) {
-                    gw.discoveredApis.forEach((liveApi: any) => {
-                        liveCount++;
-                        const existing = apiMap.get(liveApi.id);
-                        if (existing) {
-                            mergedCount++;
-                            // Update existing with gateway info if missing
-                            if (!existing.gateways.some((g: any) => g.name === gw.name)) {
-                                existing.gateways.push({
-                                    name: gw.name,
-                                    displayName: gw.displayName || gw.name,
-                                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
-                                });
-                            }
-                            if (existing.source !== 'Gateway' && existing.source !== 'Both') {
-                                existing.source = 'Both';
-                            }
-                        } else {
-                            // Add new live-only API
-                            const newApi = {
-                                id: liveApi.id,
-                                name: liveApi.displayName || liveApi.name,
-                                displayName: liveApi.displayName || liveApi.name,
-                                entityName: `${normalizeEntityName(liveApi.displayName || liveApi.name)}-${normalizeEntityName(gw.name)}`,
-                                namespace: 'wso2-gateways',
-                                version: liveApi.version || '1.0.0',
-                                context: liveApi.context || '/',
-                                type: liveApi.type || 'HTTP',
-                                lifeCycleStatus: 'Discovered',
-                                isDiscovered: true,
-                                source: 'Gateway (Live)',
-                                gateways: [{
-                                    name: gw.name,
-                                    displayName: gw.displayName || gw.name,
-                                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
-                                }],
-                                provider: 'Gateway',
-                            };
-                            combinedApis.push(newApi as any);
-                            apiMap.set(newApi.id, newApi as any);
-                        }
-                    });
+      // Start with Catalog APIs
+      const combinedApis = [...catalogState.value.apis];
+      const apiMap = new Map(combinedApis.map(a => [a.id, a]));
+
+      let liveCount = 0;
+      let mergedCount = 0;
+
+      // Merge in Live Discovery APIs from gateways
+      if (gatewaysState.value) {
+        gatewaysState.value.forEach((gw: any) => {
+          if (gw.discoveredApis) {
+            gw.discoveredApis.forEach((liveApi: any) => {
+              liveCount++;
+              const existing = apiMap.get(liveApi.id);
+              if (existing) {
+                mergedCount++;
+                // Update existing with gateway info if missing
+                if (!existing.gateways.some((g: any) => g.name === gw.name)) {
+                  existing.gateways.push({
+                    name: gw.name,
+                    displayName: gw.displayName || gw.name,
+                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
+                  });
                 }
+                if (existing.source !== 'Gateway' && existing.source !== 'Both') {
+                  existing.source = 'Both';
+                }
+              } else {
+                // Add new live-only API
+                const apiName = liveApi.displayName || liveApi.name || liveApi.id || 'unknown';
+                const newApi = {
+                  id: liveApi.id,
+                  name: apiName,
+                  displayName: apiName,
+                  entityName: `${normalizeEntityName(apiName)}-${normalizeEntityName(gw.name)}`,
+                  namespace: 'wso2-gateways',
+                  version: liveApi.version || '1.0.0',
+                  context: liveApi.context || '/',
+                  type: liveApi.type || 'HTTP',
+                  lifeCycleStatus: 'Discovered',
+                  isDiscovered: true,
+                  source: 'Gateway (Live)',
+                  gateways: [{
+                    name: gw.name,
+                    displayName: gw.displayName || gw.name,
+                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
+                  }],
+                  provider: 'Gateway',
+                };
+                combinedApis.push(newApi as any);
+                apiMap.set(newApi.id, newApi as any);
+              }
             });
-        }
+          }
+        });
+      }
 
-        console.log(`📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`);
-        
-        return { apis: combinedApis };
+      console.log(`📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`);
+
+      return { apis: combinedApis };
     }, [catalogState.value, gatewaysState.value]),
-    error: catalogState.error || gatewaysState.error, 
-    retry: () => { catalogState.retry(); gatewaysState.retry(); } 
+    error: catalogState.error || gatewaysState.error,
+    retry: () => { catalogState.retry(); gatewaysState.retry(); }
   };
 
-  const apiProductListState = { 
-    loading: catalogState.loading, 
-    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined, 
-    error: catalogState.error, 
-    retry: catalogState.retry 
+  const apiProductListState = {
+    loading: catalogState.loading,
+    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined,
+    error: catalogState.error,
+    retry: catalogState.retry
   };
 
-  const mcpListState = { 
-    loading: catalogState.loading, 
-    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined, 
-    error: catalogState.error, 
-    retry: catalogState.retry 
+  const mcpListState = {
+    loading: catalogState.loading,
+    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined,
+    error: catalogState.error,
+    retry: catalogState.retry
   };
 
   // Derive all unique gateway names for the filter dropdown
   const availableGateways = useMemo(() => {
     const gateways = new Set<string>();
-    
+
     // 1. Add types from APIs in the current list
     apiListState.value?.apis.forEach(api => {
       api.gateways?.forEach((gw: any) => {
@@ -381,7 +382,7 @@ export const Wso2ApiManagerPage = () => {
   const filteredApis = useMemo(() => {
     const apis = apiListState.value?.apis || [];
     if (selectedGateway === 'all') return apis;
-    return apis.filter(api => 
+    return apis.filter(api =>
       api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway)
     );
   }, [apiListState.value?.apis, selectedGateway]);
@@ -413,16 +414,16 @@ export const Wso2ApiManagerPage = () => {
       },
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
-      { 
-        title: 'Gateways', 
+      {
+        title: 'Gateways',
         field: 'gateways',
         render: rowData => {
-            const gws = (rowData as any).gateways || [];
-            if (gws.length > 0) {
-                const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
-                return types[0];
-            }
-            return 'WSO2';
+          const gws = (rowData as any).gateways || [];
+          if (gws.length > 0) {
+            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            return types[0];
+          }
+          return 'WSO2';
         }
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
@@ -453,24 +454,24 @@ export const Wso2ApiManagerPage = () => {
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
       { title: 'Provided By', field: 'provider' },
-      { 
-        title: 'Gateways', 
+      {
+        title: 'Gateways',
         field: 'gateways',
         render: rowData => {
-            const gws = rowData.gateways || [];
-            if (gws.length > 0) {
-                const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
-                return types[0];
-            }
-            return 'WSO2';
+          const gws = rowData.gateways || [];
+          if (gws.length > 0) {
+            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            return types[0];
+          }
+          return 'WSO2';
         }
       },
       {
         title: 'Debug: Raw Endpoints',
         render: rowData => {
-            const ann = (rowData as any)._rawAnnotations || {};
-            const val = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
-            return <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val || 'Missing'}</div>;
+          const ann = (rowData as any)._rawAnnotations || {};
+          const val = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
+          return <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val || 'Missing'}</div>;
         }
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
@@ -483,23 +484,23 @@ export const Wso2ApiManagerPage = () => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
-    
+
     // Only poll if there's no error, no APIs found yet, and we haven't timed out
     if (!apiListState.loading && !apiListState.error && !hasApis && !isTimedOut) {
-        interval = setInterval(() => {
-            const elapsed = (Date.now() - syncStartTime) / 1000;
-            if (elapsed > syncTimeout) {
-                console.warn(`🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`);
-                setIsTimedOut(true);
-            } else {
-                console.log(`🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(elapsed)}s elapsed)...`);
-                apiListState.retry();
-            }
-        }, 15000);
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - syncStartTime) / 1000;
+        if (elapsed > syncTimeout) {
+          console.warn(`🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`);
+          setIsTimedOut(true);
+        } else {
+          console.log(`🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(elapsed)}s elapsed)...`);
+          apiListState.retry();
+        }
+      }, 15000);
     }
     return () => { if (interval) clearInterval(interval); };
   }, [apiListState.loading, apiListState.error, apiListState.value?.apis?.length, isTimedOut, syncTimeout, syncStartTime]);
-  
+
   const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
     () => [
       {
@@ -597,16 +598,16 @@ export const Wso2ApiManagerPage = () => {
                 title="Sync Timed Out"
                 message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't find any APIs in the catalog. Please check your WSO2 backend logs or verify your provider configuration.`}
               >
-                <Button 
-                    variant="contained" 
-                    color="primary" 
-                    onClick={() => {
-                        setIsTimedOut(false);
-                        apiListState.retry();
-                    }}
-                    style={{ marginTop: '16px' }}
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    setIsTimedOut(false);
+                    apiListState.retry();
+                  }}
+                  style={{ marginTop: '16px' }}
                 >
-                    Retry Now
+                  Retry Now
                 </Button>
               </WarningPanel>
             )}
@@ -618,18 +619,18 @@ export const Wso2ApiManagerPage = () => {
                     Synchronizing Catalog...
                   </Typography>
                   <Typography variant="body1" color="textSecondary">
-                    We're currently discovering APIs from your WSO2 environments. 
+                    We're currently discovering APIs from your WSO2 environments.
                     If you've just configured the provider, this may take a few moments to populate.
                   </Typography>
                   <Box mt={2}>
-                    <Button 
-                        variant="outlined" 
-                        color="primary" 
-                        onClick={() => apiListState.retry()}
-                        startIcon={<RefreshIcon />}
-                        disabled={apiListState.loading}
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => apiListState.retry()}
+                      startIcon={<RefreshIcon />}
+                      disabled={apiListState.loading}
                     >
-                        Refresh Now
+                      Refresh Now
                     </Button>
                   </Box>
                   <Box mt={2}>

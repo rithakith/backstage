@@ -28,7 +28,7 @@ export const catalogModuleWso2Apim = createBackendModule({
 
                 // Schedule the provider to run periodically
                 const schedule = scheduler.createScheduledTaskRunner({
-                    frequency: { minutes: 1 }, // Run every 1 minute for testing/demo purposes; usually { hours: 1 }
+                    frequency: { minutes: 15 }, // Run every 15 minutes
                     timeout: { minutes: 5 },
                     initialDelay: { seconds: 15 }, // Wait a bit before first run
                 });
