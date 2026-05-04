@@ -22,7 +22,7 @@
   },
   "license": "Apache-2.0",
   "sideEffects": false,
-  "main": "src/index.ts",
+  "main": "dist/index.cjs.js",
   "types": "src/index.ts",
   "files": [
     "dist",

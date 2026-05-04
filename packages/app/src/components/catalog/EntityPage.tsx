@@ -65,7 +65,7 @@ import {
   isWso2Api,
   isMcpEntity,
   hasMultipleComponentRelations,
-} from '@rk-apim/backstage-plugin-wso2-api-manager';
+} from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 
 import {
   Direction,

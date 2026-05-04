@@ -1,6 +1,5 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import { fetch as undiciFetch, Agent } from 'undici';
 import {
   HttpAuthService,
   LoggerService,
@@ -63,7 +62,7 @@ export async function createRouter(
 
   router.get('/gateways', async (req, res) => {
     try {
-      const token = await ensureAuthenticated(req);
+      await ensureAuthenticated(req);
       
       // 1. Get APIM environments from settings
       let apimGateways: any[] = [];

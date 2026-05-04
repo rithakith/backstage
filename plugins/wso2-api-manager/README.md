@@ -1,4 +1,4 @@
-# @rk-apim/backstage-plugin-wso2-api-manager
+# @rk-apim-1/backstage-plugin-wso2-api-manager
 
 This plugin provides the frontend integration for **WSO2 API Manager** in Backstage. It includes a comprehensive dashboard for browsing APIs, API Products, and MCP Servers, as well as specialized Catalog cards for API entities.
 
@@ -27,25 +27,25 @@ sudo apt update && sudo apt install -y build-essential python3 python3-pip g++ m
 ## 🚀 Full Suite Integration Guide
 
 For the full WSO2 experience, you should install the complete suite of plugins:
-1. `@rk-apim/backstage-plugin-wso2-api-manager` (This package)
-2. `@rk-apim/backstage-plugin-wso2-api-manager-backend`
-3. `@rk-apim/backstage-plugin-catalog-backend-module-wso2-apim`
-4. `@rk-apim/backstage-plugin-catalog-backend-module-asgardeo` (Optional: for User/Group syncing)
+1. `@rk-apim-1/backstage-plugin-wso2-api-manager` (This package)
+2. `@rk-apim-1/backstage-plugin-wso2-api-manager-backend`
+3. `@rk-apim-1/backstage-plugin-catalog-backend-module-wso2-apim`
+4. `@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo` (Optional: for User/Group syncing)
 
 ### 1. Installation
 
 ```bash
 # Frontend
-yarn workspace app add @rk-apim/backstage-plugin-wso2-api-manager
+yarn workspace app add @rk-apim-1/backstage-plugin-wso2-api-manager
 
 # Backend
-yarn workspace backend add @rk-apim/backstage-plugin-wso2-api-manager-backend @rk-apim/backstage-plugin-catalog-backend-module-wso2-apim
+yarn workspace backend add @rk-apim-1/backstage-plugin-wso2-api-manager-backend @rk-apim-1/backstage-plugin-catalog-backend-module-wso2-apim
 ```
 
 #### Verification
 To verify the installation is successful, check your `package.json` files for the following entries:
-- **Frontend**: Check `packages/app/package.json` for `@rk-apim/backstage-plugin-wso2-api-manager`.
-- **Backend**: Check `packages/backend/package.json` for `@rk-apim/backstage-plugin-wso2-api-manager-backend`, etc.
+- **Frontend**: Check `packages/app/package.json` for `@rk-apim-1/backstage-plugin-wso2-api-manager`.
+- **Backend**: Check `packages/backend/package.json` for `@rk-apim-1/backstage-plugin-wso2-api-manager-backend`, etc.
 
 If listed, the plugins are correctly integrated into your workspace and ready for setup.
 
@@ -109,7 +109,7 @@ In `packages/app/src/apis.ts` (if it exists) or directly in `packages/app/src/Ap
 import {
   wso2ApiManagerApiRef,
   Wso2ApiManagerClient,
-} from '@rk-apim/backstage-plugin-wso2-api-manager';
+} from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 
 export const apis: AnyApiFactory[] = [
   // ... existing APIs
@@ -130,7 +130,7 @@ export const apis: AnyApiFactory[] = [
 In `packages/app/src/App.tsx`:
 
 ```typescript
-import { Wso2ApiManagerPage } from '@rk-apim/backstage-plugin-wso2-api-manager';
+import { Wso2ApiManagerPage } from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 
 // ...
 <Route path="/wso2-api-manager" element={<Wso2ApiManagerPage />} />
@@ -144,7 +144,7 @@ import {
   EntityWso2ApiOverviewCard,
   EntityWso2ApiDefinitionCard,
   isWso2Api
-} from '@rk-apim/backstage-plugin-wso2-api-manager';
+} from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 
 // Add to your API entity layout
 <EntitySwitch.Case if={isWso2Api}>
@@ -166,13 +166,13 @@ In your `packages/backend/src/index.ts`:
 const backend = createBackend();
 
 // Add the WSO2 Backend plugin
-backend.add(import('@rk-apim/backstage-plugin-wso2-api-manager-backend'));
+backend.add(import('@rk-apim-1/backstage-plugin-wso2-api-manager-backend'));
 
 // Add the Catalog module for WSO2 discovery
-backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-wso2-apim'));
+backend.add(import('@rk-apim-1/backstage-plugin-catalog-backend-module-wso2-apim'));
 
 // Optional: Add the Asgardeo Catalog module for User/Group syncing
-// backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-asgardeo'));
+// backend.add(import('@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo'));
 
 backend.start();
 ```
@@ -183,7 +183,7 @@ If you use Asgardeo for identity management, you can install the optional catalo
 
 ```bash
 # Install the module
-yarn workspace backend add @rk-apim/backstage-plugin-catalog-backend-module-asgardeo
+yarn workspace backend add @rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo
 ```
 
 Then add it to your `packages/backend/src/index.ts` as shown in the commented section above.

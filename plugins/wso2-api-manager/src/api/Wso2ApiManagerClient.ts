@@ -80,8 +80,19 @@ export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
     }
     const response = await this.fetchApi.fetch(`${baseUrl}/gateways`, { headers });
     if (!response.ok) {
-      throw new Error(`Failed to fetch gateways, status ${response.status}`);
+      let errText = '';
+      try { errText = await response.text(); } catch (e) {}
+      throw new Error(`Failed to fetch gateways, status ${response.status}: ${errText}`);
     }
-    return await response.json();
+    const text = await response.text();
+    if (!text || text.trim() === '') {
+      return [];
+    }
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.warn('[WSO2-APIClient] Invalid JSON from /gateways:', text);
+      return [];
+    }
   }
 }

@@ -74,9 +74,8 @@ import {
 import { CustomizableHomePage } from './components/home/CustomizableHomePage';
 import { HomePage } from './components/home/HomePage';
 import { BuiThemerPage } from '@backstage/plugin-mui-to-bui';
-import { Wso2ApiManagerPage } from '@rk-apim/backstage-plugin-wso2-api-manager';
+import { Wso2ApiManagerPage } from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 import { asgardeoAuthApiRef } from './apis';
-import { PermissionTestPage } from './components/PermissionTestPage';
 
 const app = createApp({
   apis,
@@ -216,7 +215,6 @@ const routes = (
     </Route>
     <Route path="/notifications" element={<NotificationsPage />} />
     <Route path="/mui-to-bui" element={<BuiThemerPage />} />
-    <Route path="/test-permissions" element={<PermissionTestPage />} />
   </FlatRoutes>
 );
 

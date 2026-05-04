@@ -20,7 +20,7 @@
     "./testUtils": "./src/testUtils.ts",
     "./package.json": "./package.json"
   },
-  "main": "src/index.ts",
+  "main": "dist/index.cjs.js",
   "types": "src/index.ts",
   "typesVersions": {
     "*": {

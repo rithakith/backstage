@@ -45,7 +45,7 @@ import {
   Wso2ApiManagerClient,
   wso2ApiManagerApiRef,
   wso2AuthApiRef,
-} from '@rk-apim/backstage-plugin-wso2-api-manager';
+} from '@rk-apim-1/backstage-plugin-wso2-api-manager';
 
 export const asgardeoAuthApiRef: ApiRef<
   OpenIdConnectApi & ProfileInfoApi & BackstageIdentityApi & SessionApi

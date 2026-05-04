@@ -17,7 +17,6 @@ import RefreshIcon from '@material-ui/icons/Refresh';
 import {
   Content,
   ContentHeader,
-  EmptyState,
   Header,
   Page,
   SupportButton,
@@ -274,7 +273,11 @@ export const Wso2ApiManagerPage = () => {
     return { apis, apiProducts, mcpServers };
   }, [catalogApi, tabValue]);
 
-  // Map the single catalog state to the three expected list states
+  // Derive offline gateways
+  const offlineGateways = useMemo(() => {
+    return gatewaysState.value?.filter((gw: any) => gw.status === 'Offline') || [];
+  }, [gatewaysState.value]);
+
   const apiListState = {
     loading: catalogState.loading || gatewaysState.loading,
     value: useMemo(() => {
@@ -290,7 +293,7 @@ export const Wso2ApiManagerPage = () => {
       // Merge in Live Discovery APIs from gateways
       if (gatewaysState.value) {
         gatewaysState.value.forEach((gw: any) => {
-          if (gw.discoveredApis) {
+          if (gw.discoveredApis && gw.status !== 'Offline') {
             gw.discoveredApis.forEach((liveApi: any) => {
               liveCount++;
               const existing = apiMap.get(liveApi.id);
@@ -484,9 +487,11 @@ export const Wso2ApiManagerPage = () => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
+    const hasOfflineGateways = offlineGateways.length > 0;
 
-    // Only poll if there's no error, no APIs found yet, and we haven't timed out
-    if (!apiListState.loading && !apiListState.error && !hasApis && !isTimedOut) {
+    // Only poll if there's no error, no APIs found yet, no offline gateways, and we haven't timed out
+    // If a gateway is offline, we should stop the infinite polling and show the current APIM APIs or error state.
+    if (!apiListState.loading && !apiListState.error && !hasApis && !isTimedOut && !hasOfflineGateways) {
       interval = setInterval(() => {
         const elapsed = (Date.now() - syncStartTime) / 1000;
         if (elapsed > syncTimeout) {
@@ -499,7 +504,7 @@ export const Wso2ApiManagerPage = () => {
       }, 15000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [apiListState.loading, apiListState.error, apiListState.value?.apis?.length, isTimedOut, syncTimeout, syncStartTime]);
+  }, [apiListState.loading, apiListState.error, apiListState.value?.apis?.length, isTimedOut, syncTimeout, syncStartTime, offlineGateways.length]);
 
   const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
     () => [
@@ -577,6 +582,14 @@ export const Wso2ApiManagerPage = () => {
 
         {tabValue === 0 && (
           <>
+            {offlineGateways.length > 0 && (
+              <Box mb={2}>
+                <WarningPanel
+                  title="Gateway Discovery Warning"
+                  message={`Error during discovery for the following gateways: ${offlineGateways.map((g: any) => g.name).join(', ')}. They may be unreachable or offline. Displaying available APIM APIs instead.`}
+                />
+              </Box>
+            )}
             {apiListState.loading && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
                 <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
@@ -611,7 +624,7 @@ export const Wso2ApiManagerPage = () => {
                 </Button>
               </WarningPanel>
             )}
-            {!apiListState.loading && !isTimedOut && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
+            {!apiListState.loading && !isTimedOut && offlineGateways.length === 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
                 <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
                 <Box mt={3} maxWidth={600}>
@@ -621,6 +634,35 @@ export const Wso2ApiManagerPage = () => {
                   <Typography variant="body1" color="textSecondary">
                     We're currently discovering APIs from your WSO2 environments.
                     If you've just configured the provider, this may take a few moments to populate.
+                  </Typography>
+                  <Box mt={2}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => apiListState.retry()}
+                      startIcon={<RefreshIcon />}
+                      disabled={apiListState.loading}
+                    >
+                      Refresh Now
+                    </Button>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="caption" color="textSecondary" style={{ fontStyle: 'italic' }}>
+                      Tip: You can monitor the progress in your backend logs for "[WSO2-DISCOVERY]" messages.
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+            {!apiListState.loading && !isTimedOut && offlineGateways.length > 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
+                <Box mt={3} maxWidth={600}>
+                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
+                    No APIs Available
+                  </Typography>
+                  <Typography variant="body1" color="textSecondary">
+                    We could not find any APIs in your catalog, and gateway discovery failed. 
+                    Please check your backend logs or gateway configuration.
                   </Typography>
                   <Box mt={2}>
                     <Button

@@ -1,12 +1,12 @@
 {
-  "name": "@rk-apim/backstage-plugin-wso2-api-manager",
-  "version": "1.0.4",
+  "name": "@rk-apim-1/backstage-plugin-wso2-api-manager",
+  "version": "0.0.1",
   "backstage": {
     "role": "frontend-plugin",
     "pluginId": "wso2-api-manager",
     "pluginPackages": [
-      "@rk-apim/backstage-plugin-wso2-api-manager",
-      "@rk-apim/backstage-plugin-wso2-api-manager-backend"
+      "@rk-apim-1/backstage-plugin-wso2-api-manager",
+      "@rk-apim-1/backstage-plugin-wso2-api-manager-backend"
     ]
   },
   "publishConfig": {
