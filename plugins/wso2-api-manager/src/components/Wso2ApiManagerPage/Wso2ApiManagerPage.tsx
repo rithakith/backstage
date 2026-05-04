@@ -8,12 +8,15 @@ import {
   CircularProgress,
   Typography,
   Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@material-ui/core';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import {
   Content,
   ContentHeader,
-  EmptyState,
   Header,
   Page,
   SupportButton,
@@ -21,7 +24,7 @@ import {
   TableColumn,
   WarningPanel,
 } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApi, configApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
 import Link from '@material-ui/core/Link';
 import {
@@ -52,8 +55,103 @@ const useStyles = makeStyles(_theme => ({
  * Normalizes a name for use as a Backstage entity name.
  * Matches the logic in Wso2ApiEntityProvider.ts
  */
-function normalizeEntityName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+function normalizeEntityName(name?: string): string {
+  return (name || '').replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+}
+
+/**
+ * Normalizes gateway types for consistent display.
+ */
+function normalizeGatewayType(type?: string): string {
+  const t = (type || '').toLowerCase().trim();
+  if (t === 'wso2/synapse' || t === 'synapse' || t === 'wso2' || t === 'regular') return 'WSO2';
+  if (!t || t === 'self-hosted' || t === 'apiplatform') return 'Apiplatform';
+  // Capitalize first letter (e.g., kong -> Kong, apigee -> Apigee)
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+interface Wso2GatewayInfo {
+  name: string;
+  displayName: string;
+  gatewayType: string;
+}
+
+/**
+ * Extracts gateway information from annotations.
+ */
+function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[] {
+  const result: Wso2GatewayInfo[] = [];
+  const processedNames = new Set<string>();
+
+  const addGateway = (name: string, displayName: string, type: string) => {
+    if (processedNames.has(name)) return;
+    result.push({
+      name,
+      displayName: displayName || name || 'Unknown',
+      gatewayType: normalizeGatewayType(type)
+    });
+    processedNames.add(name);
+  };
+
+  // 1. Check raw JSON for gateway info (High priority source)
+  const rawJsonStr = annotations['wso2.com/api-raw-json'];
+  if (rawJsonStr) {
+    try {
+      const raw = JSON.parse(rawJsonStr);
+      // If the raw JSON has gateway info, use it
+      if (raw.gatewayType || raw.gatewayVendor) {
+        addGateway('publisher-gateway', 'Default', raw.gatewayType || raw.gatewayVendor);
+      }
+    } catch (e) {
+      console.error('Failed to parse api-raw-json in extractGateways:', e);
+    }
+  }
+
+  // 2. Check standard and gateway-discovered endpoints
+  const endpointsStr = annotations['wso2.com/api-endpoints'] || annotations['wso2-gateway.com/api-endpoints'];
+  if (endpointsStr && endpointsStr !== '[]') {
+    try {
+      const endpoints = JSON.parse(endpointsStr);
+      if (Array.isArray(endpoints)) {
+        endpoints.forEach((ep: any) => {
+          addGateway(ep.environmentName || ep.name, ep.displayName || ep.environmentName || ep.name, ep.gatewayType);
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse api-endpoints:', e);
+    }
+  }
+
+  // 3. Check self-hosted gateway endpoints
+  const gwEndpointsStr = annotations['wso2.com/gateway-endpoints'];
+  if (gwEndpointsStr && gwEndpointsStr !== '[]') {
+    try {
+      const endpoints = JSON.parse(gwEndpointsStr);
+      if (Array.isArray(endpoints)) {
+        endpoints.forEach((ep: any) => {
+          addGateway(ep.environmentName || ep.name, ep.displayName || ep.environmentName || ep.name, ep.gatewayType);
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse gateway-endpoints:', e);
+    }
+  }
+
+  // 4. Fallback for older discovered APIs
+  const discoveredFrom = annotations['wso2-gateway.com/discovered-from'];
+  if (discoveredFrom) {
+    addGateway(discoveredFrom, discoveredFrom, 'Self-hosted');
+  }
+
+  // 5. Ultimate Fallback: if we have a vendor label but no specific endpoints/gateways found yet
+  if (result.length === 0) {
+    const vendor = annotations['wso2.com/api-gateway-vendor'];
+    if (vendor) {
+      addGateway('default', 'Default', vendor);
+    }
+  }
+
+  return result;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────
@@ -62,9 +160,14 @@ export const Wso2ApiManagerPage = () => {
   const oauthApi = useApi(wso2AuthApiRef);
   const catalogApi = useApi(catalogApiRef);
   const wso2Api = useApi(wso2ApiManagerApiRef);
+  const configApi = useApi(configApiRef);
+  const syncTimeout = configApi.getOptionalNumber('wso2ApiManager.catalogSyncTimeoutSeconds') || 60;
   // Write permissions are currently disabled
 
   const [tabValue, setTabValue] = useState(0);
+  const [selectedGateway, setSelectedGateway] = useState('all');
+  const [syncStartTime] = useState(Date.now());
+  const [isTimedOut, setIsTimedOut] = useState(false);
 
   // Get the user's Asgardeo OAuth access token from the existing login session
   useAsync(async () => {
@@ -110,9 +213,9 @@ export const Wso2ApiManagerPage = () => {
     // Filter to regular APIs (those with wso2-id but NOT products/mcps)
     const apis = allEntities.filter(e => {
       const ann = e.metadata.annotations || {};
-      return (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) && 
-             ann['wso2.com/is-api-product'] !== 'true' && 
-             ann['wso2.com/is-mcp-server'] !== 'true';
+      return (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) &&
+        ann['wso2.com/is-api-product'] !== 'true' &&
+        ann['wso2.com/is-mcp-server'] !== 'true';
     }).map(e => {
       const ann = e.metadata.annotations || {};
       const displayName = ann['wso2.com/api-name'] || ann['wso2-gateway.com/api-name'] || e.metadata.name;
@@ -132,36 +235,12 @@ export const Wso2ApiManagerPage = () => {
         source: isGatewayDiscovered ? 'Gateway' : 'Publisher',
         gatewayVendor: ann['wso2.com/api-gateway-vendor'],
         _rawAnnotations: ann, // Store for debug column
-        gateways: (() => {
-            const endpointsStr = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
-            if (endpointsStr && endpointsStr !== '[]') {
-                try {
-                    const endpoints = JSON.parse(endpointsStr);
-                    if (Array.isArray(endpoints)) {
-                        return endpoints.map((ep: any) => ({
-                            name: ep.environmentName || ep.name,
-                            displayName: ep.displayName || ep.environmentName || ep.name || 'Unknown',
-                            gatewayType: ep.gatewayType || 'WSO2'
-                        }));
-                    }
-                } catch (e) {
-                    console.error('Failed to parse api-endpoints:', e);
-                }
-            }
-            
-            // Fallback for older discovered APIs
-            const discoveredFrom = ann['wso2-gateway.com/discovered-from'];
-            if (discoveredFrom) {
-                return [{ name: discoveredFrom, displayName: discoveredFrom, gatewayType: 'Self-hosted' }];
-            }
-            
-            return [];
-        })(),
+        gateways: extractGateways(ann),
       };
     });
 
     // Filter to API Products
-    const apiProducts = allEntities.filter(e => 
+    const apiProducts = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
@@ -173,10 +252,12 @@ export const Wso2ApiManagerPage = () => {
       lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
       type: 'API_PRODUCT',
       isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
+      gateways: extractGateways(e.metadata.annotations || {}),
+      _rawAnnotations: e.metadata.annotations || {},
     }));
 
     // Filter to MCP Servers
-    const mcpServers = allEntities.filter(e => 
+    const mcpServers = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true'
     ).map(e => ({
       id: e.metadata.annotations?.['wso2.com/api-id'] as string,
@@ -192,87 +273,127 @@ export const Wso2ApiManagerPage = () => {
     return { apis, apiProducts, mcpServers };
   }, [catalogApi, tabValue]);
 
-  // Map the single catalog state to the three expected list states
-  const apiListState = { 
-    loading: catalogState.loading || gatewaysState.loading, 
+  // Derive offline gateways
+  const offlineGateways = useMemo(() => {
+    return gatewaysState.value?.filter((gw: any) => gw.status === 'Offline') || [];
+  }, [gatewaysState.value]);
+
+  const apiListState = {
+    loading: catalogState.loading || gatewaysState.loading,
     value: useMemo(() => {
-        if (!catalogState.value?.apis) return undefined;
-        
-        // Start with Catalog APIs
-        const combinedApis = [...catalogState.value.apis];
-        const apiMap = new Map(combinedApis.map(a => [a.id, a]));
-        
-        let liveCount = 0;
-        let mergedCount = 0;
+      if (!catalogState.value?.apis) return undefined;
 
-        // Merge in Live Discovery APIs from gateways
-        if (gatewaysState.value) {
-            gatewaysState.value.forEach((gw: any) => {
-                if (gw.discoveredApis) {
-                    gw.discoveredApis.forEach((liveApi: any) => {
-                        liveCount++;
-                        const existing = apiMap.get(liveApi.id);
-                        if (existing) {
-                            mergedCount++;
-                            // Update existing with gateway info if missing
-                            if (!existing.gateways.some((g: any) => g.name === gw.name)) {
-                                existing.gateways.push({
-                                    name: gw.name,
-                                    displayName: gw.displayName || gw.name,
-                                    gatewayType: gw.gatewayType || 'WSO2'
-                                });
-                            }
-                            if (existing.source !== 'Gateway' && existing.source !== 'Both') {
-                                existing.source = 'Both';
-                            }
-                        } else {
-                            // Add new live-only API
-                            const newApi = {
-                                id: liveApi.id,
-                                name: liveApi.displayName || liveApi.name,
-                                displayName: liveApi.displayName || liveApi.name,
-                                version: liveApi.version || '1.0.0',
-                                context: liveApi.context || '/',
-                                type: liveApi.type || 'HTTP',
-                                lifeCycleStatus: 'Discovered',
-                                isDiscovered: true,
-                                source: 'Gateway (Live)',
-                                gateways: [{
-                                    name: gw.name,
-                                    displayName: gw.displayName || gw.name,
-                                    gatewayType: gw.gatewayType || 'WSO2'
-                                }],
-                                provider: 'Gateway',
-                            };
-                            combinedApis.push(newApi as any);
-                            apiMap.set(newApi.id, newApi as any);
-                        }
-                    });
+      // Start with Catalog APIs
+      const combinedApis = [...catalogState.value.apis];
+      const apiMap = new Map(combinedApis.map(a => [a.id, a]));
+
+      let liveCount = 0;
+      let mergedCount = 0;
+
+      // Merge in Live Discovery APIs from gateways
+      if (gatewaysState.value) {
+        gatewaysState.value.forEach((gw: any) => {
+          if (gw.discoveredApis && gw.status !== 'Offline') {
+            gw.discoveredApis.forEach((liveApi: any) => {
+              liveCount++;
+              const existing = apiMap.get(liveApi.id);
+              if (existing) {
+                mergedCount++;
+                // Update existing with gateway info if missing
+                if (!existing.gateways.some((g: any) => g.name === gw.name)) {
+                  existing.gateways.push({
+                    name: gw.name,
+                    displayName: gw.displayName || gw.name,
+                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
+                  });
                 }
+                if (existing.source !== 'Gateway' && existing.source !== 'Both') {
+                  existing.source = 'Both';
+                }
+              } else {
+                // Add new live-only API
+                const apiName = liveApi.displayName || liveApi.name || liveApi.id || 'unknown';
+                const newApi = {
+                  id: liveApi.id,
+                  name: apiName,
+                  displayName: apiName,
+                  entityName: `${normalizeEntityName(apiName)}-${normalizeEntityName(gw.name)}`,
+                  namespace: 'wso2-gateways',
+                  version: liveApi.version || '1.0.0',
+                  context: liveApi.context || '/',
+                  type: liveApi.type || 'HTTP',
+                  lifeCycleStatus: 'Discovered',
+                  isDiscovered: true,
+                  source: 'Gateway (Live)',
+                  gateways: [{
+                    name: gw.name,
+                    displayName: gw.displayName || gw.name,
+                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
+                  }],
+                  provider: 'Gateway',
+                };
+                combinedApis.push(newApi as any);
+                apiMap.set(newApi.id, newApi as any);
+              }
             });
-        }
+          }
+        });
+      }
 
-        console.log(`📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`);
-        
-        return { apis: combinedApis };
+      console.log(`📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`);
+
+      return { apis: combinedApis };
     }, [catalogState.value, gatewaysState.value]),
-    error: catalogState.error || gatewaysState.error, 
-    retry: () => { catalogState.retry(); gatewaysState.retry(); } 
+    error: catalogState.error || gatewaysState.error,
+    retry: () => { catalogState.retry(); gatewaysState.retry(); }
   };
 
-  const apiProductListState = { 
-    loading: catalogState.loading, 
-    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined, 
-    error: catalogState.error, 
-    retry: catalogState.retry 
+  const apiProductListState = {
+    loading: catalogState.loading,
+    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined,
+    error: catalogState.error,
+    retry: catalogState.retry
   };
 
-  const mcpListState = { 
-    loading: catalogState.loading, 
-    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined, 
-    error: catalogState.error, 
-    retry: catalogState.retry 
+  const mcpListState = {
+    loading: catalogState.loading,
+    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined,
+    error: catalogState.error,
+    retry: catalogState.retry
   };
+
+  // Derive all unique gateway names for the filter dropdown
+  const availableGateways = useMemo(() => {
+    const gateways = new Set<string>();
+
+    // 1. Add types from APIs in the current list
+    apiListState.value?.apis.forEach(api => {
+      api.gateways?.forEach((gw: any) => {
+        gateways.add(gw.gatewayType);
+      });
+    });
+
+    // 2. Add types from all discovered gateways (even if they have no APIs)
+    gatewaysState.value?.forEach((gw: any) => {
+      gateways.add(normalizeGatewayType(gw.gatewayType || gw.type));
+    });
+
+    return Array.from(gateways).sort();
+  }, [apiListState.value?.apis, gatewaysState.value]);
+
+  // Filter APIs based on selected gateway
+  const filteredApis = useMemo(() => {
+    const apis = apiListState.value?.apis || [];
+    if (selectedGateway === 'all') return apis;
+    return apis.filter(api =>
+      api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway)
+    );
+  }, [apiListState.value?.apis, selectedGateway]);
+
+  // Filter API Products based on selected gateway
+  const filteredApiProducts = useMemo(() => {
+    return apiProductListState.value?.apiProducts || [];
+  }, [apiProductListState.value?.apiProducts]);
 
 
 
@@ -296,19 +417,16 @@ export const Wso2ApiManagerPage = () => {
       },
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
-      { 
-        title: 'Gateways', 
+      {
+        title: 'Gateways',
         field: 'gateways',
         render: rowData => {
-            const vendor = (rowData as any).gatewayVendor;
-            if (vendor) return vendor.toUpperCase();
-
-            const gws = (rowData as any).gateways || [];
-            if (gws.length === 0) return 'WSO2';
-            
-            // Fallback for older or discovered APIs
-            const types = Array.from(new Set(gws.map((g: any) => g.gatewayType || 'WSO2')));
-            return types.join(', ');
+          const gws = (rowData as any).gateways || [];
+          if (gws.length > 0) {
+            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            return types[0];
+          }
+          return 'WSO2';
         }
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
@@ -339,25 +457,24 @@ export const Wso2ApiManagerPage = () => {
       { title: 'Version', field: 'version' },
       { title: 'Type', field: 'type' },
       { title: 'Provided By', field: 'provider' },
-      { 
-        title: 'Gateways', 
+      {
+        title: 'Gateways',
         field: 'gateways',
         render: rowData => {
-            const gws = rowData.gateways || [];
-            if (gws.length === 0) return 'WSO2';
-            return gws.map((g: any) => {
-                const label = g.displayName || g.name;
-                const type = g.gatewayType || 'WSO2';
-                return `${label} - ${type}`;
-            }).join(', ');
+          const gws = rowData.gateways || [];
+          if (gws.length > 0) {
+            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            return types[0];
+          }
+          return 'WSO2';
         }
       },
       {
         title: 'Debug: Raw Endpoints',
         render: rowData => {
-            const ann = (rowData as any)._rawAnnotations || {};
-            const val = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
-            return <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val || 'Missing'}</div>;
+          const ann = (rowData as any)._rawAnnotations || {};
+          const val = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
+          return <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val || 'Missing'}</div>;
         }
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
@@ -369,15 +486,26 @@ export const Wso2ApiManagerPage = () => {
   // Automatically retry fetching if the list is empty (polling every 15 seconds)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (!apiListState.loading && (!apiListState.value?.apis || apiListState.value.apis.length === 0)) {
-        interval = setInterval(() => {
-            console.log('🔄 [WSO2-Frontend] Auto-retrying catalog fetch...');
-            apiListState.retry();
-        }, 15000);
+    const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
+    const hasOfflineGateways = offlineGateways.length > 0;
+
+    // Only poll if there's no error, no APIs found yet, no offline gateways, and we haven't timed out
+    // If a gateway is offline, we should stop the infinite polling and show the current APIM APIs or error state.
+    if (!apiListState.loading && !apiListState.error && !hasApis && !isTimedOut && !hasOfflineGateways) {
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - syncStartTime) / 1000;
+        if (elapsed > syncTimeout) {
+          console.warn(`🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`);
+          setIsTimedOut(true);
+        } else {
+          console.log(`🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(elapsed)}s elapsed)...`);
+          apiListState.retry();
+        }
+      }, 15000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [apiListState.loading, apiListState.value?.apis?.length]);
-  
+  }, [apiListState.loading, apiListState.error, apiListState.value?.apis?.length, isTimedOut, syncTimeout, syncStartTime, offlineGateways.length]);
+
   const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
     () => [
       {
@@ -414,6 +542,27 @@ export const Wso2ApiManagerPage = () => {
             This view lists APIs from WSO2 API Manager.
           </SupportButton>
 
+          <Box ml={2} minWidth={200}>
+            <FormControl fullWidth variant="outlined" size="small">
+              <InputLabel id="gateway-select-label">Select Gateway</InputLabel>
+              <Select
+                labelId="gateway-select-label"
+                id="gateway-select"
+                value={selectedGateway}
+                label="Select Gateway"
+                onChange={(e) => setSelectedGateway(e.target.value as string)}
+              >
+                <MenuItem value="all">
+                  <span>All Gateways</span>
+                </MenuItem>
+                {availableGateways.map(gw => (
+                  <MenuItem key={gw} value={gw}>
+                    {gw}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </ContentHeader>
 
 
@@ -433,6 +582,14 @@ export const Wso2ApiManagerPage = () => {
 
         {tabValue === 0 && (
           <>
+            {offlineGateways.length > 0 && (
+              <Box mb={2}>
+                <WarningPanel
+                  title="Gateway Discovery Warning"
+                  message={`Error during discovery for the following gateways: ${offlineGateways.map((g: any) => g.name).join(', ')}. They may be unreachable or offline. Displaying available APIM APIs instead.`}
+                />
+              </Box>
+            )}
             {apiListState.loading && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
                 <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
@@ -449,7 +606,25 @@ export const Wso2ApiManagerPage = () => {
                 message={apiListState.error.message}
               />
             )}
-            {!apiListState.loading && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
+            {isTimedOut && !apiListState.error && (
+              <WarningPanel
+                title="Sync Timed Out"
+                message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't find any APIs in the catalog. Please check your WSO2 backend logs or verify your provider configuration.`}
+              >
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    setIsTimedOut(false);
+                    apiListState.retry();
+                  }}
+                  style={{ marginTop: '16px' }}
+                >
+                  Retry Now
+                </Button>
+              </WarningPanel>
+            )}
+            {!apiListState.loading && !isTimedOut && offlineGateways.length === 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
                 <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
                 <Box mt={3} maxWidth={600}>
@@ -457,18 +632,47 @@ export const Wso2ApiManagerPage = () => {
                     Synchronizing Catalog...
                   </Typography>
                   <Typography variant="body1" color="textSecondary">
-                    We're currently discovering APIs from your WSO2 environments. 
+                    We're currently discovering APIs from your WSO2 environments.
                     If you've just configured the provider, this may take a few moments to populate.
                   </Typography>
                   <Box mt={2}>
-                    <Button 
-                        variant="outlined" 
-                        color="primary" 
-                        onClick={() => apiListState.retry()}
-                        startIcon={<RefreshIcon />}
-                        disabled={apiListState.loading}
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => apiListState.retry()}
+                      startIcon={<RefreshIcon />}
+                      disabled={apiListState.loading}
                     >
-                        Refresh Now
+                      Refresh Now
+                    </Button>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="caption" color="textSecondary" style={{ fontStyle: 'italic' }}>
+                      Tip: You can monitor the progress in your backend logs for "[WSO2-DISCOVERY]" messages.
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+            {!apiListState.loading && !isTimedOut && offlineGateways.length > 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
+                <Box mt={3} maxWidth={600}>
+                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
+                    No APIs Available
+                  </Typography>
+                  <Typography variant="body1" color="textSecondary">
+                    We could not find any APIs in your catalog, and gateway discovery failed. 
+                    Please check your backend logs or gateway configuration.
+                  </Typography>
+                  <Box mt={2}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => apiListState.retry()}
+                      startIcon={<RefreshIcon />}
+                      disabled={apiListState.loading}
+                    >
+                      Refresh Now
                     </Button>
                   </Box>
                   <Box mt={2}>
@@ -483,7 +687,7 @@ export const Wso2ApiManagerPage = () => {
               <Table
                 options={{ paging: false, search: true }}
                 columns={columns}
-                data={apiListState.value.apis}
+                data={filteredApis}
               />
             )}
           </>
@@ -524,7 +728,7 @@ export const Wso2ApiManagerPage = () => {
               <Table
                 options={{ paging: false, search: true }}
                 columns={productColumns}
-                data={apiProductListState.value.apiProducts}
+                data={filteredApiProducts}
               />
             )}
           </>

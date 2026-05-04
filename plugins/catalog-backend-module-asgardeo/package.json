@@ -1,10 +1,10 @@
 {
-    "name": "@rk-apim/backstage-plugin-catalog-backend-module-asgardeo",
-    "version": "1.0.3",
+    "name": "@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo",
+    "version": "0.0.1",
     "backstage": {
         "role": "backend-plugin-module",
         "pluginId": "catalog",
-        "pluginPackage": "@rk-apim/backstage-plugin-catalog-backend-module-asgardeo"
+        "pluginPackage": "@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo"
     },
     "publishConfig": {
         "access": "public",

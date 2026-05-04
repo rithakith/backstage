@@ -1,12 +1,12 @@
 {
   "extends": "@backstage/cli/config/tsconfig.json",
   "include": [
-    "packages/*/src",
-    "packages/*/config.d.ts",
-    "plugins/*/src",
-    "plugins/*/config.d.ts",
-    "plugins/*/dev",
-    "plugins/*/migrations"
+    "plugins/wso2-api-manager/src",
+    "plugins/wso2-api-manager-backend/src",
+    "plugins/catalog-backend-module-wso2-apim/src",
+    "plugins/wso2-api-manager/config.d.ts",
+    "plugins/wso2-api-manager-backend/config.d.ts",
+    "plugins/catalog-backend-module-wso2-apim/config.d.ts"
   ],
   "compilerOptions": {
     "outDir": "dist-types",

@@ -20,5 +20,5 @@
  * @packageDocumentation
  */
 
-export * from './errors';
-export * from './serialization';
+export * from './errors/index';
+export * from './serialization/index';

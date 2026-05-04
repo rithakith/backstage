@@ -13,6 +13,16 @@ function normalizeEntityName(name: string): string {
 }
 
 /**
+ * Normalizes gateway types for consistent display.
+ */
+function normalizeGatewayType(type?: string): string {
+    const t = (type || '').toLowerCase().trim();
+    if (t === 'wso2/synapse' || t === 'synapse' || t === 'regular' || t === 'wso2') return 'wso2';
+    if (!t || t === 'self-hosted' || t === 'production' || t === 'sandbox' || t === 'apiplatform') return 'apiplatform';
+    return t;
+}
+
+/**
  * Provides API entities from WSO2 Publisher API.
  */
 export class Wso2ApiEntityProvider implements EntityProvider {
@@ -53,9 +63,9 @@ export class Wso2ApiEntityProvider implements EntityProvider {
         const password = this.config.getString('catalog.providers.wso2Apim.password');
         const clientId = this.config.getString('wso2ApiManager.auth.clientId');
         const clientSecret = this.config.getString('wso2ApiManager.auth.clientSecret');
-        
+
         // Load self-hosted gateways from configuration
-        const selfHostedGateways = this.config.getOptionalConfigArray('wso2ApiManager.APIPlatformGateways')?.map(gw => ({
+        const selfHostedGateways = this.config.getOptionalConfigArray('wso2PlatformGateway')?.map(gw => ({
             environmentName: gw.getString('name'),
             environmentType: gw.getOptionalString('environmentType') || 'PRODUCTION',
             urls: gw.getStringArray('urls'),
@@ -63,7 +73,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             discoveryAuth: gw.getOptionalString('discoveryAuth'),
             organizationId: gw.getOptionalString('organizationId'),
         })) || [];
-        
+
         if (selfHostedGateways.length > 0) {
             this.logger.info(`[WSO2 APIM Provider] Loaded ${selfHostedGateways.length} self-hosted gateways from configuration.`);
         }
@@ -117,7 +127,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 if (settingsResponse.ok) {
                     globalSettings = await settingsResponse.json();
                     this.logger.info(`[WSO2 APIM Provider] Successfully retrieved global settings with ${globalSettings?.environment?.length || 0} environments.`);
-                    
+
                     // Log a sample of the first environment to verify fields
                     if (globalSettings?.environment?.length > 0) {
                         const first = globalSettings.environment[0];
@@ -154,9 +164,9 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const apiId = apiList[i].id;
                 const apiName = apiList[i].name || apiId;
                 const publisherDetailUrl = `${baseUrl}/api/am/publisher/v4/apis/${apiId}`;
-                
+
                 this.logger.info(`[WSO2 APIM Provider] Fetching detail for API "${apiName}" (${apiId}) from Publisher v4`);
-                
+
                 try {
                     let detailResponse = await undiciFetch(publisherDetailUrl, {
                         headers: {
@@ -238,14 +248,14 @@ export class Wso2ApiEntityProvider implements EntityProvider {
             for (const api of apiList) {
                 const apiId = api.id;
                 const apiType = api.type;
-                
+
                 // Determine the correct definition endpoint based on API type
                 // WebSub, WS (WebSocket), SSE, and ASYNC APIs use AsyncAPI
                 const isAsyncApi = apiType === 'WEBSUB' || apiType === 'WS' || apiType === 'SSE' || apiType === 'ASYNC';
-                const definitionUrl = isAsyncApi 
+                const definitionUrl = isAsyncApi
                     ? `${baseUrl}/api/am/publisher/v4/apis/${apiId}/asyncapi`
                     : `${baseUrl}/api/am/publisher/v4/apis/${apiId}/swagger`;
-                
+
                 this.logger.debug(`[WSO2 APIM Provider] Fetching ${isAsyncApi ? 'AsyncAPI' : 'Swagger'} definition for API ${api.name} (${apiId}) from ${definitionUrl}`);
 
                 try {
@@ -463,30 +473,30 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                     try {
                         const headers: Record<string, string> = { 'Accept': 'application/json' };
                         if (gw.discoveryAuth) headers['Authorization'] = gw.discoveryAuth;
-                        
+
                         const response = await undiciFetch(gw.discoveryUrl, { headers, dispatcher });
                         if (response.ok) {
                             const data = await response.json() as any;
                             // The list endpoint returns a list of items which might just be IDs or minimal info
                             const apis = Array.isArray(data) ? data : (data.list || data.apis || data.items || []);
                             const list = Array.isArray(apis) ? apis : [data];
-                            
+
                             this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Catalog Provider: Found ${list.length} API IDs from ${gw.environmentName}. Fetching full details...`);
-                            
+
                             for (const apiItem of list) {
                                 const apiId = apiItem.id || (typeof apiItem === 'string' ? apiItem : undefined);
                                 if (!apiId) continue;
 
                                 const detailUrl = `${gw.discoveryUrl}/${apiId}`;
                                 this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching details for ${apiId} from ${detailUrl}`);
-                                
+
                                 try {
                                     const detailResponse = await undiciFetch(detailUrl, { headers, dispatcher });
                                     if (detailResponse.ok) {
                                         const detailData = await detailResponse.json() as any;
                                         // The structure is { api: { configuration: { ... }, id: "...", metadata: { ... } }, status: "success" }
                                         const apiConfig = detailData.api || detailData;
-                                        
+
                                         discoveredGatewayApis.push({
                                             ...apiConfig,
                                             id: apiConfig.id || apiId,
@@ -499,27 +509,27 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             fullConfig: apiConfig.configuration || apiConfig,
                                         });
 
-                                        // Fetch full Swagger from Choreo if organizationId is available
                                         if (gw.organizationId) {
-                                            const choreoHeaders = { 'Accept': 'application/json', 'User-Agent': 'Backstage/1.0' };
-                                            
-                                            // 1. Fetch Swagger
+                                            // Fetch full Swagger + Documents from Choreo (org ID = Choreo managed)
+                                            const choreoHeaders = { 'Accept': 'application/json', 'User-Agent': 'Backstage/1.0', 'X-WSO2-Organization-ID': gw.organizationId };
+
+                                            // 1. Fetch Swagger from Choreo
                                             const swaggerUrl = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/swagger?organizationId=${gw.organizationId}`;
-                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching full Swagger from ${swaggerUrl}`);
+                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching Choreo Swagger from ${swaggerUrl}`);
                                             try {
                                                 const swaggerResponse = await undiciFetch(swaggerUrl, { headers: choreoHeaders, dispatcher });
                                                 if (swaggerResponse.ok) {
                                                     const swaggerData = await swaggerResponse.json() as any;
                                                     discoveredGatewayApis[discoveredGatewayApis.length - 1].fetchedSwagger = JSON.stringify(swaggerData, null, 2);
-                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched full Swagger for ${apiId}`);
+                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched Choreo Swagger for ${apiId}`);
                                                 }
                                             } catch (err) {
-                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Swagger for ${apiId}: ${err}`);
+                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Choreo Swagger for ${apiId}: ${err}`);
                                             }
 
-                                            // 2. Fetch Documents
+                                            // 2. Fetch Documents from Choreo
                                             const docsUrl = `https://sts.choreo.dev/api/am/devportal/v2/apis/${apiId}/documents?organizationId=${gw.organizationId}`;
-                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching documents from ${docsUrl}`);
+                                            this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Fetching Choreo documents from ${docsUrl}`);
                                             try {
                                                 const docsResponse = await undiciFetch(docsUrl, { headers: choreoHeaders, dispatcher });
                                                 if (docsResponse.ok) {
@@ -529,11 +539,18 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                                         id: doc.id || doc.documentId
                                                     }));
                                                     discoveredGatewayApis[discoveredGatewayApis.length - 1].documents = docsList;
-                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched ${docsList.length} documents for ${apiId}`);
+                                                    this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully fetched ${docsList.length} Choreo documents for ${apiId}`);
                                                 }
                                             } catch (err) {
-                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching documents for ${apiId}: ${err}`);
+                                                this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching Choreo documents for ${apiId}: ${err}`);
                                             }
+                                        } else {
+                                            // No org ID = pure self-hosted gateway.
+                                            // The full definition IS the gateway response itself (contains 'operations').
+                                            // Store the raw spec from the gateway detail response directly.
+                                            const gwSpec = apiConfig.configuration?.spec || apiConfig.spec || apiConfig;
+                                            discoveredGatewayApis[discoveredGatewayApis.length - 1].fetchedSwagger = JSON.stringify(gwSpec, null, 2);
+                                            this.logger.info(`[WSO2-GATEWAY-DISCOVERY] No org ID for ${apiId} — stored gateway spec directly (operations-based definition).`);
                                         }
                                     } else {
                                         this.logger.warn(`[WSO2-GATEWAY-DISCOVERY] Failed to fetch details for ${apiId}. Status: ${detailResponse.status}`);
@@ -542,7 +559,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                     this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error fetching details for ${apiId}: ${err}`);
                                 }
                             }
-                            
+
                             this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Catalog Provider: Successfully discovered and detailed ${discoveredGatewayApis.length} APIs from ${gw.environmentName}`);
                         } else {
                             this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Catalog Provider: Failed discovery from ${gw.environmentName}. Status: ${response.status}`);
@@ -577,7 +594,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-provider': api.provider || '',
                             'wso2.com/api-type': api.type || '',
                             'wso2.com/api-lifecycle-status': api.lifeCycleStatus || '',
-                            'wso2.com/api-gateway-vendor': (api.gatewayType || api.gatewayVendor || 'wso2').toLowerCase(),
+                            'wso2.com/api-gateway-vendor': normalizeGatewayType(api.gatewayType || api.gatewayVendor),
                             'wso2.com/initiated-from-gateway': String(api.initiatedFromGateway ?? ''),
                             'wso2.com/is-discovered': api.initiatedFromGateway === true ? 'true' : 'false',
                             'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
@@ -602,16 +619,16 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                         const envName = (env.name || '').toUpperCase();
                                         const envDisplayName = (env.displayName || '').toUpperCase();
                                         const envType = (env.gatewayType || env.type || '').toUpperCase();
-                                        
+
                                         // 1. Try exact name match
                                         let isMatch = deployedGateways.includes(envName) || deployedGateways.includes(envDisplayName);
-                                        
+
                                         // 2. If no name match, use Type-based matching for External/AWS/Kong gateways
                                         if (!isMatch && apiGatewayType && envType && apiGatewayType === envType) {
                                             this.logger.info(`[WSO2-DISCOVERY] Type Match: API "${api.name}" (${apiGatewayType}) matched environment "${env.name}" by Type.`);
                                             isMatch = true;
                                         }
-                                        
+
                                         if (isMatch) {
                                             return true;
                                         }
@@ -646,7 +663,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             let host = vhost.host;
                                             // Replace common placeholders (e.g. for AWS gateways)
                                             if (host.includes('{apiId}')) host = host.replace('{apiId}', api.id);
-                                            
+
                                             // Handle additional properties from settings
                                             if (env.additionalProperties) {
                                                 env.additionalProperties.forEach((prop: any) => {
@@ -658,7 +675,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             // Build the full context, ensuring we don't double-up on the version or base path
                                             let context = api.context || '';
                                             if (!context.startsWith('/')) context = `/${context}`;
-                                            
+
                                             const basePath = vhost.basePath || '';
                                             let fullPath = context;
                                             if (basePath && !fullPath.startsWith(basePath)) {
@@ -685,7 +702,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                             return {
                                                 environmentName: env.name,
                                                 environmentType: env.type,
-                                                gatewayType: env.gatewayType || 'WSO2',
+                                                gatewayType: normalizeGatewayType(env.gatewayType),
                                                 displayName: env.displayName || env.name,
                                                 urls
                                             };
@@ -698,19 +715,19 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                 }
                                 return '[]';
                             })(),
-                                'wso2.com/gateway-endpoints': (() => {
-                                    return JSON.stringify(selfHostedGateways.map(gw => ({
-                                        environmentName: gw.environmentName,
-                                        environmentType: gw.environmentType || 'PRODUCTION',
-                                        gatewayType: 'Self-hosted',
-                                        displayName: gw.environmentName,
-                                        urls: gw.urls.map(u => {
-                                            const base = u.replace(/\/$/, '');
-                                            const ctx = (api.context || '/').startsWith('/') ? (api.context || '/') : `/${api.context || '/'}`;
-                                            return `${base}${ctx.replace(/\/$/, '')}`;
-                                        })
-                                    })));
-                                })(),
+                            'wso2.com/gateway-endpoints': (() => {
+                                return JSON.stringify(selfHostedGateways.map(gw => ({
+                                    environmentName: gw.environmentName,
+                                    environmentType: gw.environmentType || 'PRODUCTION',
+                                    gatewayType: normalizeGatewayType('Self-hosted'),
+                                    displayName: gw.environmentName,
+                                    urls: gw.urls.map(u => {
+                                        const base = u.replace(/\/$/, '');
+                                        const ctx = (api.context || '/').startsWith('/') ? (api.context || '/') : `/${api.context || '/'}`;
+                                        return `${base}${ctx.replace(/\/$/, '')}`;
+                                    })
+                                })));
+                            })(),
                             'wso2.com/api-raw-json': rawApiJsonString,
                             'wso2.com/business-owner': api.businessInformation?.businessOwner || '',
                             'wso2.com/business-owner-email': api.businessInformation?.businessOwnerEmail || '',
@@ -808,7 +825,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
                                             let context = product.context || '';
                                             if (!context.startsWith('/')) context = `/${context}`;
-                                            
+
                                             const basePath = vhost.basePath || '';
                                             let fullPath = context;
                                             if (basePath && !fullPath.startsWith(basePath)) {
@@ -828,7 +845,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                                 const port = vhost.httpPort === 80 ? '' : `:${vhost.httpPort}`;
                                                 urls.push(`http://${host}${port}${fullPath}`);
                                             }
-                                            
+
                                             this.logger.info(`[WSO2-DISCOVERY] Reconstructed URLs for Product "${product.name}" in Env "${env.name}" using vhost ${host}.`);
                                             return { environmentName: env.name, environmentType: env.type, urls };
                                         }).filter(Boolean);
@@ -838,19 +855,19 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                                 }
                                 return '[]';
                             })(),
-                                'wso2.com/gateway-endpoints': (() => {
-                                    return JSON.stringify(selfHostedGateways.map(gw => ({
-                                        environmentName: gw.environmentName,
-                                        environmentType: gw.environmentType || 'PRODUCTION',
-                                        gatewayType: 'Self-hosted',
-                                        displayName: gw.environmentName,
-                                        urls: gw.urls.map(u => {
-                                            const base = u.replace(/\/$/, '');
-                                            const ctx = (product.context || '/').startsWith('/') ? (product.context || '/') : `/${product.context || '/'}`;
-                                            return `${base}${ctx.replace(/\/$/, '')}`;
-                                        })
-                                    })));
-                                })(),
+                            'wso2.com/gateway-endpoints': (() => {
+                                return JSON.stringify(selfHostedGateways.map(gw => ({
+                                    environmentName: gw.environmentName,
+                                    environmentType: gw.environmentType || 'PRODUCTION',
+                                    gatewayType: 'Self-hosted',
+                                    displayName: gw.environmentName,
+                                    urls: gw.urls.map(u => {
+                                        const base = u.replace(/\/$/, '');
+                                        const ctx = (product.context || '/').startsWith('/') ? (product.context || '/') : `/${product.context || '/'}`;
+                                        return `${base}${ctx.replace(/\/$/, '')}`;
+                                    })
+                                })));
+                            })(),
                             'wso2.com/api-raw-json': rawProductJsonString,
                             'wso2.com/product-resources': product.apis ? JSON.stringify(product.apis) : '[]',
                             'wso2.com/business-owner': product.businessInformation?.businessOwner || '',
@@ -919,8 +936,9 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                 const normalizedName = normalizeEntityName(displayName);
                 const discoveryNamespace = 'wso2-gateways';
 
-                // Use the fetched Swagger definition, or a placeholder if it failed/wasn't found
-                const definition = api.fetchedSwagger || `WSO2 Discovered API: ${displayName}. (Full definition not available)`;
+                // Use the fetched definition (Swagger string or gateway spec JSON).
+                // fetchedSwagger is always populated now — either from Choreo (if org ID) or from the gateway spec directly.
+                const definition = api.fetchedSwagger || JSON.stringify(api.fullConfig || { displayName, operations: [] }, null, 2);
 
                 return {
                     apiVersion: 'backstage.io/v1alpha1',
@@ -941,7 +959,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2-gateway.com/api-endpoints': JSON.stringify([{
                                 environmentName: api.discoveredFrom,
                                 environmentType: 'PRODUCTION',
-                                gatewayType: 'Self-hosted',
+                                gatewayType: normalizeGatewayType('Self-hosted'),
                                 displayName: api.discoveredFrom,
                                 urls: (api.gatewayUrls || []).map((u: string) => {
                                     const base = u.replace(/\/$/, '');
@@ -952,7 +970,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
                             'wso2.com/api-id': api.id,
                             'wso2.com/organization-id': api.organizationId || '',
                             'wso2.com/api-discovery-type': 'self-hosted-gateway',
-                            'wso2.com/api-gateway-vendor': 'wso2',
+                            'wso2.com/api-gateway-vendor': normalizeGatewayType('wso2'),
                             'wso2.com/is-discovered': 'false',
                             'wso2.com/api-raw-json': JSON.stringify({
                                 id: api.id,

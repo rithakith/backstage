@@ -1,4 +1,4 @@
-# @rk-apim/backstage-plugin-catalog-backend-module-asgardeo
+# @rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo
 
 This is an optional catalog module for **Asgardeo** integration in Backstage. It providing an `EntityProvider` that syncs Users and Groups from Asgardeo into the Backstage Catalog.
 
@@ -7,7 +7,7 @@ This is an optional catalog module for **Asgardeo** integration in Backstage. It
 This module is **optional**. Only install it if you want to sync your organization's identity from Asgardeo.
 
 ```bash
-yarn workspace backend add @rk-apim/backstage-plugin-catalog-backend-module-asgardeo
+yarn workspace backend add @rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo
 ```
 
 ## ⚙️ Configuration (`app-config.yaml`)
@@ -34,7 +34,7 @@ In your `packages/backend/src/index.ts`:
 const backend = createBackend();
 
 // ...
-backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-asgardeo'));
+backend.add(import('@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo'));
 // ...
 
 backend.start();

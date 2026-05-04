@@ -1,6 +1,5 @@
 import express from 'express';
 import Router from 'express-promise-router';
-import { fetch as undiciFetch, Agent } from 'undici';
 import {
   HttpAuthService,
   LoggerService,
@@ -18,6 +17,16 @@ export interface RouterOptions {
   httpAuth: HttpAuthService;
   config: RootConfigService;
   userInfo: UserInfoService;
+}
+
+/**
+ * Normalizes gateway types for consistent display.
+ */
+function normalizeGatewayType(type?: string): string {
+  const t = (type || '').toLowerCase().trim();
+  if (t === 'wso2/synapse' || t === 'synapse' || t === 'regular' || t === 'wso2') return 'wso2';
+  if (!t || t === 'self-hosted'  || t === 'apiplatform') return 'apiplatform';
+  return t;
 }
 
 export async function createRouter(
@@ -53,7 +62,7 @@ export async function createRouter(
 
   router.get('/gateways', async (req, res) => {
     try {
-      const token = await ensureAuthenticated(req);
+      await ensureAuthenticated(req);
       
       // 1. Get APIM environments from settings
       let apimGateways: any[] = [];
@@ -62,7 +71,8 @@ export async function createRouter(
         const settings = await client.getSettings();
         apimGateways = (settings?.environment || []).map((env: any) => ({
           name: env.name,
-          type: env.type,
+          type: normalizeGatewayType(env.gatewayType || env.type),
+          gatewayType: normalizeGatewayType(env.gatewayType || env.type),
           description: env.description || `APIM Environment: ${env.name}`,
           source: 'APIM',
           urls: (env.endpoints || []).map((ep: any) => ep.url || ep.endpointURL).filter(Boolean),
@@ -86,7 +96,8 @@ export async function createRouter(
         }
         return {
           name: gw.name,
-          type: gw.environmentType,
+          type: normalizeGatewayType(gw.environmentType),
+          gatewayType: normalizeGatewayType(gw.environmentType),
           description: gw.description || `Self-hosted Gateway: ${gw.name}`,
           source: 'Config',
           urls: gw.urls,
@@ -98,6 +109,59 @@ export async function createRouter(
       res.json([...apimGateways, ...selfHosted]);
     } catch (e: any) {
       logger.error(`Failed to fetch gateways: ${e.message}`);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/apis/:apiId/definition', async (req, res) => {
+    const { apiId } = req.params;
+    const discoveredFrom = req.query.discoveredFrom as string;
+
+    if (!discoveredFrom) {
+      res.status(400).json({ message: 'Missing discoveredFrom parameter' });
+      return;
+    }
+
+    try {
+      const gw = wso2Config.selfHostedGateways.find(g => g.name === discoveredFrom);
+      if (!gw || !gw.discoveryUrl) {
+        res.status(404).json({ message: `Discovery URL not found for gateway ${discoveredFrom}` });
+        return;
+      }
+
+      logger.info(`[WSO2-Backend] Fetching fallback definition for ${apiId} from ${gw.discoveryUrl}`);
+      
+      const data = await client.getApiDefinition(`${gw.discoveryUrl}/${apiId}`, gw.discoveryAuth);
+      logger.info(`[WSO2-Backend] Raw gateway response keys: ${Object.keys(data).join(', ')}`);
+      
+      const apiData = data.api || data;
+      logger.info(`[WSO2-Backend] apiData keys: ${Object.keys(apiData).join(', ')}`);
+      
+      let definition = apiData.configuration?.spec?.definition || apiData.spec?.definition || apiData.definition;
+      
+      if (!definition) {
+          // Return just the spec portion so operations are at the top level
+          const gwSpec = apiData.configuration?.spec || apiData.spec || apiData;
+          logger.info(`[WSO2-Backend] No raw definition found for ${apiId} — returning gateway spec (has operations: ${Array.isArray(gwSpec?.operations)})`)
+          res.json(gwSpec);
+          return;
+      }
+
+      if (definition && typeof definition === 'string' && definition.trim().startsWith('{')) {
+        try {
+          definition = JSON.parse(definition);
+        } catch (e) {
+          logger.warn(`[WSO2-Backend] Failed to parse definition string for ${apiId}`);
+        }
+      }
+
+      if (!definition) {
+        throw new Error('Definition not found in gateway response');
+      }
+
+      res.json(definition);
+    } catch (e: any) {
+      logger.error(`[WSO2-Backend] Failed to fetch API definition from gateway: ${e.message}`);
       res.status(500).json({ message: e.message });
     }
   });

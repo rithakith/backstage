@@ -57,10 +57,10 @@ backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(import('@backstage/plugin-events-backend'));
 backend.add(import('@backstage/plugin-devtools-backend'));
 backend.add(import('@backstage/plugin-kubernetes-backend'));
-backend.add(
-  import('./plugins/customPermissionPolicy'),
-);
 backend.add(import('@backstage/plugin-permission-backend'));
+backend.add(
+  import('@backstage/plugin-permission-backend-module-allow-all-policy'),
+);
 backend.add(import('@backstage/plugin-proxy-backend'));
 backend.add(import('@backstage/plugin-scaffolder-backend'));
 backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
@@ -72,12 +72,12 @@ backend.add(
 );
 backend.add(searchLoader);
 backend.add(import('@backstage/plugin-techdocs-backend'));
-// backend.add(import('@backstage/plugin-signals-backend'));
+backend.add(import('@backstage/plugin-signals-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(rootSystemMetadataServiceFactory);
-backend.add(import('@rk-apim/backstage-plugin-wso2-api-manager-backend'));
-backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-asgardeo'));
-backend.add(import('@rk-apim/backstage-plugin-catalog-backend-module-wso2-apim'));
+backend.add(import('@rk-apim-1/backstage-plugin-wso2-api-manager-backend'));
+backend.add(import('@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo'));
+backend.add(import('@rk-apim-1/backstage-plugin-catalog-backend-module-wso2-apim'));
 
 backend.add(import('@backstage/plugin-events-backend-module-google-pubsub'));
 backend.add(import('@backstage/plugin-mcp-actions-backend'));

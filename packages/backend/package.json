@@ -74,9 +74,9 @@
     "@opentelemetry/core": "^1.3.0",
     "@opentelemetry/exporter-prometheus": "^0.211.0",
     "@opentelemetry/sdk-node": "^0.211.0",
-    "@rk-apim/backstage-plugin-catalog-backend-module-asgardeo": "workspace:^",
-    "@rk-apim/backstage-plugin-catalog-backend-module-wso2-apim": "workspace:^",
-    "@rk-apim/backstage-plugin-wso2-api-manager-backend": "workspace:^",
+    "@rk-apim-1/backstage-plugin-catalog-backend-module-asgardeo": "workspace:^",
+    "@rk-apim-1/backstage-plugin-catalog-backend-module-wso2-apim": "workspace:^",
+    "@rk-apim-1/backstage-plugin-wso2-api-manager-backend": "workspace:^",
     "example-app": "link:../app"
   },
   "devDependencies": {

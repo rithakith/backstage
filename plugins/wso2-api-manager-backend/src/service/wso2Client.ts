@@ -67,6 +67,7 @@ export type Wso2ApiManagerConfig = {
     discoveryAuth?: string;
     environmentType: string;
     description?: string;
+    organizationId?: string;
   }>;
 };
 
@@ -94,28 +95,31 @@ export function readWso2ApiManagerConfig(
   const tlsRejectUnauthorized =
     wso2Config.getOptionalBoolean('tls.rejectUnauthorized') ?? true;
 
-  return {
-    baseUrl,
-    devportalBasePath,
-    publisherBasePath,
-    auth: {
-      clientId,
-      clientSecret,
-      tokenUrl,
-    },
-    tls: {
-      rejectUnauthorized: tlsRejectUnauthorized,
-    },
-    selfHostedGateways: wso2Config.getOptionalConfigArray('selfHostedGateways')?.map(gw => ({
+    const selfHostedGateways = config.getOptionalConfigArray('wso2PlatformGateway')?.map(gw => ({
       name: gw.getString('name'),
       urls: gw.getStringArray('urls'),
       discoveryUrl: gw.getOptionalString('discoveryUrl'),
       discoveryAuth: gw.getOptionalString('discoveryAuth'),
       environmentType: gw.getOptionalString('environmentType') || 'PRODUCTION',
       description: gw.getOptionalString('description'),
-    })) || [],
-  };
-}
+      organizationId: gw.getOptionalString('organizationId'),
+    })) || [];
+
+    return {
+      baseUrl,
+      devportalBasePath,
+      publisherBasePath,
+      auth: {
+        clientId,
+        clientSecret,
+        tokenUrl,
+      },
+      tls: {
+        rejectUnauthorized: tlsRejectUnauthorized,
+      },
+      selfHostedGateways,
+    };
+  }
 
 export class Wso2ApiManagerClient {
   private readonly config: Wso2ApiManagerConfig;
@@ -256,6 +260,27 @@ export class Wso2ApiManagerClient {
       this.logger.error(`[WSO2-GATEWAY-DISCOVERY] Error during gateway discovery for ${discoveryUrl}: ${errorDetails}`);
       throw error;
     }
+  }
+
+  async getApiDefinition(url: string, auth?: string): Promise<any> {
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (auth) {
+      headers['Authorization'] = auth;
+    }
+    
+    const response = await undiciFetch(url, { 
+      headers,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gateway returned ${response.status}. Response: ${errText}`);
+    }
+
+    return await response.json();
   }
 
   private cachedAccessToken: string | null = null;

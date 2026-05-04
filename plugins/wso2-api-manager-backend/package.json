@@ -1,12 +1,12 @@
 {
-  "name": "@rk-apim/backstage-plugin-wso2-api-manager-backend",
-  "version": "1.0.3",
+  "name": "@rk-apim-1/backstage-plugin-wso2-api-manager-backend",
+  "version": "0.0.1",
   "backstage": {
     "role": "backend-plugin",
     "pluginId": "wso2-api-manager",
     "pluginPackages": [
-      "@rk-apim/backstage-plugin-wso2-api-manager",
-      "@rk-apim/backstage-plugin-wso2-api-manager-backend"
+      "@rk-apim-1/backstage-plugin-wso2-api-manager",
+      "@rk-apim-1/backstage-plugin-wso2-api-manager-backend"
     ]
   },
   "publishConfig": {
@@ -21,7 +21,7 @@
     "directory": "plugins/wso2-api-manager-backend"
   },
   "license": "Apache-2.0",
-  "main": "src/index.ts",
+  "main": "dist/index.cjs.js",
   "types": "src/index.ts",
   "files": [
     "dist",
