@@ -23,6 +23,7 @@ import {
   RELATION_HAS_PART,
   RELATION_PART_OF,
   RELATION_PROVIDES_API,
+  Entity,
 } from '@backstage/catalog-model';
 import { EmptyState } from '@backstage/core-components';
 import {
@@ -55,6 +56,17 @@ import {
   hasRelationWarnings,
   EntityRelationWarning,
 } from '@backstage/plugin-catalog';
+import {
+  EntityWso2AboutCard,
+  EntityWso2ApiDefinitionCard,
+  EntityWso2McpToolsCard,
+  EntityWso2ApiOverviewCard,
+  EntityWso2ApiProductResourcesCard,
+  isWso2Api,
+  isMcpEntity,
+  hasMultipleComponentRelations,
+} from '@local/backstage-plugin-wso2-api-manager';
+
 import {
   Direction,
   EntityCatalogGraphCard,
@@ -145,7 +157,7 @@ const entityWarningContent = (
     </EntitySwitch>
 
     <EntitySwitch>
-      <EntitySwitch.Case if={hasRelationWarnings}>
+      <EntitySwitch.Case if={async (e, context) => (await hasRelationWarnings(e, context)) && !isWso2Api(e)}>
         <Grid item xs={12}>
           <EntityRelationWarning />
         </Grid>
@@ -295,31 +307,95 @@ const apiPage = (
     <EntityLayout.Route path="/" title="Overview">
       <Grid container spacing={3}>
         {entityWarningContent}
-        <Grid item md={6} xs={12}>
-          <EntityAboutCard />
-        </Grid>
-        <Grid item md={6} xs={12}>
-          <EntityCatalogGraphCard variant="gridItem" height={400} />
+        <Grid item xs={12}>
+          <EntitySwitch>
+            <EntitySwitch.Case if={isWso2Api}>
+              <EntitySwitch>
+                <EntitySwitch.Case if={e => hasMultipleComponentRelations(e)}>
+                  <Grid container spacing={3}>
+                    <Grid item md={6} xs={12}>
+                      <EntityWso2AboutCard />
+                    </Grid>
+                    <Grid item md={6} xs={12}>
+                      <EntityCatalogGraphCard variant="gridItem" height={400} />
+                    </Grid>
+                  </Grid>
+                </EntitySwitch.Case>
+                <EntitySwitch.Case>
+                  <Grid item xs={12}>
+                    <EntityWso2AboutCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
+              
+              {/* Add Resource Table below the About card for API Products */}
+              <EntitySwitch>
+                <EntitySwitch.Case if={e => e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'}>
+                  <Grid item xs={12}>
+                    <EntityWso2ApiProductResourcesCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
+
+              {/* Add MCP Tools Table below the About card for MCP servers */}
+              <EntitySwitch>
+                <EntitySwitch.Case if={isMcpEntity}>
+                  <Grid item xs={12}>
+                    <EntityWso2McpToolsCard />
+                  </Grid>
+                </EntitySwitch.Case>
+              </EntitySwitch>
+            </EntitySwitch.Case>
+            <EntitySwitch.Case>
+              <Grid container spacing={3}>
+                <Grid item md={6} xs={12}>
+                  <EntityAboutCard />
+                </Grid>
+                <Grid item md={6} xs={12}>
+                  <EntityCatalogGraphCard variant="gridItem" height={400} />
+                </Grid>
+              </Grid>
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
         <Grid item xs={12}>
-          <Grid container>
-            <Grid item xs={12} md={6}>
-              <EntityProvidingComponentsCard />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <EntityConsumingComponentsCard />
-            </Grid>
-          </Grid>
+          <EntitySwitch>
+            <EntitySwitch.Case if={e => !isWso2Api(e)}>
+              <Grid container>
+                <Grid item xs={12} md={6}>
+                  <EntityProvidingComponentsCard />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <EntityConsumingComponentsCard />
+                </Grid>
+              </Grid>
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
       </Grid>
     </EntityLayout.Route>
 
-    <EntityLayout.Route path="/definition" title="Definition">
+    <EntityLayout.Route
+      if={e => !isMcpEntity(e)}
+      path="/definition"
+      title="Definition"
+    >
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <EntityApiDefinitionCard />
+          <EntitySwitch>
+            <EntitySwitch.Case if={isWso2Api}>
+              <EntityWso2ApiDefinitionCard />
+            </EntitySwitch.Case>
+            <EntitySwitch.Case>
+              <EntityApiDefinitionCard />
+            </EntitySwitch.Case>
+          </EntitySwitch>
         </Grid>
       </Grid>
+    </EntityLayout.Route>
+
+    <EntityLayout.Route if={isWso2Api} path="/wso2" title="Docs">
+      <EntityWso2ApiOverviewCard />
     </EntityLayout.Route>
   </EntityLayoutWrapper>
 );

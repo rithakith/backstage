@@ -1,0 +1,153 @@
+{
+    "api": {
+        "configuration": {
+            "apiVersion": "gateway.api-platform.wso2.com/v1alpha1",
+            "kind": "RestApi",
+            "metadata": {
+                "labels": {
+                    "project-id": "439f3f24-f689-447e-9682-98ca206e6112"
+                },
+                "name": "69f1fd553a7ab00909e6795b"
+            },
+            "spec": {
+                "context": "/default/reading-list-api/v1.0",
+                "displayName": "reading-list-api",
+                "operations": [
+                    {
+                        "method": "GET",
+                        "path": "/books",
+                        "policies": [
+                            {
+                                "name": "basic-auth",
+                                "params": {
+                                    "allowUnauthenticated": false,
+                                    "password": "admin",
+                                    "realm": "Restricted",
+                                    "username": "admin"
+                                },
+                                "version": "v1"
+                            }
+                        ]
+                    },
+                    {
+                        "method": "POST",
+                        "path": "/books",
+                        "policies": [
+                            {
+                                "name": "cors",
+                                "params": {
+                                    "allowCredentials": false,
+                                    "allowedHeaders": [],
+                                    "allowedMethods": [
+                                        "GET",
+                                        "POST",
+                                        "PUT",
+                                        "DELETE",
+                                        "OPTIONS"
+                                    ],
+                                    "allowedOrigins": [
+                                        "*"
+                                    ],
+                                    "exposedHeaders": [],
+                                    "forwardPreflight": false,
+                                    "maxAge": 3600
+                                },
+                                "version": "v1"
+                            }
+                        ]
+                    },
+                    {
+                        "method": "GET",
+                        "path": "/books/{id}",
+                        "policies": [
+                            {
+                                "name": "log-message",
+                                "params": {
+                                    "request": {
+                                        "excludeHeaders": [],
+                                        "headers": false,
+                                        "payload": false
+                                    },
+                                    "response": {
+                                        "excludeHeaders": [],
+                                        "headers": false,
+                                        "payload": false
+                                    }
+                                },
+                                "version": "v1"
+                            }
+                        ]
+                    },
+                    {
+                        "method": "PUT",
+                        "path": "/books/{id}"
+                    },
+                    {
+                        "method": "DELETE",
+                        "path": "/books/{id}",
+                        "policies": [
+                            {
+                                "name": "mcp-auth",
+                                "params": {
+                                    "claimMappings": {},
+                                    "issuers": [],
+                                    "methods": {
+                                        "enabled": true,
+                                        "exceptions": []
+                                    },
+                                    "prompts": {
+                                        "enabled": true,
+                                        "exceptions": []
+                                    },
+                                    "requiredScopes": [],
+                                    "resources": {
+                                        "enabled": true,
+                                        "exceptions": []
+                                    },
+                                    "tools": {
+                                        "enabled": true,
+                                        "exceptions": []
+                                    }
+                                },
+                                "version": "v1"
+                            }
+                        ]
+                    }
+                ],
+                "policies": [
+                    {
+                        "name": "analytics-header-filter",
+                        "params": {
+                            "request": {
+                                "headers": [],
+                                "mode": "deny"
+                            },
+                            "response": {
+                                "headers": [],
+                                "mode": "deny"
+                            }
+                        },
+                        "version": "v1"
+                    }
+                ],
+                "upstream": {
+                    "main": {
+                        "url": "https://apis.bijira.dev/samples/reading-list-api-service/v1.0"
+                    }
+                },
+                "version": "v1.0",
+                "vhosts": {
+                    "main": "*"
+                }
+            }
+        },
+        "id": "69f1fd553a7ab00909e6795b",
+        "metadata": {
+            "createdAt": "2026-04-29T12:45:23Z",
+            "deployedAt": "2026-05-12T06:13:00Z",
+            "status": "deployed",
+            "updatedAt": "2026-05-12T06:13:20Z"
+        }
+    },
+    "status": "success"
+}

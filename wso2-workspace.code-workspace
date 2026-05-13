@@ -1,0 +1,39 @@
+{
+  "folders": [
+    {
+      "name": "FRONTEND: WSO2 API Manager",
+      "path": "plugins/wso2-api-manager"
+    },
+    {
+      "name": "BACKEND: WSO2 API Manager",
+      "path": "plugins/wso2-api-manager-backend"
+    },
+    {
+      "name": "DISCOVERY: WSO2 APIM",
+      "path": "plugins/catalog-backend-module-wso2-apim"
+    },
+    {
+      "name": "DISCOVERY: Asgardeo",
+      "path": "plugins/catalog-backend-module-asgardeo"
+    },
+    {
+      "name": "APP: Frontend",
+      "path": "packages/app"
+    },
+    {
+      "name": "APP: Backend",
+      "path": "packages/backend"
+    },
+    {
+      "name": "ROOT: Config & Env",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "plugins": true,
+      "packages": true,
+      "node_modules": true
+    }
+  }
+}

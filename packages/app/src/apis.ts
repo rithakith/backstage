@@ -21,11 +21,18 @@ import {
 } from '@backstage/integration-react';
 import {
   AnyApiFactory,
+  ApiRef,
+  BackstageIdentityApi,
   configApiRef,
   createApiFactory,
+  createApiRef,
   discoveryApiRef,
   fetchApiRef,
   identityApiRef,
+  oauthRequestApiRef,
+  OpenIdConnectApi,
+  ProfileInfoApi,
+  SessionApi,
 } from '@backstage/core-plugin-api';
 import { AuthProxyDiscoveryApi } from './AuthProxyDiscoveryApi';
 import { formDecoratorsApiRef } from '@backstage/plugin-scaffolder/alpha';
@@ -33,6 +40,18 @@ import { DefaultScaffolderFormDecoratorsApi } from '@backstage/plugin-scaffolder
 import { mockDecorator } from './components/scaffolder/decorators';
 import { scaffolderApiRef } from '@backstage/plugin-scaffolder-react';
 import { ScaffolderClient } from '@backstage/plugin-scaffolder';
+import { OAuth2 } from '@backstage/core-app-api';
+import {
+  Wso2ApiManagerClient,
+  wso2ApiManagerApiRef,
+  wso2AuthApiRef,
+} from '@local/backstage-plugin-wso2-api-manager';
+
+export const asgardeoAuthApiRef: ApiRef<
+  OpenIdConnectApi & ProfileInfoApi & BackstageIdentityApi & SessionApi
+> = createApiRef({
+  id: 'auth.asgardeo',
+});
 
 export const apis: AnyApiFactory[] = [
   createApiFactory({
@@ -72,6 +91,63 @@ export const apis: AnyApiFactory[] = [
         decorators: [mockDecorator],
       }),
   }),
+
+  createApiFactory({
+    api: wso2ApiManagerApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      fetchApi: fetchApiRef,
+    },
+    factory: ({ discoveryApi, fetchApi }) =>
+      new Wso2ApiManagerClient({ discoveryApi, fetchApi }),
+  }),
+
+  createApiFactory({
+    api: asgardeoAuthApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      oauthRequestApi: oauthRequestApiRef,
+      configApi: configApiRef,
+    },
+    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
+      OAuth2.create({
+        discoveryApi,
+        oauthRequestApi,
+        provider: {
+          id: 'oidc',
+          title: 'Asgardeo',
+          icon: () => null,
+        },
+        environment: configApi.getOptionalString('auth.environment'),
+        defaultScopes: ['openid', 'profile', 'email'],
+      }),
+  }),
+
+  // WSO2 API Manager auth - uses the same Asgardeo/OIDC session as Backstage login
+  // The Asgardeo token is forwarded to WSO2 APIM (requires WSO2 to trust Asgardeo as IdP)
+  createApiFactory({
+    api: wso2AuthApiRef,
+    deps: {
+      discoveryApi: discoveryApiRef,
+      oauthRequestApi: oauthRequestApiRef,
+      configApi: configApiRef,
+    },
+    factory: ({ discoveryApi, oauthRequestApi, configApi }) =>
+      OAuth2.create({
+        discoveryApi,
+        oauthRequestApi,
+        provider: {
+          id: 'oidc',  // Use the same OIDC provider as Backstage login (Asgardeo)
+          title: 'Asgardeo',
+          icon: () => null,
+        },
+        environment: configApi.getOptionalString('auth.environment'),
+        // Request API Manager scopes - these must be configured in Asgardeo app
+        defaultScopes: ['openid', 'profile', 'email'],
+      }),
+  }),
+
+
 
   ScmAuth.createDefaultApiFactory(),
 ];

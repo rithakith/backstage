@@ -37,7 +37,7 @@ export type StatusClassKey =
 const useStyles = makeStyles(
   theme => ({
     status: {
-      fontWeight: theme.typography.fontWeightMedium,
+      fontWeight: theme.typography.fontWeightMedium as any,
       alignItems: 'baseline',
       display: 'flex',
     },

@@ -1,0 +1,31 @@
+# =============================================================================
+# Catalog Root
+# =============================================================================
+# This is the main entry point for your organization's catalog.
+# Add this file to app-config.yaml under catalog.locations.
+#
+# Usage in app-config.yaml:
+#   catalog:
+#     locations:
+#       - type: file
+#         target: ../../catalog/all.yaml
+# =============================================================================
+
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: my-company-catalog
+  description: Root catalog location for My Company
+spec:
+  targets:
+    # Organization structure (teams and users)
+    - ./org/organization.yaml
+    - ./org/users.yaml
+    # Domains (business areas)
+    - ./domains.yaml
+    # APIs (including WSO2 API Manager APIs)
+    - ./apis/wso2-apis.yaml
+    # Systems that group related components
+    - ./systems.yaml
+    # Components (services, apps, etc.)
+    - ./components.yaml

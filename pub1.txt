@@ -1,0 +1,268 @@
+{
+    "id": "f9dc2a74-40ba-4989-b281-41612210a027",
+    "name": "NewAPI",
+    "displayName": "NewAPI",
+    "description": null,
+    "context": "/newapi",
+    "version": "1.0",
+    "provider": "admin",
+    "lifeCycleStatus": "CREATED",
+    "wsdlInfo": null,
+    "wsdlUrl": null,
+    "responseCachingEnabled": false,
+    "cacheTimeout": 300,
+    "hasThumbnail": false,
+    "isDefaultVersion": false,
+    "isRevision": false,
+    "revisionedApiId": null,
+    "revisionId": 0,
+    "enableSchemaValidation": false,
+    "enableSubscriberVerification": false,
+    "type": "HTTP",
+    "audience": null,
+    "audiences": [
+        "all"
+    ],
+    "transport": [
+        "http",
+        "https"
+    ],
+    "tags": [],
+    "policies": [
+        "Unlimited"
+    ],
+    "organizationPolicies": [],
+    "apiThrottlingPolicy": null,
+    "authorizationHeader": "Authorization",
+    "apiKeyHeader": "ApiKey",
+    "securityScheme": [
+        "oauth_basic_auth_api_key_mandatory",
+        "oauth2"
+    ],
+    "maxTps": null,
+    "visibility": "PUBLIC",
+    "visibleRoles": [],
+    "visibleTenants": [],
+    "visibleOrganizations": [
+        "none"
+    ],
+    "mediationPolicies": [],
+    "apiPolicies": {
+        "request": [
+            {
+                "policyName": "sampleaddheader",
+                "policyVersion": "v1",
+                "policyType": "common",
+                "policyId": "56bed5a7-fd60-4fea-9a86-ef1a2021e9b5",
+                "parameters": {}
+            }
+        ],
+        "response": [
+            {
+                "policyName": "addLogMessage",
+                "policyVersion": "v2",
+                "policyType": "common",
+                "policyId": "dfb8b4c8-f622-4b81-b756-d95a2c794ba9",
+                "parameters": {}
+            }
+        ],
+        "fault": [
+            {
+                "policyName": "removeHeader",
+                "policyVersion": "v2",
+                "policyType": "common",
+                "policyId": "fdf03d17-6438-4b36-b791-2978336a6d1b",
+                "parameters": {
+                    "headerName": "hehe"
+                }
+            }
+        ]
+    },
+    "apiHubPolicies": [],
+    "subscriptionAvailability": "CURRENT_TENANT",
+    "subscriptionAvailableTenants": [],
+    "additionalProperties": [],
+    "additionalPropertiesMap": {},
+    "monetization": null,
+    "accessControl": "NONE",
+    "accessControlRoles": [],
+    "businessInformation": {
+        "businessOwner": null,
+        "businessOwnerEmail": null,
+        "technicalOwner": null,
+        "technicalOwnerEmail": null
+    },
+    "corsConfiguration": {
+        "corsConfigurationEnabled": false,
+        "accessControlAllowOrigins": [
+            "*"
+        ],
+        "accessControlAllowCredentials": false,
+        "accessControlAllowHeaders": [
+            "authorization",
+            "Access-Control-Allow-Origin",
+            "Content-Type",
+            "SOAPAction",
+            "apikey",
+            "Internal-Key"
+        ],
+        "accessControlAllowMethods": [
+            "GET",
+            "PUT",
+            "POST",
+            "DELETE",
+            "PATCH",
+            "OPTIONS"
+        ]
+    },
+    "websubSubscriptionConfiguration": {
+        "enable": false,
+        "secret": "",
+        "signingAlgorithm": "SHA1",
+        "signatureHeader": "x-hub-signature"
+    },
+    "workflowStatus": null,
+    "createdTime": "1778571892608",
+    "lastUpdatedTimestamp": "1778586390848",
+    "lastUpdatedTime": "2026-05-12 11:46:30.848",
+    "endpointConfig": {
+        "endpoint_type": "http",
+        "sandbox_endpoints": {
+            "config": null,
+            "url": "http://localhost"
+        },
+        "production_endpoints": {
+            "config": null,
+            "url": "http://localhost"
+        }
+    },
+    "primaryProductionEndpointId": null,
+    "primarySandboxEndpointId": null,
+    "endpointImplementationType": "INLINE",
+    "subtypeConfiguration": {
+        "subtype": "DEFAULT",
+        "configuration": null
+    },
+    "scopes": [],
+    "operations": [
+        {
+            "id": "",
+            "target": "/*",
+            "verb": "GET",
+            "authType": "Application & Application User",
+            "throttlingPolicy": "Unlimited",
+            "scopes": [],
+            "usedProductIds": [],
+            "amznResourceName": null,
+            "amznResourceTimeout": null,
+            "amznResourceContentEncode": null,
+            "payloadSchema": null,
+            "uriMapping": null,
+            "operationPolicies": {
+                "request": [],
+                "response": [],
+                "fault": []
+            },
+            "operationHubPolicies": []
+        },
+        {
+            "id": "",
+            "target": "/*",
+            "verb": "PUT",
+            "authType": "Application & Application User",
+            "throttlingPolicy": "Unlimited",
+            "scopes": [],
+            "usedProductIds": [],
+            "amznResourceName": null,
+            "amznResourceTimeout": null,
+            "amznResourceContentEncode": null,
+            "payloadSchema": null,
+            "uriMapping": null,
+            "operationPolicies": {
+                "request": [],
+                "response": [],
+                "fault": []
+            },
+            "operationHubPolicies": []
+        },
+        {
+            "id": "",
+            "target": "/*",
+            "verb": "POST",
+            "authType": "Application & Application User",
+            "throttlingPolicy": "Unlimited",
+            "scopes": [],
+            "usedProductIds": [],
+            "amznResourceName": null,
+            "amznResourceTimeout": null,
+            "amznResourceContentEncode": null,
+            "payloadSchema": null,
+            "uriMapping": null,
+            "operationPolicies": {
+                "request": [],
+                "response": [],
+                "fault": []
+            },
+            "operationHubPolicies": []
+        },
+        {
+            "id": "",
+            "target": "/*",
+            "verb": "DELETE",
+            "authType": "Application & Application User",
+            "throttlingPolicy": "Unlimited",
+            "scopes": [],
+            "usedProductIds": [],
+            "amznResourceName": null,
+            "amznResourceTimeout": null,
+            "amznResourceContentEncode": null,
+            "payloadSchema": null,
+            "uriMapping": null,
+            "operationPolicies": {
+                "request": [],
+                "response": [],
+                "fault": []
+            },
+            "operationHubPolicies": []
+        },
+        {
+            "id": "",
+            "target": "/*",
+            "verb": "PATCH",
+            "authType": "Application & Application User",
+            "throttlingPolicy": "Unlimited",
+            "scopes": [],
+            "usedProductIds": [],
+            "amznResourceName": null,
+            "amznResourceTimeout": null,
+            "amznResourceContentEncode": null,
+            "payloadSchema": null,
+            "uriMapping": null,
+            "operationPolicies": {
+                "request": [],
+                "response": [],
+                "fault": []
+            },
+            "operationHubPolicies": []
+        }
+    ],
+    "threatProtectionPolicies": null,
+    "categories": [],
+    "keyManagers": [
+        "all"
+    ],
+    "serviceInfo": null,
+    "advertiseInfo": {
+        "advertised": false,
+        "apiExternalProductionEndpoint": null,
+        "apiExternalSandboxEndpoint": null,
+        "originalDevPortalUrl": null,
+        "apiOwner": "admin",
+        "vendor": "WSO2"
+    },
+    "gatewayVendor": "wso2",
+    "gatewayType": "wso2/synapse",
+    "initiatedFromGateway": false,
+    "asyncTransportProtocols": [],
+    "egress": false
+}

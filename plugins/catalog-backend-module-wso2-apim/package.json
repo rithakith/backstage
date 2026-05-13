@@ -1,0 +1,44 @@
+{
+  "name": "@local/backstage-plugin-catalog-backend-module-wso2-apim",
+  "version": "0.0.2",
+  "backstage": {
+    "role": "backend-plugin-module",
+    "pluginId": "catalog",
+    "pluginPackage": "@local/backstage-plugin-catalog-backend-module-wso2-apim"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.cjs.js",
+    "types": "dist/index.d.ts"
+  },
+  "license": "Apache-2.0",
+  "main": "dist/index.cjs.js",
+  "types": "src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "backstage-cli package build",
+    "clean": "backstage-cli package clean",
+    "lint": "backstage-cli package lint",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack",
+    "start": "backstage-cli package start",
+    "test": "backstage-cli package test"
+  },
+  "dependencies": {
+    "@backstage/backend-plugin-api": "workspace:^",
+    "@backstage/catalog-model": "workspace:^",
+    "@backstage/plugin-catalog-node": "workspace:^",
+    "undici": "^6.11.1",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@backstage/backend-defaults": "^0.3.0",
+    "@backstage/backend-test-utils": "^0.3.0",
+    "@backstage/cli": "^0.26.0",
+    "@types/jest": "^30",
+    "@types/node": "^18.0.0",
+    "@types/uuid": "^9.0.0"
+  }
+}

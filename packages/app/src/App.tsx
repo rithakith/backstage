@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+
+// NOTE : I added the asgardeo auth configuration and wso2 api manager imports. defined the /wso2 route.
+// @local/backstage-plugin-wso2-api-manager - This is the frontend part of the plugin.
+
+
 import { createApp } from '@backstage/app-defaults';
 import { AppRouter, FeatureFlagged, FlatRoutes } from '@backstage/core-app-api';
 import {
@@ -58,7 +63,7 @@ import { Root } from './components/Root';
 import { DelayingComponentFieldExtension } from './components/scaffolder/customScaffolderExtensions';
 import { defaultPreviewTemplate } from './components/scaffolder/defaultPreviewTemplate';
 import { searchPage } from './components/search/SearchPage';
-import { providers } from './identityProviders';
+
 import { SignalsDisplay } from '@backstage/plugin-signals';
 import { techDocsPage } from './components/techdocs/TechDocsPage';
 import { RequirePermission } from '@backstage/plugin-permission-react';
@@ -75,6 +80,9 @@ import { CustomizableHomePage } from './components/home/CustomizableHomePage';
 import { HomePage } from './components/home/HomePage';
 import { BuiThemerPage } from '@backstage/plugin-mui-to-bui';
 
+import { Wso2ApiManagerPage } from '@local/backstage-plugin-wso2-api-manager';
+import { asgardeoAuthApiRef } from './apis';
+
 const app = createApp({
   apis,
   icons: {
@@ -89,16 +97,17 @@ const app = createApp({
     },
   ],
   components: {
-    SignInPage: props => {
-      return (
-        <SignInPage
-          {...props}
-          providers={['guest', 'custom', ...providers]}
-          title="Select a sign-in method"
-          align="center"
-        />
-      );
-    },
+    SignInPage: props => (
+      <SignInPage
+        {...props}
+        provider={{
+          id: 'oidc',
+          title: 'Asgardeo',
+          message: 'Sign in using Asgardeo',
+          apiRef: asgardeoAuthApiRef,
+        }}
+      />
+    ),
   },
 });
 
@@ -191,6 +200,8 @@ const routes = (
     </Route>
 
     <Route path="/api-docs" element={<ApiExplorerPage />} />
+    <Route path="/wso2" element={<Wso2ApiManagerPage />} />
+
     <Route path="/search" element={<SearchPage />}>
       {searchPage}
     </Route>

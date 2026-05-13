@@ -39,6 +39,7 @@
     "test": "backstage-cli package test"
   },
   "dependencies": {
+    "@backstage/backend-defaults": "workspace:^",
     "@backstage/backend-plugin-api": "workspace:^",
     "@backstage/cli-common": "workspace:^",
     "@backstage/config": "workspace:^",

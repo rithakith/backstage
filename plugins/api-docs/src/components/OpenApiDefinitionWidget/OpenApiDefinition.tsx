@@ -136,6 +136,7 @@ const useStyles = makeStyles(theme => ({
       [`& .opblock-control-arrow svg, .authorization__btn .unlocked`]: {
         fill: theme.palette.text.primary,
       },
+
       [`& .json-schema-2020-12__title,
           .json-schema-2020-12-keyword__name,
           .json-schema-2020-12-property .json-schema-2020-12__title,
@@ -170,12 +171,19 @@ const useStyles = makeStyles(theme => ({
         color: theme.palette.primary.main,
       },
       [`& .json-schema-2020-12-property--required>.json-schema-2020-12:first-of-type>.json-schema-2020-12-head .json-schema-2020-12__title:after`]:
-        {
-          color: theme.palette.warning.dark,
-        },
+      {
+        color: theme.palette.warning.dark,
+      },
     },
   },
 }));
+
+// Plugin that removes the "Try it out" button entirely from the render tree
+const DisableTryItOutPlugin = () => ({
+  components: {
+    TryItOutButton: () => null,
+  },
+});
 
 export type OpenApiDefinitionProps = {
   definition: string;
@@ -202,9 +210,13 @@ export const OpenApiDefinition = ({
         spec={def}
         url=""
         deepLinking
+        supportedSubmitMethods={[]}
+        plugins={[DisableTryItOutPlugin]}
         oauth2RedirectUrl={`${window.location.protocol}//${window.location.host}/oauth2-redirect.html`}
         {...swaggerUiProps}
       />
+
+
     </div>
   );
 };

@@ -186,6 +186,17 @@ export async function createConfig(
     }),
   );
 
+  // Strip `node:` prefix from built-in module requests before Rspack's scheme
+  // detection runs. This converts e.g. `node:fs` -> `fs` so the existing
+  // resolve.fallback entries (fs: false, buffer: <polyfill>, etc.) are applied.
+  // resolve.alias cannot do this because Rspack rejects `node:` as an
+  // unhandled URI scheme before alias resolution is consulted.
+  plugins.push(
+    new bundler.NormalModuleReplacementPlugin(/^node:/, resource => {
+      resource.request = resource.request.replace(/^node:/, '');
+    }),
+  );
+
   if (options.moduleFederation?.mode !== 'remote') {
     const templateOptions = {
       meta: {
@@ -381,6 +392,9 @@ export async function createConfig(
         }
       : {}),
     optimization,
+    ignoreWarnings: [
+      /Critical dependency: the request of a dependency is an expression/,
+    ],
     bail: false,
     performance: {
       hints: false, // we check the gzip size instead
@@ -405,6 +419,10 @@ export async function createConfig(
         net: false,
         tls: false,
         child_process: false,
+        'agent-base': false,
+        'https-proxy-agent': false,
+        'http-proxy-agent': false,
+        tunnel: false,
 
         /* new ignores */
         path: false,

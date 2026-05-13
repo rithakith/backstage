@@ -18,7 +18,6 @@ import { QuickStartCard } from '../../plugin';
 import { ComponentType, PropsWithChildren } from 'react';
 import { wrapInTestApp } from '@backstage/test-utils';
 import Grid from '@material-ui/core/Grid';
-import Typography from '@material-ui/core/Typography';
 import OpenInNewIcon from '@material-ui/icons/OpenInNew';
 import ContentImage from './static/backstageSystemModel.png';
 
@@ -65,11 +64,11 @@ export const Customized = () => {
         }
         cardDescription="Backstage system model will help you create new entities"
         additionalContent={
-          <Typography variant="body2" paragraph>
+          <p>
             This is a custom description for the Quick Start card. It can be
             used to provide additional information or context about the Quick
             Start process.
-          </Typography>
+          </p>
         }
       />
     </Grid>

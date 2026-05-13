@@ -1,4 +1,6 @@
 /*
+ * Hot reload trigger - fetching WSO2 documents
+ *
  * Copyright 2022 The Backstage Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +34,7 @@ const searchLoader = createBackendFeatureLoader({
   *loader({ config }) {
     yield import('@backstage/plugin-search-backend');
     yield import('@backstage/plugin-search-backend-module-catalog');
-    yield import('@backstage/plugin-search-backend-module-explore');
+    // yield import('@backstage/plugin-search-backend-module-explore');
     yield import('@backstage/plugin-search-backend-module-techdocs');
     if (config.has('search.elasticsearch')) {
       yield import('@backstage/plugin-search-backend-module-elasticsearch');
@@ -43,6 +45,8 @@ const searchLoader = createBackendFeatureLoader({
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('./authModuleGithubProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-oauth2-provider'));
+backend.add(import('./authModuleOidcProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-openshift-provider'));
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-unprocessed'));
@@ -53,10 +57,10 @@ backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(import('@backstage/plugin-events-backend'));
 backend.add(import('@backstage/plugin-devtools-backend'));
 backend.add(import('@backstage/plugin-kubernetes-backend'));
+backend.add(import('@backstage/plugin-permission-backend'));
 backend.add(
   import('@backstage/plugin-permission-backend-module-allow-all-policy'),
 );
-backend.add(import('@backstage/plugin-permission-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 backend.add(import('@backstage/plugin-scaffolder-backend'));
 backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
@@ -71,7 +75,15 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(rootSystemMetadataServiceFactory);
+backend.add(import('@local/backstage-plugin-wso2-api-manager-backend'));
+backend.add(import('@local/backstage-plugin-catalog-backend-module-asgardeo'));
+backend.add(import('@local/backstage-plugin-catalog-backend-module-wso2-apim'));
 
 backend.add(import('@backstage/plugin-events-backend-module-google-pubsub'));
 backend.add(import('@backstage/plugin-mcp-actions-backend'));
+backend.add(
+  import(
+    '@backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module'
+  ),
+);
 backend.start();

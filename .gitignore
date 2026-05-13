@@ -36,6 +36,9 @@ coverage
 # nyc test coverage
 .nyc_output
 
+#html
+*.html
+
 # Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
@@ -147,6 +150,7 @@ dist-workspace
 site
 
 # Local configuration files
+app-config.yaml
 *.local.yaml
 !packages/create-app/templates/default-app/app-config.local.yaml
 
@@ -187,3 +191,9 @@ tsconfig.typedoc.tmp.json
 
 # Storybook
 dist-storybook/
+
+# Backstage local database
+*.sqlite
+.backstage-data/
+*.ps1
+*.zip

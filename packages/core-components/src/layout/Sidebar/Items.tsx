@@ -137,7 +137,7 @@ const makeSidebarStyles = (sidebarConfig: SidebarConfig) =>
       },
       label: {
         // XXX (@koroeskohr): I can't seem to achieve the desired font-weight from the designs
-        fontWeight: 'bold',
+        fontWeight: 'bold' as any,
         whiteSpace: 'nowrap',
         lineHeight: 'auto',
         flex: '3 1 auto',
@@ -160,7 +160,7 @@ const makeSidebarStyles = (sidebarConfig: SidebarConfig) =>
       },
       searchField: {
         color: '#b5b5b5',
-        fontWeight: theme.typography.fontWeightBold,
+        fontWeight: theme.typography.fontWeightBold as any,
         fontSize: theme.typography.fontSize,
       },
       searchFieldHTMLInput: {

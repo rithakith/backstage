@@ -47,7 +47,7 @@ const useStyles = makeStyles(
       ...theme.typography.caption,
       padding: theme.spacing(3, 3),
       textTransform: 'uppercase',
-      fontWeight: theme.typography.fontWeightBold,
+      fontWeight: theme.typography.fontWeightBold as any,
       color: theme.palette.text.secondary,
     },
     selected: {
