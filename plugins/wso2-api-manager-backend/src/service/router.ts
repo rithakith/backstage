@@ -141,10 +141,12 @@ export async function createRouter(
   });
 
   router.post('/apis/:apiId/generate-key', async (req, res) => {
+    logger.info(`Generating API key for API: ${req.params.apiId}`);
     try {
       const token = await ensureAuthenticated(req);
       const apiId = req.params.apiId;
-      const result = await client.generateApiKey(apiId, token);
+      const keyName = req.body.keyName;
+      const result = await client.generateApiKey(apiId, { keyName });
       res.json(result);
     } catch (e: any) {
       logger.error(`Failed to generate API key for ${req.params.apiId}: ${e.message}`);

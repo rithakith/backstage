@@ -84,7 +84,7 @@ const Wso2OperationConsole = ({
   const initialHeaders = useMemo(() => {
     const list = [{ name: 'accept', value: '*/*' }];
     if (apiKey) {
-      list.push({ name: 'Internal-Key', value: apiKey });
+      list.push({ name: 'ApiKey', value: apiKey });
     }
     if (externalApiKey && apiKeyAuthPolicy) {
        const { in: location, key: name } = apiKeyAuthPolicy.params || {};
@@ -96,6 +96,29 @@ const Wso2OperationConsole = ({
   }, [apiKey, externalApiKey, apiKeyAuthPolicy]);
 
   const [manualHeaders, setManualHeaders] = useState(initialHeaders);
+
+  // Sync headers when apiKey changes
+  useEffect(() => {
+    setManualHeaders(prev => {
+      // Filter out existing ApiKey or external keys to avoid duplicates
+      const filtered = prev.filter(h => 
+        h.name.toLowerCase() !== 'apikey' && 
+        (!apiKeyAuthPolicy || h.name.toLowerCase() !== (apiKeyAuthPolicy.params?.key || 'x-api-key').toLowerCase())
+      );
+      
+      const next = [...filtered];
+      if (apiKey !== null) {
+        next.push({ name: 'ApiKey', value: apiKey });
+      }
+      if (externalApiKey && apiKeyAuthPolicy) {
+        const { in: location, key: name } = apiKeyAuthPolicy.params || {};
+        if (location === 'header') {
+          next.push({ name: name || 'x-api-key', value: externalApiKey });
+        }
+      }
+      return next;
+    });
+  }, [apiKey, externalApiKey, apiKeyAuthPolicy]);
 
   // Sync Content-Type header
   useEffect(() => {

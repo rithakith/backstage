@@ -43,6 +43,9 @@ export const useWso2ApiAuth = (options: {
           'apim:api_view',
           'apim:api_generate_key',
           'apim:api_manage',
+          'apim:subscribe',
+          'apim:app_manage',
+          'apim:api_key',
         ],
         { optional: true },
       );
@@ -52,17 +55,38 @@ export const useWso2ApiAuth = (options: {
     }
   }, [oauthApi]);
 
+  const [customKeyName, setCustomKeyName] = useState('Backstage_Key');
+  
+  const [shouldGenerate, setShouldGenerate] = useState(false);
+  
   const generateKeyState = useAsyncRetry(async () => {
-    if (!apiId || tokenState.loading || !tokenState.value || isApiPlatform) {
+    if (!apiId || isApiPlatform || !shouldGenerate) {
       return undefined;
     }
     try {
-      return await apiClient.generateApiKey(apiId, tokenState.value);
+      return await apiClient.generateApiKey(apiId, { keyName: customKeyName });
     } catch (e: any) {
       console.error('[WSO2-ApiAuth] Failed to generate API Key:', e.message);
       return null;
     }
-  }, [apiClient, apiId, tokenState.value, tokenState.loading, isApiPlatform]);
+  }, [apiClient, apiId, isApiPlatform, shouldGenerate]);
+
+  const refreshKey = (name?: string) => {
+    if (name) {
+      setCustomKeyName(name);
+    }
+    if (!shouldGenerate) {
+      setShouldGenerate(true);
+    } else {
+      generateKeyState.retry();
+    }
+  };
+
+  const applyManualKey = (key: string) => {
+    setApiKey(key);
+    apiKeyRef.current = key;
+    setExpiresIn(null); // Manual keys might not have known expiry
+  };
 
   useEffect(() => {
     if (generateKeyState.value) {
@@ -81,7 +105,7 @@ export const useWso2ApiAuth = (options: {
 
       if (!isInitial && key) {
         alertApi.post({
-          message: 'Internal API Key refreshed',
+          message: 'API Key refreshed',
           severity: 'success',
           display: 'transient',
         });
@@ -101,6 +125,9 @@ export const useWso2ApiAuth = (options: {
     lastUpdated,
     isKeyLoading: generateKeyState.loading,
     generateKeyError: generateKeyState.value === null,
-    refreshKey: generateKeyState.retry,
+    refreshKey,
+    applyManualKey,
+    customKeyName,
+    setCustomKeyName,
   };
 };

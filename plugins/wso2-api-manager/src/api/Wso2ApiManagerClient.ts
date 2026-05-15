@@ -91,10 +91,10 @@ export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
     }
   }
 
-  async generateApiKey(apiId: string, token?: string): Promise<any> {
+  async generateApiKey(apiId: string, options?: { keyName?: string }): Promise<any> {
     return this.request<any>(`/apis/${apiId}/generate-key`, {
       method: 'POST',
-      token,
+      body: { keyName: options?.keyName },
     });
   }
 

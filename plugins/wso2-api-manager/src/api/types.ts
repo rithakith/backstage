@@ -149,7 +149,7 @@ export type Wso2HealthReport = {
 };
 
 export interface Wso2ApiManagerApi {
-  generateApiKey(apiId: string, token?: string): Promise<any>;
+  generateApiKey(apiId: string, options?: { keyName?: string }): Promise<any>;
   getRevisions(
     apiId: string,
     options?: { query?: string; token?: string },

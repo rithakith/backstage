@@ -64,6 +64,7 @@ export type Wso2ApiRevisionsResponse = {
 export type Wso2ApiManagerConfig = {
   baseUrl: string;
   publisherBasePath: string;
+  developerBasePath: string;
   auth: {
     clientId: string;
     clientSecret: string;

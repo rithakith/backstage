@@ -33,6 +33,7 @@ export function readWso2ApiManagerConfig(
 
   const baseUrl = wso2Config.getString('baseUrl');
   const publisherBasePath = wso2Config.getString('publisherBasePath');
+  const developerBasePath = wso2Config.getString('developerBasePath');
 
   const authConfig = wso2Config.getConfig('auth');
   const clientId = authConfig.getString('clientId');
@@ -64,6 +65,7 @@ export function readWso2ApiManagerConfig(
     return {
       baseUrl,
       publisherBasePath,
+      developerBasePath,
       auth: {
         clientId,
         clientSecret,
@@ -80,6 +82,7 @@ export class Wso2ApiManagerClient {
   private readonly config: Wso2ApiManagerConfig;
   private readonly logger: LoggerService;
   private readonly publisherBaseUrl: string;
+  private readonly devportalBaseUrl: string;
   private readonly dispatcher?: Agent;
 
   constructor(options: { config: Wso2ApiManagerConfig; logger: LoggerService }) {
@@ -88,6 +91,10 @@ export class Wso2ApiManagerClient {
     this.publisherBaseUrl = joinUrl(
       options.config.baseUrl,
       options.config.publisherBasePath,
+    );
+    this.devportalBaseUrl = joinUrl(
+      options.config.baseUrl,
+      options.config.developerBasePath,
     );
     if (!options.config.tls.rejectUnauthorized) {
       this.dispatcher = new Agent({
@@ -115,20 +122,70 @@ export class Wso2ApiManagerClient {
     }
   }
 
-  async generateApiKey(apiId: string, token?: string): Promise<Record<string, unknown>> {
-    return await this.requestPublisher<Record<string, unknown>>(
-      `/apis/${apiId}/generate-key`,
+  async generateApiKey(apiId: string, options?: { keyName?: string }): Promise<Record<string, unknown>> {
+    return await this.requestDevportal<Record<string, unknown>>(
+      `/apis/${apiId}/api-keys/generate`,
       {
         method: 'POST',
         body: JSON.stringify({
+          keyName: options?.keyName || 'Backstage_Key',
           keyType: 'PRODUCTION',
+          validityPeriod: 3600,
+          additionalProperties: {},
         }),
         headers: {
           'Content-Type': 'application/json',
         },
-      },
-      token
+      }
     );
+  }
+
+  private async requestDevportal<T>(
+    path: string,
+    options?: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    },
+    token?: string
+  ): Promise<T> {
+    const isUserToken = !!token;
+    const accessToken = token || (await this.resolveAccessToken());
+    const url = `${this.devportalBaseUrl}${path}`;
+
+    this.logger.debug(`[WSO2-Client] Fetching DevPortal ${url} using ${isUserToken ? 'a USER' : 'SERVICE-ACCOUNT'} token`);
+
+    const response = await undiciFetch(url, {
+      method: options?.method ?? 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        ...(options?.headers ?? {}),
+      },
+      body: options?.body,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 && isUserToken) {
+        this.logger.warn(`[WSO2-Client] User token failed with 401 for DevPortal ${path}. Retrying with SERVICE-ACCOUNT token.`);
+        return await this.requestDevportal(path, options, undefined);
+      }
+
+      const message = await this.extractWso2ErrorMessage(response);
+      const errorMsg = `WSO2 DevPortal request failed (context: ${isUserToken ? 'USER' : 'SERVICE-ACCOUNT'}), status ${response.status}: ${message}`;
+      this.logger.error(`[WSO2-Client] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch (e) {
+      return text as unknown as T;
+    }
   }
 
 
@@ -236,7 +293,7 @@ export class Wso2ApiManagerClient {
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
     const params = new URLSearchParams();
     params.append('grant_type', 'client_credentials');
-    params.append('scope', 'apim:api_generate_key apim:api_create apim:api_manage apim:api_view apim:api_publish apim:subscribe apim:api_key apim:mcp_server_view apim:publisher_settings');
+    params.append('scope', 'apim:api_generate_key apim:api_create apim:api_manage apim:api_view apim:api_publish apim:subscribe apim:api_key apim:mcp_server_view apim:publisher_settings apim:app_manage');
 
     const response = await undiciFetch(tokenUrl, {
       method: 'POST',

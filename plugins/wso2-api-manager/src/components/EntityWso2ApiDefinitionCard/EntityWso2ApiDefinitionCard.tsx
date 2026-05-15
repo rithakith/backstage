@@ -22,6 +22,7 @@ import {
   Link,
 } from '@backstage/core-components';
 import { useEntity } from '@backstage/plugin-catalog-react';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Box,
   Tabs,
@@ -31,6 +32,12 @@ import {
   Typography,
   CircularProgress,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  Tooltip,
 } from '@material-ui/core';
 import ContentCopyIcon from '@material-ui/icons/FileCopy';
 import RefreshIcon from '@material-ui/icons/Refresh';
@@ -39,6 +46,7 @@ import SwaggerUI from 'swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
 import { SwaggerEditorPanel } from '../SwaggerEditorPanel';
 
+import { wso2ApiManagerApiRef, wso2AuthApiRef } from '../../api';
 import { useStyles } from './styles';
 import { isAsyncType } from '../../utils';
 import { useWso2ApiAuth } from './hooks/useWso2ApiAuth';
@@ -58,6 +66,7 @@ const WSO2_GATEWAY_API_ID_ANNOTATION = 'wso2-gateway.com/api-id';
 export const EntityWso2ApiDefinitionCard = () => {
   const classes = useStyles();
   const { entity } = useEntity();
+  const apiClient = useApi(wso2ApiManagerApiRef);
 
   const apiId =
     entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION] ||
@@ -78,11 +87,15 @@ export const EntityWso2ApiDefinitionCard = () => {
     token,
     isTokenLoading,
     apiKey,
+    apiKeyRef,
     expiresIn,
     lastUpdated,
     isKeyLoading,
     generateKeyError,
     refreshKey,
+    applyManualKey,
+    customKeyName,
+    setCustomKeyName,
   } = useWso2ApiAuth({ apiId, isApiPlatform: skipKeyGeneration });
 
   // 2. Definition Hook
@@ -126,6 +139,9 @@ export const EntityWso2ApiDefinitionCard = () => {
     (swaggerSpec as any).openapi;
 
   const [activeTab, setActiveTab] = useState<number | string>('swagger');
+  const [manualKeyInput, setManualKeyInput] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [externalApiKey, setExternalApiKey] = useState('');
 
   const apiKeyAuthPolicy = useMemo(() => {
@@ -315,7 +331,7 @@ export const EntityWso2ApiDefinitionCard = () => {
           {/* Tab Content: SwaggerUI or Operations List */}
           {activeTab === 'swagger' && hasSwaggerTab && (
             <div className={classes.root}>
-              {/* Internal API Key Display and Regeneration */}
+              {/* API Key Display and Regeneration */}
               {isDeployed && !isDiscovered && !skipKeyGeneration && (
                 <Box
                   mx={2}
@@ -326,57 +342,110 @@ export const EntityWso2ApiDefinitionCard = () => {
                   borderRadius={4}
                   bgcolor="background.paper"
                 >
-                  <Box
-                    display="flex"
-                    alignItems="center"
-                    justifyContent="space-between"
-                  >
+                  <Box display="flex" mt={1} alignItems="center">
                     <TextField
-                      label="Internal API Key"
-                      value={
-                        isKeyLoading
-                          ? 'Generating...'
-                          : apiKey || 'No key available'
-                      }
+                      label="API Key"
+                      placeholder="Paste your API key here..."
+                      value={manualKeyInput}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setManualKeyInput(val);
+                        applyManualKey(val); // Apply even if blank
+                      }}
                       variant="outlined"
-                      fullWidth
                       size="small"
+                      style={{ width: '400px', marginRight: '32px' }}
                       InputProps={{
-                        readOnly: true,
-                        style: { fontFamily: '"Roboto Mono", monospace' },
+                        style: { fontFamily: '"Roboto Mono", monospace', fontSize: '0.8125rem' },
                       }}
                     />
-                    <Box display="flex">
-                      <Box mr={1}>
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            navigator.clipboard.writeText(apiKey || '');
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => {
+                        setGeneratedKey(null);
+                        setIsModalOpen(true);
+                      }}
+                      style={{ textTransform: 'none', height: '40px', minWidth: '160px' }}
+                    >
+                      Create New Key
+                    </Button>
+                  </Box>
+
+                  {/* Generation Modal */}
+                  <Dialog 
+                    open={isModalOpen} 
+                    onClose={() => setIsModalOpen(false)}
+                    fullWidth
+                    maxWidth="sm"
+                  >
+                    <DialogTitle>Generate New API Key</DialogTitle>
+                    <DialogContent>
+                      {!generatedKey ? (
+                        <Box py={2}>
+                          <Typography variant="body2" gutterBottom>
+                            Provide a name for your new API key. This key will be generated using the service account.
+                          </Typography>
+                          <TextField
+                            autoFocus
+                            label="Key Name"
+                            placeholder="e.g. My_Dev_Key"
+                            value={customKeyName}
+                            onChange={(e) => setCustomKeyName(e.target.value)}
+                            variant="outlined"
+                            fullWidth
+                            margin="normal"
+                          />
+                        </Box>
+                      ) : (
+                        <Box py={2}>
+                          <Typography variant="body2" gutterBottom color="textSecondary">
+                            Your new API key has been generated. Please copy it now, as it will not be shown again.
+                          </Typography>
+                          <TextField
+                            label="New API Key"
+                            value={generatedKey}
+                            variant="outlined"
+                            fullWidth
+                            margin="normal"
+                            InputProps={{
+                              readOnly: true,
+                              style: { fontFamily: '"Roboto Mono", monospace', fontSize: '0.8125rem' },
+                              endAdornment: (
+                                <InputAdornment position="end">
+                                  <Tooltip title="Copy Key">
+                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(generatedKey)}>
+                                      <ContentCopyIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </InputAdornment>
+                              )
+                            }}
+                          />
+                        </Box>
+                      )}
+                    </DialogContent>
+                    <DialogActions style={{ padding: '16px 24px' }}>
+                      <Button onClick={() => setIsModalOpen(false)} color="default">
+                        {generatedKey ? 'Close' : 'Cancel'}
+                      </Button>
+                      {!generatedKey && (
+                        <Button
+                          onClick={async () => {
+                            const result = await apiClient.generateApiKey(apiId!, { keyName: customKeyName });
+                            if (result && (result.apikey || result.internalKey)) {
+                              setGeneratedKey(result.apikey || result.internalKey);
+                            }
                           }}
-                          title="Copy Key"
+                          color="primary"
+                          variant="contained"
+                          disabled={isKeyLoading}
                         >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={refreshKey}
-                        title="Regenerate Key"
-                        disabled={isKeyLoading}
-                      >
-                        <RefreshIcon
-                          fontSize="small"
-                          className={isKeyLoading ? classes.refreshIconSpin : ''}
-                        />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                  <Box mt={1}>
-                    <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-                      Expires in{' '}
-                      {expiresIn ? Math.round(expiresIn / 3600) : 1} hour(s)
-                    </span>
-                  </Box>
+                          {isKeyLoading ? <CircularProgress size={24} color="inherit" /> : 'Generate'}
+                        </Button>
+                      )}
+                    </DialogActions>
+                  </Dialog>
                 </Box>
               )}
 
@@ -434,17 +503,42 @@ export const EntityWso2ApiDefinitionCard = () => {
                 </Box>
               )}
 
-              <Wso2OperationsList
-                operations={hasOperationsOnly ? gatewayOperations : 
-                  Object.entries(swaggerSpec?.paths || {}).flatMap(([path, methods]: [string, any]) => 
-                    Object.keys(methods).map(method => ({ method, path }))
-                  )
-                }
-                apiKey={apiKey ?? undefined}
-                externalApiKey={externalApiKey}
-                apiKeyAuthPolicy={apiKeyAuthPolicy}
-                serverUrl={gatewayUrls[0]?.url}
-              />
+              {hasOperationsOnly ? (
+                <Wso2OperationsList
+                  operations={gatewayOperations}
+                  apiKey={apiKey ?? undefined}
+                  externalApiKey={externalApiKey}
+                  apiKeyAuthPolicy={apiKeyAuthPolicy}
+                  serverUrl={gatewayUrls[0]?.url}
+                />
+              ) : (
+                <Box p={2}>
+                  <SwaggerUI
+                    key={`swagger-ui-${lastUpdated}`}
+                    spec={swaggerSpec}
+                    plugins={[tryItOutPlugin]}
+                    supportedSubmitMethods={[
+                      'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace',
+                    ]}
+                    requestInterceptor={(req: any) => {
+                      const currentKey = apiKeyRef.current;
+                      if (currentKey !== null) {
+                        req.headers['ApiKey'] = currentKey;
+                      }
+                      if (externalApiKey && apiKeyAuthPolicy) {
+                        const { in: location, key } = apiKeyAuthPolicy.params || {};
+                        if (location === 'header') {
+                          req.headers[key || 'x-api-key'] = externalApiKey;
+                        } else if (location === 'query') {
+                          const separator = req.url.includes('?') ? '&' : '?';
+                          req.url = `${req.url}${separator}${key || 'api-key'}=${encodeURIComponent(externalApiKey)}`;
+                        }
+                      }
+                      return req;
+                    }}
+                  />
+                </Box>
+              )}
             </div>
           )}
 
@@ -460,8 +554,9 @@ export const EntityWso2ApiDefinitionCard = () => {
                     'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace',
                   ]}
                   requestInterceptor={(req: any) => {
-                    if (apiKey) {
-                      req.headers['Internal-Key'] = apiKey;
+                    const currentKey = apiKeyRef.current;
+                    if (currentKey !== null) {
+                      req.headers['ApiKey'] = currentKey;
                     }
                     if (externalApiKey && apiKeyAuthPolicy) {
                       const { in: location, key } = apiKeyAuthPolicy.params || {};
