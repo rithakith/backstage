@@ -97,6 +97,14 @@ export type Wso2ApiDetail = Wso2ApiSummary & {
     fault?: any[];
   };
   operations?: any[];
+  accessControlAllowHeaders?: string[];
+  corsConfiguration?: {
+    corsConfigurationEnabled?: boolean;
+    accessControlAllowOrigins?: string[];
+    accessControlAllowCredentials?: boolean;
+    accessControlAllowHeaders?: string[];
+    accessControlAllowMethods?: string[];
+  };
 };
 
 export type Wso2ApiDocument = {

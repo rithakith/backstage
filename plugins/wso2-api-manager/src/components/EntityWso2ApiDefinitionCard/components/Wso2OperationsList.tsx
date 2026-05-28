@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -13,8 +13,11 @@ import {
   makeStyles,
   Select,
   MenuItem,
-  FormControl
+  FormControl,
+  Tooltip
 } from '@material-ui/core';
+import FileCopyIcon from '@material-ui/icons/FileCopy';
+import CheckIcon from '@material-ui/icons/Check';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import AddIcon from '@material-ui/icons/Add';
 import DeleteIcon from '@material-ui/icons/Delete';
@@ -66,6 +69,7 @@ const Wso2OperationConsole = ({
 }: any) => {
   const theme = useTheme();
   const method = (op.verb || op.method || 'GET').toUpperCase();
+  const hasBody = ['POST', 'PUT', 'PATCH'].includes(method);
   const path = op.target || op.path || '';
   
   // Detect path parameters
@@ -79,37 +83,31 @@ const Wso2OperationConsole = ({
   const [requestBody, setRequestBody] = useState('');
   const [bodyFormat, setBodyFormat] = useState('Raw'); // Raw, form-data, x-www-form-urlencoded
   const [contentType, setContentType] = useState('JSON'); // JSON, XML, Text
+  const [formDataParams, setFormDataParams] = useState<Array<{ name: string; value: string }>>([]);
   
   // Initialize with common headers if applicable
   const initialHeaders = useMemo(() => {
-    const list = [{ name: 'accept', value: '*/*' }];
-    if (apiKey) {
-      list.push({ name: 'ApiKey', value: apiKey });
-    }
+    const list: {name: string, value: string}[] = [];
     if (externalApiKey && apiKeyAuthPolicy) {
        const { in: location, key: name } = apiKeyAuthPolicy.params || {};
        if (location === 'header') {
          list.push({ name: name || 'x-api-key', value: externalApiKey });
        }
-    }
+     }
     return list;
-  }, [apiKey, externalApiKey, apiKeyAuthPolicy]);
+  }, [externalApiKey, apiKeyAuthPolicy]);
 
   const [manualHeaders, setManualHeaders] = useState(initialHeaders);
 
   // Sync headers when apiKey changes
   useEffect(() => {
     setManualHeaders(prev => {
-      // Filter out existing ApiKey or external keys to avoid duplicates
+      // Filter out existing external keys to avoid duplicates
       const filtered = prev.filter(h => 
-        h.name.toLowerCase() !== 'apikey' && 
         (!apiKeyAuthPolicy || h.name.toLowerCase() !== (apiKeyAuthPolicy.params?.key || 'x-api-key').toLowerCase())
       );
       
       const next = [...filtered];
-      if (apiKey !== null) {
-        next.push({ name: 'ApiKey', value: apiKey });
-      }
       if (externalApiKey && apiKeyAuthPolicy) {
         const { in: location, key: name } = apiKeyAuthPolicy.params || {};
         if (location === 'header') {
@@ -118,10 +116,11 @@ const Wso2OperationConsole = ({
       }
       return next;
     });
-  }, [apiKey, externalApiKey, apiKeyAuthPolicy]);
+  }, [externalApiKey, apiKeyAuthPolicy]);
 
   // Sync Content-Type header
   useEffect(() => {
+    if (!hasBody) return;
     const newList = [...manualHeaders];
     const ctIdx = newList.findIndex(h => h.name.toLowerCase() === 'content-type');
     
@@ -130,8 +129,6 @@ const Wso2OperationConsole = ({
       if (contentType === 'JSON') targetValue = 'application/json';
       else if (contentType === 'XML') targetValue = 'application/xml';
       else if (contentType === 'Text') targetValue = 'text/plain';
-    } else if (bodyFormat === 'form-data') {
-      targetValue = 'multipart/form-data';
     } else if (bodyFormat === 'x-www-form-urlencoded') {
       targetValue = 'application/x-www-form-urlencoded';
     }
@@ -166,6 +163,22 @@ const Wso2OperationConsole = ({
     setManualHeaders(newList);
   };
 
+  const addFormDataParam = () => {
+    setFormDataParams([...formDataParams, { name: '', value: '' }]);
+  };
+
+  const removeFormDataParam = (idx: number) => {
+    const newList = [...formDataParams];
+    newList.splice(idx, 1);
+    setFormDataParams(newList);
+  };
+
+  const updateFormDataParam = (idx: number, field: 'name' | 'value', val: string) => {
+    const newList = [...formDataParams];
+    newList[idx][field] = val;
+    setFormDataParams(newList);
+  };
+
   const substitutedPath = useMemo(() => {
     let result = path;
     detectedPathParams.forEach((param: string) => {
@@ -182,6 +195,14 @@ const Wso2OperationConsole = ({
     const resource = substitutedPath.startsWith('/') ? substitutedPath : `/${substitutedPath}`;
     return `${base}${resource}`;
   }, [substitutedPath, serverUrl]);
+
+  const [opCopied, setOpCopied] = useState(false);
+
+  const handleCopyEndpoint = () => {
+    navigator.clipboard.writeText(fullEndpointUrl);
+    setOpCopied(true);
+    setTimeout(() => setOpCopied(false), 2000);
+  };
 
   const curlCommand = useMemo(() => {
     let url = fullEndpointUrl;
@@ -200,19 +221,42 @@ const Wso2OperationConsole = ({
       .map(h => `-H '${h.name}: ${h.value}'`)
       .join(' \\\n  ');
 
-    let bodyFlag = '-d';
-    if (bodyFormat === 'form-data') bodyFlag = '-F';
-
-    const bodyString = requestBody.trim() ? ` \\\n  ${bodyFlag} '${requestBody.replace(/'/g, "'\\''")}'` : '';
+    let bodyString = '';
+    if (hasBody) {
+      if (bodyFormat === 'form-data') {
+        if (formDataParams.length > 0) {
+          bodyString = formDataParams
+            .filter(p => p.name.trim())
+            .map(p => ` \\\n  -F '${p.name.replace(/'/g, "'\\''")}=${p.value.replace(/'/g, "'\\''")}'`)
+            .join('');
+        } else {
+          bodyString = ` \\\n  -F 'key=value'`;
+        }
+      } else if (bodyFormat === 'x-www-form-urlencoded') {
+        if (formDataParams.length > 0) {
+          const joined = formDataParams
+            .filter(p => p.name.trim())
+            .map(p => `${encodeURIComponent(p.name)}=${encodeURIComponent(p.value)}`)
+            .join('&');
+          bodyString = ` \\\n  -d '${joined.replace(/'/g, "'\\''")}'`;
+        } else {
+          bodyString = ` \\\n  -d 'key=value'`;
+        }
+      } else {
+        const defaultVal = bodyFormat === 'Raw' ? '{}' : 'key=value';
+        const content = requestBody.trim() ? requestBody.replace(/'/g, "'\\''") : defaultVal;
+        if (content) {
+          bodyString = ` \\\n  -d '${content}'`;
+        }
+      }
+    }
 
     return `curl -X ${method} "${url}"${headerStrings ? ' \\\n  ' + headerStrings : ''}${bodyString} -k`;
-  }, [method, fullEndpointUrl, manualHeaders, requestBody, bodyFormat, externalApiKey, apiKeyAuthPolicy]);
+  }, [method, hasBody, fullEndpointUrl, manualHeaders, requestBody, bodyFormat, contentType, formDataParams, externalApiKey, apiKeyAuthPolicy]);
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(curlCommand);
   };
-
-  const hasBody = ['POST', 'PUT', 'PATCH'].includes(method);
 
   return (
     <Box className={classes.swaggerContainer}>
@@ -221,17 +265,52 @@ const Wso2OperationConsole = ({
       </Typography>
       
       <Box mt={2} mb={3}>
-        <TextField
-          label="Endpoint URL"
-          value={fullEndpointUrl}
-          variant="outlined"
-          fullWidth
-          size="small"
-          InputProps={{
-            readOnly: true,
-            style: { fontFamily: 'monospace', fontSize: '0.8125rem' }
+        <Typography 
+          variant="caption" 
+          style={{ 
+            fontWeight: 'bold', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.5px',
+            color: '#718096',
+            display: 'block',
+            marginBottom: '8px'
           }}
-        />
+        >
+          Endpoint URL
+        </Typography>
+        <Box
+          display="flex"
+          alignItems="center"
+          p={1.5}
+          borderRadius={4}
+          style={{
+            backgroundColor: 'rgba(128, 128, 128, 0.06)',
+            border: '1px solid rgba(128, 128, 128, 0.15)',
+          }}
+        >
+          <Typography
+            variant="body2"
+            style={{
+              flexGrow: 1,
+              wordBreak: 'break-all',
+              fontFamily: '"Fira Code", "Source Code Pro", monospace',
+              fontSize: '0.8125rem',
+            }}
+          >
+            {fullEndpointUrl}
+          </Typography>
+          <Box ml={1}>
+            <Tooltip title={opCopied ? "Copied!" : "Copy Endpoint URL"}>
+              <IconButton 
+                size="small" 
+                onClick={handleCopyEndpoint}
+                style={{ color: opCopied ? '#49cc90' : 'inherit' }}
+              >
+                {opCopied ? <CheckIcon fontSize="small" /> : <FileCopyIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
       </Box>
 
       {/* Path Parameters Section */}
@@ -283,18 +362,62 @@ const Wso2OperationConsole = ({
                 </FormControl>
              )}
           </Box>
-          <TextField
-            placeholder={bodyFormat === 'Raw' ? '{"key": "value"}' : 'key=value'}
-            value={requestBody}
-            onChange={(e) => setRequestBody(e.target.value)}
-            variant="outlined"
-            fullWidth
-            multiline
-            rows={4}
-            InputProps={{
-              style: { fontFamily: 'monospace', fontSize: '0.8125rem' }
-            }}
-          />
+          {bodyFormat === 'form-data' || bodyFormat === 'x-www-form-urlencoded' ? (
+            <Box mt={1}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="caption" style={{ fontWeight: 'bold', opacity: 0.7 }}>
+                  {bodyFormat === 'form-data' ? 'Form Data Entries' : 'URL Encoded Entries'}
+                </Typography>
+                <Button 
+                  size="small" 
+                  startIcon={<AddIcon />} 
+                  onClick={addFormDataParam}
+                  style={{ textTransform: 'none', fontSize: '0.75rem' }}
+                >
+                  Add Entry
+                </Button>
+              </Box>
+              
+              {formDataParams.map((param, idx) => (
+                <Box key={idx} className={classes.headerRow}>
+                  <TextField
+                    placeholder="Key"
+                    value={param.name}
+                    onChange={(e) => updateFormDataParam(idx, 'name', e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    style={{ flex: 1 }}
+                    inputProps={{ style: { fontSize: '0.8125rem' }}}
+                  />
+                  <TextField
+                    placeholder="Value"
+                    value={param.value}
+                    onChange={(e) => updateFormDataParam(idx, 'value', e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    style={{ flex: 2 }}
+                    inputProps={{ style: { fontSize: '0.8125rem' }}}
+                  />
+                  <IconButton size="small" onClick={() => removeFormDataParam(idx)} color="secondary">
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <TextField
+              placeholder={bodyFormat === 'Raw' ? '{"key": "value"}' : 'key=value'}
+              value={requestBody}
+              onChange={(e) => setRequestBody(e.target.value)}
+              variant="outlined"
+              fullWidth
+              multiline
+              rows={4}
+              InputProps={{
+                style: { fontFamily: 'monospace', fontSize: '0.8125rem' }
+              }}
+            />
+          )}
         </Box>
       )}
 

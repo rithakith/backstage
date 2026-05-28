@@ -166,16 +166,16 @@ export const useWso2ApiDefinition = (options: {
   }, [entity]);
 
   const revisionsState = useAsync(async () => {
-    if (!apiId || isTokenLoading || isApiPlatform) return undefined;
+    if (!apiId || isApiPlatform) return undefined;
     try {
       return await apiClient.getRevisions(apiId, {
         query: 'deployed:true',
-        token,
+        token: token || undefined,
       });
     } catch (e: any) {
       return null;
     }
-  }, [apiClient, apiId, token, isTokenLoading, isApiPlatform]);
+  }, [apiClient, apiId, isApiPlatform]);
 
   const isDeployed =
     gatewayUrls.length > 0 ||

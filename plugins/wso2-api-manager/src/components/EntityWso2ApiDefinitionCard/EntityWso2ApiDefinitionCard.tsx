@@ -32,18 +32,9 @@ import {
   Typography,
   CircularProgress,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  InputAdornment,
-  Tooltip,
+  LinearProgress,
 } from '@material-ui/core';
-import ContentCopyIcon from '@material-ui/icons/FileCopy';
 import RefreshIcon from '@material-ui/icons/Refresh';
-// @ts-ignore
-import SwaggerUI from 'swagger-ui-react';
-import 'swagger-ui-react/swagger-ui.css';
 import { SwaggerEditorPanel } from '../SwaggerEditorPanel';
 
 import { wso2ApiManagerApiRef, wso2AuthApiRef } from '../../api';
@@ -54,6 +45,12 @@ import { useWso2ApiDefinition } from './hooks/useWso2ApiDefinition';
 import { DisabledTryItOutButton } from './components/DisabledTryItOutButton';
 import { Wso2OperationsList } from './components/Wso2OperationsList';
 import { Wso2PublisherPoliciesList } from './components/Wso2PublisherPoliciesList';
+import { Wso2ApiAuthSection } from './components/Wso2ApiAuthSection';
+import { Wso2ExternalApiAuthSection } from './components/Wso2ExternalApiAuthSection';
+import { Wso2GatewayUrlDisplay } from './components/Wso2GatewayUrlDisplay';
+import { Wso2SwaggerConsole } from './components/Wso2SwaggerConsole';
+import { Wso2GraphQLConsole } from './components/Wso2GraphQLConsole';
+import { Wso2WebSocketConsole } from './components/Wso2WebSocketConsole';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
@@ -138,11 +135,23 @@ export const EntityWso2ApiDefinitionCard = () => {
     typeof swaggerSpec === 'object' &&
     (swaggerSpec as any).openapi;
 
+  const showGatewayUrlDisplay = useMemo(() => {
+    const type = (details?.type || '').toUpperCase();
+    return !type.includes('HTTP');
+  }, [details?.type]);
+
   const [activeTab, setActiveTab] = useState<number | string>('swagger');
   const [manualKeyInput, setManualKeyInput] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [externalApiKey, setExternalApiKey] = useState('');
+
+  const hasApiKeyHeader = useMemo(() => {
+    if (!details) return true;
+    const headers = details.corsConfiguration?.accessControlAllowHeaders || details.accessControlAllowHeaders;
+    if (!headers || !Array.isArray(headers)) return true;
+    return headers.some(h => h.toLowerCase() === 'apikey');
+  }, [details]);
 
   const apiKeyAuthPolicy = useMemo(() => {
     // Check API level
@@ -163,7 +172,11 @@ export const EntityWso2ApiDefinitionCard = () => {
 
   // Sync display content when definition loads
   useEffect(() => {
-    if (!hasSwaggerTab) {
+    if (details?.type === 'GRAPHQL') {
+      setActiveTab('graphql');
+    } else if (details?.type === 'WS') {
+      setActiveTab('websocket');
+    } else if (!hasSwaggerTab) {
       if (showPublisherPoliciesTab) {
         setActiveTab('policies');
       } else if (hasSourceTab) {
@@ -197,11 +210,7 @@ export const EntityWso2ApiDefinitionCard = () => {
 
   if (!apiId) return null;
 
-  const isLoading =
-    isDefinitionLoading ||
-    isTokenLoading ||
-    isRevisionsLoading ||
-    (isDeployed && isKeyLoading && !apiKey);
+  const isLoading = isDefinitionLoading;
 
   return (
     <InfoCard
@@ -232,6 +241,13 @@ export const EntityWso2ApiDefinitionCard = () => {
         </Box>
       }
     >
+      {/* Progressive loading bar for background API requests */}
+      {!isLoading && !isPlaceholder && (isTokenLoading || isRevisionsLoading) && (
+        <Box style={{ position: 'relative', marginTop: '-8px', marginBottom: '8px' }}>
+          <LinearProgress style={{ height: 2 }} color="primary" />
+        </Box>
+      )}
+
       {(isLoading || isPlaceholder) && (
         <Box
           display="flex"
@@ -301,6 +317,22 @@ export const EntityWso2ApiDefinitionCard = () => {
                   className={classes.tabRoot}
                 />
               )}
+              {details?.type === 'GRAPHQL' && (
+                <Tab
+                  id="tab-graphql-console"
+                  label="GraphQL Console"
+                  value="graphql"
+                  className={classes.tabRoot}
+                />
+              )}
+              {details?.type === 'WS' && (
+                <Tab
+                  id="tab-websocket-console"
+                  label="WebSocket Console"
+                  value="websocket"
+                  className={classes.tabRoot}
+                />
+              )}
               {showPublisherPoliciesTab && (
                 <Tab
                   id="tab-policies"
@@ -331,177 +363,37 @@ export const EntityWso2ApiDefinitionCard = () => {
           {/* Tab Content: SwaggerUI or Operations List */}
           {activeTab === 'swagger' && hasSwaggerTab && (
             <div className={classes.root}>
-              {/* API Key Display and Regeneration */}
-              {isDeployed && !isDiscovered && !skipKeyGeneration && (
-                <Box
-                  mx={2}
-                  my={1}
-                  p={2}
-                  border={1}
-                  borderColor="divider"
-                  borderRadius={4}
-                  bgcolor="background.paper"
-                >
-                  <Box display="flex" mt={1} alignItems="center">
-                    <TextField
-                      label="API Key"
-                      placeholder="Paste your API key here..."
-                      value={manualKeyInput}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setManualKeyInput(val);
-                        applyManualKey(val); // Apply even if blank
-                      }}
-                      variant="outlined"
-                      size="small"
-                      style={{ width: '400px', marginRight: '32px' }}
-                      InputProps={{
-                        style: { fontFamily: '"Roboto Mono", monospace', fontSize: '0.8125rem' },
-                      }}
-                    />
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => {
-                        setGeneratedKey(null);
-                        setIsModalOpen(true);
-                      }}
-                      style={{ textTransform: 'none', height: '40px', minWidth: '160px' }}
-                    >
-                      Create New Key
-                    </Button>
-                  </Box>
-
-                  {/* Generation Modal */}
-                  <Dialog 
-                    open={isModalOpen} 
-                    onClose={() => setIsModalOpen(false)}
-                    fullWidth
-                    maxWidth="sm"
-                  >
-                    <DialogTitle>Generate New API Key</DialogTitle>
-                    <DialogContent>
-                      {!generatedKey ? (
-                        <Box py={2}>
-                          <Typography variant="body2" gutterBottom>
-                            Provide a name for your new API key. This key will be generated using the service account.
-                          </Typography>
-                          <TextField
-                            autoFocus
-                            label="Key Name"
-                            placeholder="e.g. My_Dev_Key"
-                            value={customKeyName}
-                            onChange={(e) => setCustomKeyName(e.target.value)}
-                            variant="outlined"
-                            fullWidth
-                            margin="normal"
-                          />
-                        </Box>
-                      ) : (
-                        <Box py={2}>
-                          <Typography variant="body2" gutterBottom color="textSecondary">
-                            Your new API key has been generated. Please copy it now, as it will not be shown again.
-                          </Typography>
-                          <TextField
-                            label="New API Key"
-                            value={generatedKey}
-                            variant="outlined"
-                            fullWidth
-                            margin="normal"
-                            InputProps={{
-                              readOnly: true,
-                              style: { fontFamily: '"Roboto Mono", monospace', fontSize: '0.8125rem' },
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <Tooltip title="Copy Key">
-                                    <IconButton size="small" onClick={() => navigator.clipboard.writeText(generatedKey)}>
-                                      <ContentCopyIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                </InputAdornment>
-                              )
-                            }}
-                          />
-                        </Box>
-                      )}
-                    </DialogContent>
-                    <DialogActions style={{ padding: '16px 24px' }}>
-                      <Button onClick={() => setIsModalOpen(false)} color="default">
-                        {generatedKey ? 'Close' : 'Cancel'}
-                      </Button>
-                      {!generatedKey && (
-                        <Button
-                          onClick={async () => {
-                            const result = await apiClient.generateApiKey(apiId!, { keyName: customKeyName });
-                            if (result && (result.apikey || result.internalKey)) {
-                              setGeneratedKey(result.apikey || result.internalKey);
-                            }
-                          }}
-                          color="primary"
-                          variant="contained"
-                          disabled={isKeyLoading}
-                        >
-                          {isKeyLoading ? <CircularProgress size={24} color="inherit" /> : 'Generate'}
-                        </Button>
-                      )}
-                    </DialogActions>
-                  </Dialog>
-                </Box>
-              )}
-
-              {/* External API Key Input (if api-key-auth policy is present) */}
-              {apiKeyAuthPolicy && (
-                <Box
-                  mx={2}
-                  my={1}
-                  p={2}
-                  border={1}
-                  borderColor="divider"
-                  borderRadius={4}
-                  bgcolor="background.paper"
-                >
-                  <TextField
-                    label={`${apiKeyAuthPolicy.name || 'API Key'} (${apiKeyAuthPolicy.params?.in || 'header'})`}
-                    placeholder={`Enter ${apiKeyAuthPolicy.name || 'API Key'}...`}
-                    value={externalApiKey}
-                    onChange={e => setExternalApiKey(e.target.value)}
-                    variant="outlined"
-                    fullWidth
-                    size="small"
+              <Box style={{ paddingLeft: '20px', paddingRight: '20px' }}>
+                {/* API Key Display and Regeneration */}
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                  <Wso2ApiAuthSection
+                    manualKeyInput={manualKeyInput}
+                    setManualKeyInput={setManualKeyInput}
+                    applyManualKey={applyManualKey}
+                    isModalOpen={isModalOpen}
+                    setIsModalOpen={setIsModalOpen}
+                    customKeyName={customKeyName}
+                    setCustomKeyName={setCustomKeyName}
+                    generatedKey={generatedKey}
+                    setGeneratedKey={setGeneratedKey}
+                    apiClient={apiClient}
+                    apiId={apiId!}
+                    isKeyLoading={isKeyLoading}
                   />
-                  <Typography variant="caption" color="textSecondary" style={{ marginTop: '8px', display: 'block' }}>
-                    This key will be automatically added to your "Try it out" requests as specified by the API policy.
-                  </Typography>
-                </Box>
-              )}
+                )}
 
-              {/* Gateway Server URL Display */}
-              {gatewayUrls.length > 0 && (
-                <Box
-                  mx={2}
-                  my={1}
-                  p={2}
-                  border={1}
-                  borderColor="divider"
-                  borderRadius={4}
-                  bgcolor="background.paper"
-                >
-                  <TextField
-                    label="Server"
-                    value={gatewayUrls[0].url}
-                    variant="outlined"
-                    size="small"
-                    InputProps={{
-                      readOnly: true,
-                      style: {
-                        fontFamily: 'monospace',
-                        fontSize: '0.875rem',
-                      },
-                    }}
-                    fullWidth
-                  />
-                </Box>
-              )}
+                {/* External API Key Input (if api-key-auth policy is present) */}
+                <Wso2ExternalApiAuthSection
+                  apiKeyAuthPolicy={apiKeyAuthPolicy}
+                  externalApiKey={externalApiKey}
+                  setExternalApiKey={setExternalApiKey}
+                />
+
+                {/* Gateway Server URL Display (hidden for HTTP/HTTP_AI since Swagger UI displays it) */}
+                {showGatewayUrlDisplay && (
+                  <Wso2GatewayUrlDisplay gatewayUrls={gatewayUrls} />
+                )}
+              </Box>
 
               {hasOperationsOnly ? (
                 <Wso2OperationsList
@@ -513,32 +405,96 @@ export const EntityWso2ApiDefinitionCard = () => {
                 />
               ) : (
                 <Box p={2}>
-                  <SwaggerUI
+                  <Wso2SwaggerConsole
                     key={`swagger-ui-${lastUpdated}`}
-                    spec={swaggerSpec}
-                    plugins={[tryItOutPlugin]}
-                    supportedSubmitMethods={[
-                      'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace',
-                    ]}
-                    requestInterceptor={(req: any) => {
-                      const currentKey = apiKeyRef.current;
-                      if (currentKey !== null) {
-                        req.headers['ApiKey'] = currentKey;
-                      }
-                      if (externalApiKey && apiKeyAuthPolicy) {
-                        const { in: location, key } = apiKeyAuthPolicy.params || {};
-                        if (location === 'header') {
-                          req.headers[key || 'x-api-key'] = externalApiKey;
-                        } else if (location === 'query') {
-                          const separator = req.url.includes('?') ? '&' : '?';
-                          req.url = `${req.url}${separator}${key || 'api-key'}=${encodeURIComponent(externalApiKey)}`;
-                        }
-                      }
-                      return req;
-                    }}
+                    swaggerSpec={swaggerSpec}
+                    tryItOutPlugin={tryItOutPlugin}
+                    apiKeyRef={apiKeyRef}
+                    externalApiKey={externalApiKey}
+                    apiKeyAuthPolicy={apiKeyAuthPolicy}
                   />
                 </Box>
               )}
+            </div>
+          )}
+
+          {/* Tab Content: GraphQL Console */}
+          {activeTab === 'graphql' && details?.type === 'GRAPHQL' && (
+            <div className={classes.root}>
+              <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                {/* API Key Display and Regeneration */}
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                  <Wso2ApiAuthSection
+                    manualKeyInput={manualKeyInput}
+                    setManualKeyInput={setManualKeyInput}
+                    applyManualKey={applyManualKey}
+                    isModalOpen={isModalOpen}
+                    setIsModalOpen={setIsModalOpen}
+                    customKeyName={customKeyName}
+                    setCustomKeyName={setCustomKeyName}
+                    generatedKey={generatedKey}
+                    setGeneratedKey={setGeneratedKey}
+                    apiClient={apiClient}
+                    apiId={apiId!}
+                    isKeyLoading={isKeyLoading}
+                  />
+                )}
+
+                {/* External API Key Input (if api-key-auth policy is present) */}
+                <Wso2ExternalApiAuthSection
+                  apiKeyAuthPolicy={apiKeyAuthPolicy}
+                  externalApiKey={externalApiKey}
+                  setExternalApiKey={setExternalApiKey}
+                />
+              </Box>
+
+              <Wso2GraphQLConsole
+                definition={definition}
+                gatewayUrls={gatewayUrls}
+                apiKeyRef={apiKeyRef}
+                externalApiKey={externalApiKey}
+                apiKeyAuthPolicy={apiKeyAuthPolicy}
+              />
+            </div>
+          )}
+
+          {/* Tab Content: WebSocket Console */}
+          {activeTab === 'websocket' && details?.type === 'WS' && (
+            <div className={classes.root}>
+              <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                {/* API Key Display and Regeneration */}
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                  <Wso2ApiAuthSection
+                    manualKeyInput={manualKeyInput}
+                    setManualKeyInput={setManualKeyInput}
+                    applyManualKey={applyManualKey}
+                    isModalOpen={isModalOpen}
+                    setIsModalOpen={setIsModalOpen}
+                    customKeyName={customKeyName}
+                    setCustomKeyName={setCustomKeyName}
+                    generatedKey={generatedKey}
+                    setGeneratedKey={setGeneratedKey}
+                    apiClient={apiClient}
+                    apiId={apiId!}
+                    isKeyLoading={isKeyLoading}
+                  />
+                )}
+
+                {/* External API Key Input (if api-key-auth policy is present) */}
+                <Wso2ExternalApiAuthSection
+                  apiKeyAuthPolicy={apiKeyAuthPolicy}
+                  externalApiKey={externalApiKey}
+                  setExternalApiKey={setExternalApiKey}
+                />
+              </Box>
+
+              <Wso2WebSocketConsole
+                operations={gatewayOperations}
+                gatewayUrls={gatewayUrls}
+                apiKeyRef={apiKeyRef}
+                externalApiKey={externalApiKey}
+                apiKeyAuthPolicy={apiKeyAuthPolicy}
+              />
             </div>
           )}
 
@@ -546,29 +502,13 @@ export const EntityWso2ApiDefinitionCard = () => {
           {activeTab === 'console' && hasConsoleTab && (
             <div className={classes.root}>
               <div style={{ padding: '16px', borderRadius: '4px' }}>
-                <SwaggerUI
+                <Wso2SwaggerConsole
                   key={`swagger-console-${lastUpdated}`}
-                  spec={swaggerSpec}
-                  plugins={[tryItOutPlugin]}
-                  supportedSubmitMethods={[
-                    'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace',
-                  ]}
-                  requestInterceptor={(req: any) => {
-                    const currentKey = apiKeyRef.current;
-                    if (currentKey !== null) {
-                      req.headers['ApiKey'] = currentKey;
-                    }
-                    if (externalApiKey && apiKeyAuthPolicy) {
-                      const { in: location, key } = apiKeyAuthPolicy.params || {};
-                      if (location === 'header') {
-                        req.headers[key || 'x-api-key'] = externalApiKey;
-                      } else if (location === 'query') {
-                        const separator = req.url.includes('?') ? '&' : '?';
-                        req.url = `${req.url}${separator}${key || 'api-key'}=${encodeURIComponent(externalApiKey)}`;
-                      }
-                    }
-                    return req;
-                  }}
+                  swaggerSpec={swaggerSpec}
+                  tryItOutPlugin={tryItOutPlugin}
+                  apiKeyRef={apiKeyRef}
+                  externalApiKey={externalApiKey}
+                  apiKeyAuthPolicy={apiKeyAuthPolicy}
                 />
               </div>
             </div>

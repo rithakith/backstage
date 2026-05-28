@@ -37,8 +37,15 @@ export const hasMultipleComponentRelations = (entity: Entity) => {
 /**
  * Quick and dirty GraphQL SDL formatter.
  */
-export const formatGraphQL = (sdl: string): string => {
-  if (!sdl) return sdl;
+export const formatGraphQL = (sdl: any): string => {
+  if (!sdl) return '';
+  if (typeof sdl !== 'string') {
+    try {
+      return JSON.stringify(sdl, null, 2);
+    } catch (e) {
+      return String(sdl);
+    }
+  }
   let workingSdl = sdl;
   if (workingSdl.includes('\\n')) {
     workingSdl = workingSdl.replace(/\\n/g, '\n').replace(/\\"/g, '"');

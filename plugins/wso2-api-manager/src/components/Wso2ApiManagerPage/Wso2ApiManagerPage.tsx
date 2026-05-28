@@ -32,13 +32,9 @@ import {
   Card,
   CardContent,
   Divider,
-  Tooltip,
-  IconButton,
   Chip,
 } from '@material-ui/core';
 import RefreshIcon from '@material-ui/icons/Refresh';
-import CheckCircleIcon from '@material-ui/icons/CheckCircle';
-import ErrorIcon from '@material-ui/icons/Error';
 import LinkIcon from '@material-ui/icons/Link';
 import PowerSettingsNewIcon from '@material-ui/icons/PowerSettingsNew';
 import SyncIcon from '@material-ui/icons/Sync';
@@ -54,10 +50,10 @@ import {
   StatusOK,
   StatusPending,
   InfoCard,
+  Link,
 } from '@backstage/core-components';
 import { useApi, configApiRef } from '@backstage/core-plugin-api';
 import { catalogApiRef } from '@backstage/plugin-catalog-react';
-import Link from '@material-ui/core/Link';
 import {
   Wso2ApiSummary,
   Wso2ApiProductSummary,
@@ -305,14 +301,14 @@ const HealthTab = () => {
             <CardContent>
               <Box className={classes.healthHeader}>
                 <Typography variant="h6">API Platform Gateways</Typography>
-                <PowerSettingsNewIcon style={{ color: platform.length > 0 && platform.every(p => p?.status === 'Online') ? '#2e7d32' : '#ed8936', fontSize: 28 }} />
+                <PowerSettingsNewIcon style={{ color: platform.length > 0 && platform.every((p: any) => p?.status === 'Online') ? '#2e7d32' : '#ed8936', fontSize: 28 }} />
               </Box>
               <Divider />
               <Box mt={3}>
                 {platform.length === 0 ? (
                   <Typography variant="body1" style={{ color: '#718096' }}>No self-hosted gateways configured in app-config.</Typography>
                 ) : (
-                  platform.map((p, i) => (
+                  platform.map((p: any, i: number) => (
                     <Box key={i} mb={3} p={2} bgcolor="#f7fafc" borderRadius={16} border="1px solid #e2e8f0">
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                         <Typography variant="subtitle1" style={{ fontWeight: 700, color: '#2d3748' }}>{p?.name} <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>({p?.type})</span></Typography>
@@ -347,7 +343,7 @@ const HealthTab = () => {
           <InfoCard title="Infrastructure Configuration Status" className={classes.infoCardRoot}>
             <Box p={3}>
               <Grid container spacing={3}>
-                {configs.map((c, i) => (
+                {configs.map((c: any, i: number) => (
                   <Grid item xs={12} md={4} key={i}>
                     <Box p={2} border="1px solid #e2e8f0" borderRadius={16} display="flex" flexDirection="column" height="100%" bgcolor="#ffffff">
                       <Box display="flex" alignItems="center" mb={2}>
@@ -494,7 +490,8 @@ export const Wso2ApiManagerPage = () => {
 
   const [tabValue, setTabValue] = useState(0);
   const [selectedGateway, setSelectedGateway] = useState('all');
-  const [syncStartTime] = useState(Date.now());
+  const [syncStartTime, setSyncStartTime] = useState(Date.now());
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isTimedOut, setIsTimedOut] = useState(false);
 
   const gatewaysState = useAsyncRetry(async () => {
@@ -515,8 +512,10 @@ export const Wso2ApiManagerPage = () => {
 
   const catalogState = useAsyncRetry(async () => {
     // Fetch all API entities from the catalog (increase limit to ensure we get everything)
+    // Only retrieve necessary metadata and annotations to avoid loading large specs (like OpenAPI definitions)
     const response = await catalogApi.getEntities({
       filter: { kind: 'API' },
+      fields: ['metadata.name', 'metadata.namespace', 'metadata.annotations'],
     });
 
     const allEntities = response.items;
@@ -723,7 +722,7 @@ export const Wso2ApiManagerPage = () => {
           const name = rowData.entityName || normalizeEntityName(rowData.name);
           return (
             <Link
-              href={`/catalog/${ns}/api/${name}`}
+              to={`/catalog/${ns}/api/${name}`}
               style={{ fontWeight: 'bold', color: '#007acc' }}
             >
               {rowData.name}
@@ -762,7 +761,7 @@ export const Wso2ApiManagerPage = () => {
           const name = (rowData as any).entityName || normalizeEntityName(rowData.name);
           return (
             <Link
-              href={`/catalog/${ns}/api/${name}`}
+              to={`/catalog/${ns}/api/${name}`}
               style={{ fontWeight: 'bold', color: '#007acc' }}
             >
               {rowData.name}
@@ -799,6 +798,27 @@ export const Wso2ApiManagerPage = () => {
     [],
   );
 
+  // Real-time progress bar ticker for catalog synchronization
+  useEffect(() => {
+    const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
+    if (hasApis || isTimedOut) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const sec = Math.round((Date.now() - syncStartTime) / 1000);
+      setElapsedSeconds(sec);
+      if (sec > syncTimeout) {
+        setIsTimedOut(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [syncStartTime, syncTimeout, isTimedOut, apiListState.value?.apis?.length]);
+
+  const progressPercent = Math.min(100, Math.round((elapsedSeconds / syncTimeout) * 100));
+
   // Automatically retry fetching if the list is empty (polling every 15 seconds)
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -832,7 +852,7 @@ export const Wso2ApiManagerPage = () => {
           const name = (rowData as any).entityName || normalizeEntityName(rowData.name);
           return (
             <Link
-              href={`/catalog/${ns}/api/${name}`}
+              to={`/catalog/${ns}/api/${name}`}
               style={{ fontWeight: 'bold', color: '#007acc' }}
             >
               {rowData.name}
@@ -904,7 +924,7 @@ export const Wso2ApiManagerPage = () => {
                 />
               </Box>
             )}
-            {apiListState.loading && (
+            {apiListState.loading && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
                 <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
                 <Box mt={2}>
@@ -912,6 +932,11 @@ export const Wso2ApiManagerPage = () => {
                     Fetching APIs from WSO2...
                   </Typography>
                 </Box>
+              </Box>
+            )}
+            {apiListState.loading && apiListState.value?.apis && apiListState.value.apis.length > 0 && (
+              <Box mb={2}>
+                <LinearProgress color="primary" style={{ height: 3, borderRadius: 2 }} />
               </Box>
             )}
             {apiListState.error && (
@@ -929,6 +954,8 @@ export const Wso2ApiManagerPage = () => {
                   variant="contained"
                   color="primary"
                   onClick={() => {
+                    setSyncStartTime(Date.now());
+                    setElapsedSeconds(0);
                     setIsTimedOut(false);
                     apiListState.retry();
                   }}
@@ -940,14 +967,33 @@ export const Wso2ApiManagerPage = () => {
             )}
             {!apiListState.loading && !isTimedOut && offlineGateways.length === 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
-                <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
-                <Box mt={3} maxWidth={600}>
-                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
+                <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6, marginBottom: '24px' }} />
+                <Box mt={3} maxWidth={500} width="100%" px={3}>
+                  <Typography variant="h5" gutterBottom style={{ fontWeight: 600, color: '#1a202c' }}>
                     Synchronizing Catalog...
                   </Typography>
-                  <Typography variant="body1" color="textSecondary">
-                    We're currently discovering APIs from your WSO2 environments.
-                    If you've just configured the provider, this may take a few moments to populate.
+                  <Box my={3}>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={progressPercent} 
+                      style={{ 
+                        height: 8, 
+                        borderRadius: 4, 
+                        backgroundColor: '#e2e8f0',
+                      }} 
+                    />
+                    <Box display="flex" justifyContent="space-between" mt={1}>
+                      <Typography variant="caption" color="textSecondary">
+                        {elapsedSeconds}s elapsed
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary" style={{ fontWeight: 'bold' }}>
+                        Timeout: {syncTimeout}s
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Typography variant="body1" color="textSecondary" style={{ marginBottom: '16px' }}>
+                    We're currently discovering APIs from your WSO2 environments and populating the Backstage Catalog.
+                    This page will update automatically once the catalog sync completes.
                   </Typography>
                   <Box mt={2}>
                     <Button

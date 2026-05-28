@@ -18,9 +18,9 @@ import { useMemo } from 'react';
 import {
     InfoCard,
     Table,
+    Link,
 } from '@backstage/core-components';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import Link from '@material-ui/core/Link';
 import { Wso2ApiProductResource } from '../../api';
 
 const PRODUCT_RESOURCES_ANNOTATION = 'wso2.com/product-resources';
@@ -71,7 +71,7 @@ export const EntityWso2ApiProductResourcesCard = () => {
                 const normalizedName = rowData.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
                 return (
                     <Link
-                      href={`/catalog/${namespace}/api/${normalizedName}`}
+                      to={`/catalog/${namespace}/api/${normalizedName}`}
                       style={{ fontWeight: 'bold', color: '#007acc' }}
                     >
                       {rowData.name}
