@@ -21,7 +21,7 @@ import {
   Tabs,
   Tab,
   Box,
-  CircularProgress,
+  CircularProgress, LinearProgress,
   Typography,
   Button,
   FormControl,
@@ -490,6 +490,7 @@ export const Wso2ApiManagerPage = () => {
 
   const [tabValue, setTabValue] = useState(0);
   const [selectedGateway, setSelectedGateway] = useState('all');
+  const [selectedApiType, setSelectedApiType] = useState('all');
   const [syncStartTime, setSyncStartTime] = useState(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isTimedOut, setIsTimedOut] = useState(false);
@@ -552,33 +553,66 @@ export const Wso2ApiManagerPage = () => {
     // Filter to API Products
     const apiProducts = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'
-    ).map(e => ({
-      id: e.metadata.annotations?.['wso2.com/api-id'] as string,
-      name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
-      namespace: e.metadata.namespace,
-      version: e.metadata.annotations?.['wso2.com/api-version'] as string,
-      context: e.metadata.annotations?.['wso2.com/api-context'] as string,
-      provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
-      lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
-      type: 'API_PRODUCT',
-      isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
-      gateways: extractGateways(e.metadata.annotations || {}),
-      _rawAnnotations: e.metadata.annotations || {},
-    }));
+    ).map(e => {
+      const ann = e.metadata.annotations || {};
+      const rawJson = ann['wso2.com/api-raw-json'];
+      let parsedJson: any = {};
+      if (rawJson) {
+        try {
+          parsedJson = JSON.parse(rawJson);
+        } catch (err) {
+          console.error('Failed to parse wso2.com/api-raw-json for product', err);
+        }
+      }
+      return {
+        id: ann['wso2.com/api-id'] as string,
+        name: ann['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
+        namespace: e.metadata.namespace,
+        version: (ann['wso2.com/api-version'] as string) || parsedJson.version,
+        context: (ann['wso2.com/api-context'] as string) || parsedJson.context,
+        provider: (ann['wso2.com/api-provider'] as string) || parsedJson.provider,
+        lifeCycleStatus: (ann['wso2.com/api-lifecycle-status'] as string) || parsedJson.lifeCycleStatus,
+        type: 'API_PRODUCT',
+        isDiscovered: ann['wso2.com/is-discovered'] === 'true',
+        gateways: extractGateways(ann),
+        _rawAnnotations: ann,
+        entityName: e.metadata.name,
+      };
+    });
 
     // Filter to MCP Servers
     const mcpServers = allEntities.filter(e =>
       e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true'
-    ).map(e => ({
-      id: e.metadata.annotations?.['wso2.com/api-id'] as string,
-      name: e.metadata.annotations?.['wso2.com/api-name'] || e.metadata.name,
-      namespace: e.metadata.namespace,
-      version: e.metadata.annotations?.['wso2.com/api-version'] as string,
-      context: e.metadata.annotations?.['wso2.com/api-context'] as string,
-      provider: e.metadata.annotations?.['wso2.com/api-provider'] as string,
-      lifeCycleStatus: e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string,
-      isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true',
-    }));
+    ).map(e => {
+      const rawJson = e.metadata.annotations?.['wso2.com/api-raw-json'];
+      let parsedJson: any = {};
+      if (rawJson) {
+        try {
+          parsedJson = JSON.parse(rawJson);
+        } catch (err) {
+          console.error('Failed to parse wso2.com/api-raw-json', err);
+        }
+      }
+      return {
+        id: (e.metadata.annotations?.['wso2.com/api-id'] as string) || parsedJson.id,
+        name: e.metadata.annotations?.['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
+        namespace: e.metadata.namespace,
+        version: (e.metadata.annotations?.['wso2.com/api-version'] as string) || parsedJson.version,
+        context: (e.metadata.annotations?.['wso2.com/api-context'] as string) || parsedJson.context,
+        provider: (e.metadata.annotations?.['wso2.com/api-provider'] as string) || parsedJson.provider,
+        lifeCycleStatus: (e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string) || parsedJson.lifeCycleStatus,
+        isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true' || parsedJson.initiatedFromGateway === true,
+        description: parsedJson.description,
+        throttlingPolicy: parsedJson.throttlingPolicy,
+        transport: parsedJson.transport,
+        visibility: parsedJson.visibility,
+        policies: parsedJson.policies,
+        securityScheme: parsedJson.securityScheme,
+        maxTps: parsedJson.maxTps,
+        authorizationHeader: parsedJson.authorizationHeader,
+        apiKeyHeader: parsedJson.apiKeyHeader,
+      };
+    });
 
     return { apis, apiProducts, mcpServers };
   }, [catalogApi, tabValue]);
@@ -696,14 +730,32 @@ export const Wso2ApiManagerPage = () => {
     return Array.from(gateways).sort();
   }, [apiListState.value?.apis, gatewaysState.value]);
 
-  // Filter APIs based on selected gateway
+  // Derive all unique API types for the filter dropdown
+  const availableApiTypes = useMemo(() => {
+    const types = new Set<string>();
+
+    apiListState.value?.apis.forEach(api => {
+      if (api.type) {
+        types.add(api.type);
+      }
+    });
+
+    return Array.from(types).sort();
+  }, [apiListState.value?.apis]);
+
+  // Filter APIs based on selected gateway and API type
   const filteredApis = useMemo(() => {
-    const apis = apiListState.value?.apis || [];
-    if (selectedGateway === 'all') return apis;
-    return apis.filter(api =>
-      api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway)
-    );
-  }, [apiListState.value?.apis, selectedGateway]);
+    let apis = apiListState.value?.apis || [];
+    if (selectedGateway !== 'all') {
+      apis = apis.filter(api =>
+        api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway)
+      );
+    }
+    if (selectedApiType !== 'all') {
+      apis = apis.filter(api => api.type === selectedApiType);
+    }
+    return apis;
+  }, [apiListState.value?.apis, selectedGateway, selectedApiType]);
 
   // Filter API Products based on selected gateway
   const filteredApiProducts = useMemo(() => {
@@ -784,14 +836,6 @@ export const Wso2ApiManagerPage = () => {
           return 'WSO2';
         }
       },
-      {
-        title: 'Debug: Raw Endpoints',
-        render: rowData => {
-          const ann = (rowData as any)._rawAnnotations || {};
-          const val = ann['wso2.com/api-endpoints'] || ann['wso2-gateway.com/api-endpoints'];
-          return <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val}>{val || 'Missing'}</div>;
-        }
-      },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
     ],
@@ -864,6 +908,7 @@ export const Wso2ApiManagerPage = () => {
       { title: 'Provided By', field: 'provider' },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
+      { title: 'Description', field: 'description' },
     ],
     [],
   );
@@ -874,6 +919,28 @@ export const Wso2ApiManagerPage = () => {
       <Header title="WSO2 API Manager" subtitle="Browse APIs and details" />
       <Content>
         <ContentHeader title="">
+
+          <Box ml={2} minWidth={200}>
+            <FormControl fullWidth variant="outlined" size="small">
+              <InputLabel id="api-type-select-label">Select Type</InputLabel>
+              <Select
+                labelId="api-type-select-label"
+                id="api-type-select"
+                value={selectedApiType}
+                label="Select Type"
+                onChange={(e) => setSelectedApiType(e.target.value as string)}
+              >
+                <MenuItem value="all">
+                  <span>All Types</span>
+                </MenuItem>
+                {availableApiTypes.map(type => (
+                  <MenuItem key={type} value={type}>
+                    {type}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
           <Box ml={2} minWidth={200}>
             <FormControl fullWidth variant="outlined" size="small">
@@ -910,7 +977,7 @@ export const Wso2ApiManagerPage = () => {
             <Tab label="APIs" />
             <Tab label="API Products" />
             <Tab label="MCPs" />
-            <Tab label="Health" />
+
           </Tabs>
         </Box>
 
@@ -1071,6 +1138,26 @@ export const Wso2ApiManagerPage = () => {
                 message={apiProductListState.error.message}
               />
             )}
+            {apiProductListState.loading && apiProductListState.value?.apiProducts && apiProductListState.value.apiProducts.length === 0 && isTimedOut && (
+              <WarningPanel
+                title="Sync Timed Out"
+                message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load API Products. Please check your WSO2 backend logs or verify your provider configuration.`}
+              >
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    setSyncStartTime(Date.now());
+                    setElapsedSeconds(0);
+                    setIsTimedOut(false);
+                    apiProductListState.retry();
+                  }}
+                  style={{ marginTop: '16px' }}
+                >
+                  Retry Now
+                </Button>
+              </WarningPanel>
+            )}
             {!apiProductListState.loading && (!apiProductListState.value?.apiProducts || apiProductListState.value.apiProducts.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
                 <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
@@ -1112,6 +1199,26 @@ export const Wso2ApiManagerPage = () => {
                 message={mcpListState.error.message}
               />
             )}
+            {mcpListState.loading && !mcpListState.value?.mcpServers && isTimedOut && (
+              <WarningPanel
+                title="Sync Timed Out"
+                message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load MCP Servers. Please check your WSO2 backend logs or verify your provider configuration.`}
+              >
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => {
+                    setSyncStartTime(Date.now());
+                    setElapsedSeconds(0);
+                    setIsTimedOut(false);
+                    mcpListState.retry();
+                  }}
+                  style={{ marginTop: '16px' }}
+                >
+                  Retry Now
+                </Button>
+              </WarningPanel>
+            )}
             {!mcpListState.loading && (!mcpListState.value?.mcpServers || mcpListState.value.mcpServers.length === 0) && (
               <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
                 <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
@@ -1135,7 +1242,7 @@ export const Wso2ApiManagerPage = () => {
           </>
         )}
 
-        {tabValue === 3 && <HealthTab />}
+
 
       </Content>
 

@@ -53,8 +53,6 @@ export const EntityWso2McpToolsCard = () => {
             ),
         },
         { title: 'Description', field: 'description' },
-        { title: 'Auth Type', field: 'authType' },
-        { title: 'Throttling Policy', field: 'throttlingPolicy' },
     ];
 
     return (

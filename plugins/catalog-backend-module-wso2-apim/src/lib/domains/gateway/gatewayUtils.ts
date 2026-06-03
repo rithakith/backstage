@@ -64,6 +64,7 @@ export async function discoverGatewayApis(
                   initiatedFromGateway: true,
                   isDirectDiscovery: true,
                   discoveredFrom: gw.environmentName,
+                  environmentType: gw.environmentType,
                   gatewayUrls: gw.urls,
                   fullConfig: apiConfig.configuration || apiConfig,
                 };

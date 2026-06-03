@@ -45,7 +45,7 @@ export function mapDiscoveredApiToEntity(api: any): ApiEntity {
         'wso2-gateway.com/discovered-from': api.discoveredFrom,
         'wso2-gateway.com/api-endpoints': JSON.stringify([{
           environmentName: api.discoveredFrom,
-          environmentType: 'PRODUCTION',
+          environmentType: api.environmentType || 'wso2',
           gatewayType: normalizeGatewayType('Self-hosted'),
           displayName: api.discoveredFrom,
           urls: (api.gatewayUrls || []).map((u: string) => {
@@ -65,8 +65,8 @@ export function mapDiscoveredApiToEntity(api: any): ApiEntity {
       tags: [`gateway-${normalizeEntityName(api.discoveredFrom)}`],
     },
     spec: {
-      type: 'openapi',
-      lifecycle: 'production',
+      type: (api.type || api.apiType || spec.type || 'openapi').toLowerCase(),
+      lifecycle: undefined as any,
       owner: 'unknown',
       definition: api.fetchedSwagger || '',
     },

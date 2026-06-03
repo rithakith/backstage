@@ -83,7 +83,7 @@ export function mapWso2ApiToEntity(
           'wso2.com/platform-gateway-endpoints': JSON.stringify(
             platformGateways.map(gw => ({
               environmentName: gw.environmentName,
-              environmentType: gw.environmentType || 'PRODUCTION',
+              environmentType: gw.environmentType || 'wso2',
               gatewayType: normalizeGatewayType('Self-hosted'),
               displayName: gw.environmentName,
               urls: gw.urls.map(u => {
@@ -102,7 +102,7 @@ export function mapWso2ApiToEntity(
     },
     spec: {
       type: getApiSpecType(api.type),
-      lifecycle: api.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
+      lifecycle: undefined as any,
       owner: normalizeEntityName(api.provider || 'unknown'),
       definition: api.definition || '',
     },
@@ -189,8 +189,5 @@ export function reconstructGatewayEndpoints(api: any, globalSettings: GlobalSett
 }
 
 function getApiSpecType(type: string): string {
-  if (type === 'HTTP' || type === 'SOAP') return 'openapi';
-  if (type === 'GRAPHQL') return 'graphql';
-  if (['WEBSUB', 'WS', 'SSE', 'ASYNC'].includes(type)) return 'asyncapi';
-  return 'api';
+  return (type || 'api').toLowerCase();
 }

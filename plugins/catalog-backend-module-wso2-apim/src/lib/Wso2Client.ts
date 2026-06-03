@@ -33,17 +33,20 @@ export class Wso2Client {
   private readonly scopes: string;
   private accessToken?: string;
   private tokenExpiresAt?: number;
+  private readonly tokenUrl: string;
+  private readonly grantType: string; // e.g., client_credentials or jwt-bearer
 
   constructor(options: { config: Config; logger: LoggerService }) {
-    this.baseUrl = options.config.getString(
-      'catalog.providers.wso2Apim.baseUrl',
-    );
+    this.baseUrl = options.config.getString('wso2ApiManager.baseUrl');
 
     this.clientId = options.config.getString('wso2ApiManager.auth.clientId');
     this.clientSecret = options.config.getString(
       'wso2ApiManager.auth.clientSecret',
     );
     this.logger = options.logger;
+
+    // optional grant type, defaults to client_credentials
+    this.grantType = options.config.getOptionalString('wso2ApiManager.auth.grantType') ?? 'client_credentials';
 
     const rejectUnauthorized = options.config.getOptionalBoolean('wso2ApiManager.tls.rejectUnauthorized') ?? true;
     this.dispatcher = new Agent({ connect: { rejectUnauthorized } });
@@ -52,8 +55,25 @@ export class Wso2Client {
       'wso2ApiManager.publisherBasePath',
     );
     const additionalScopes = options.config.getOptionalStringArray('wso2ApiManager.auth.additionalScopes') || [];
-    const baseScopes = ['apim:api_view', 'apim:publisher_settings', 'apim:api_create', 'apim:api_publish', 'apim:api_import_export'];
+    const baseScopes = [
+      'apim:api_view',
+      'apim:publisher_settings',
+      'apim:api_create',
+      'apim:api_publish',
+      'apim:api_import_export',
+      // MCP server related scopes required for catalog sync
+      'apim:mcp_server_view',
+      'apim:mcp_server_create',
+      'apim:mcp_server_publish',
+      'apim:mcp_server_generate_key',
+      'apim:mcp_server_import_export',
+      'apim:mcp_server_list_view',
+      'apim:llm_provider_read',
+    ];
     this.scopes = Array.from(new Set([...baseScopes, ...additionalScopes])).join(' ');
+
+    // Token URL configuration: use explicit tokenUrl if provided, otherwise default to baseUrl/oauth2/token
+    this.tokenUrl = options.config.getOptionalString('wso2ApiManager.auth.tokenUrl') ?? `${this.baseUrl}/oauth2/token`;
   }
 
   /**
@@ -110,13 +130,15 @@ export class Wso2Client {
         console.error('DEBUG: Request Error:', error);
         lastError = error;
 
+        const status = error.status ?? error.statusCode;
+
         // Don't retry on 4xx errors (except 401/429)
         if (
-          error.status &&
-          error.status >= 400 &&
-          error.status < 500 &&
-          error.status !== 401 &&
-          error.status !== 429
+          status &&
+          status >= 400 &&
+          status < 500 &&
+          status !== 401 &&
+          status !== 429
         ) {
           throw error;
         }
@@ -129,7 +151,7 @@ export class Wso2Client {
           );
           await new Promise(resolve => setTimeout(resolve, delay));
 
-          if (error.status === 401) {
+          if (status === 401) {
             this.accessToken = undefined; // Force token refresh on next attempt
           }
         }
@@ -157,10 +179,11 @@ export class Wso2Client {
     );
 
     const params = new URLSearchParams();
+    // Always use client_credentials grant type as JWT bearer is not needed
     params.append('grant_type', 'client_credentials');
     params.append('scope', this.scopes);
 
-    const tokenUrl = `${this.baseUrl}/oauth2/token`;
+    const tokenUrl = this.tokenUrl;
     console.log(`[Wso2Client DEBUG] Attempting to fetch token URL: ${tokenUrl}`);
     const response = await undiciFetch(tokenUrl, {
       method: 'POST',

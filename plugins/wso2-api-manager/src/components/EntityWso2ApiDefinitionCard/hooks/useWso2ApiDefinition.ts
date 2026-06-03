@@ -177,10 +177,18 @@ export const useWso2ApiDefinition = (options: {
     }
   }, [apiClient, apiId, isApiPlatform]);
 
-  const isDeployed =
-    gatewayUrls.length > 0 ||
-    (Array.isArray((revisionsState.value as any)?.list) &&
-      (revisionsState.value as any).list.length > 0);
+  const isDeployed = useMemo(() => {
+    const discoveryType = entity.metadata.annotations?.[DISCOVERY_TYPE_ANNOTATION];
+    
+    // For Publisher APIs, we ONLY consider it deployed if there are deployed revisions
+    if (!discoveryType) {
+      const list = (revisionsState.value as any)?.list;
+      return Array.isArray(list) && list.length > 0;
+    }
+
+    // For discovered APIs (Self-hosted or Platform), we check gatewayUrls
+    return gatewayUrls.length > 0;
+  }, [entity, gatewayUrls, revisionsState.value]);
 
   const swaggerSpec = useMemo(() => {
     if (!definitionState.value && !hasOperationsOnly) return undefined;

@@ -31,6 +31,7 @@ import {
   Grid,
   TextField,
 } from '@material-ui/core';
+import { Alert } from '@material-ui/lab';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import FileCopyIcon from '@material-ui/icons/FileCopy';
 import CheckIcon from '@material-ui/icons/Check';
@@ -41,6 +42,7 @@ interface Wso2WebSocketConsoleProps {
   apiKeyRef: React.MutableRefObject<string | null>;
   externalApiKey: string;
   apiKeyAuthPolicy: any;
+  isDeployed?: boolean;
 }
 
 export const Wso2WebSocketConsole = ({
@@ -49,11 +51,13 @@ export const Wso2WebSocketConsole = ({
   apiKeyRef,
   externalApiKey,
   apiKeyAuthPolicy,
+  isDeployed = true,
 }: Wso2WebSocketConsoleProps) => {
   const [selectedUrl, setSelectedUrl] = useState('');
   const [customUrl, setCustomUrl] = useState('');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshToken, setRefreshToken] = useState(0);
   const itemsPerPage = 5;
 
   // Initialize selected URL
@@ -84,8 +88,9 @@ export const Wso2WebSocketConsole = ({
   const authHeaders = useMemo(() => {
     const headers: { name: string; value: string }[] = [];
     const currentKey = apiKeyRef.current;
-    if (currentKey !== null) {
-      headers.push({ name: 'ApiKey', value: currentKey });
+    
+    if (apiKeyAuthPolicy || currentKey !== null) {
+      headers.push({ name: 'apikey', value: currentKey || 'undefined' });
     } else {
       // In case key is not fetched yet, keep placeholder matching standard WSO2 console style
       headers.push({ name: 'Authorization', value: `Bearer ${currentKey || 'undefined'}` });
@@ -98,7 +103,7 @@ export const Wso2WebSocketConsole = ({
       }
     }
     return headers;
-  }, [apiKeyRef, externalApiKey, apiKeyAuthPolicy]);
+  }, [apiKeyRef, externalApiKey, apiKeyAuthPolicy, refreshToken]);
 
   const getWscatCommand = (path: string) => {
     const formattedPath = path.startsWith('/') ? path : `/${path}`;
@@ -179,7 +184,16 @@ export const Wso2WebSocketConsole = ({
         Generate exact WebSocket terminal connection statements (`wscat`) utilizing target server environments and authorization credentials.
       </Typography>
 
+      {!isDeployed && (
+        <Box mb={3}>
+          <Alert severity="info">
+            <strong>Not Deployed:</strong> This API is not deployed to any gateway. Try it out functionality is disabled.
+          </Alert>
+        </Box>
+      )}
+
       {/* Gateway Endpoint URL selector */}
+      {isDeployed && (
       <Card style={{ marginBottom: '24px' }}>
         <CardContent>
           <Typography variant="subtitle2" style={{ fontWeight: 600, marginBottom: '12px' }}>
@@ -220,6 +234,7 @@ export const Wso2WebSocketConsole = ({
           </Grid>
         </CardContent>
       </Card>
+      )}
 
       {/* Topics Accordion List */}
       <Box>
@@ -273,9 +288,15 @@ export const Wso2WebSocketConsole = ({
                 </Box>
               </AccordionSummary>
               <AccordionDetails style={{ display: 'block', padding: '16px 24px' }}>
-                <Typography variant="caption" color="textSecondary" style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-                  CONNECTION COMMAND
-                </Typography>
+                {!isDeployed ? (
+                  <Typography variant="body2" color="textSecondary" style={{ fontStyle: 'italic' }}>
+                    Connect functionality is disabled because the API is not deployed.
+                  </Typography>
+                ) : (
+                  <>
+                    <Typography variant="caption" color="textSecondary" style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
+                      cURL
+                    </Typography>
                 <Box
                   p={2}
                   style={{
@@ -287,31 +308,29 @@ export const Wso2WebSocketConsole = ({
                     fontSize: '12.5px',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-all',
-                    marginBottom: '16px',
+                    marginBottom: '8px',
                   }}
                 >
                   {getWscatCommand(path)}
                 </Box>
-                <Box display="flex" justifyContent="flex-end" gridGap="12px" style={{ gap: '12px' }}>
+                <Box display="flex" justifyContent="flex-end" gridGap="16px" style={{ gap: '16px', marginRight: '8px' }}>
                   <Button
-                    variant="outlined"
-                    size="small"
-                    style={{ textTransform: 'none' }}
-                    onClick={() => {}}
+                    color="primary"
+                    style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.5px' }}
+                    onClick={() => setRefreshToken(prev => prev + 1)}
                   >
                     GENERATE CURL
                   </Button>
                   <Button
-                    variant="contained"
-                    size="small"
-                    color={copiedIndex === globalIdx ? 'secondary' : 'primary'}
+                    color="primary"
+                    style={{ fontWeight: 700, fontSize: '0.75rem', letterSpacing: '0.5px' }}
                     onClick={() => handleCopy(path, globalIdx)}
-                    startIcon={copiedIndex === globalIdx ? <CheckIcon /> : <FileCopyIcon />}
-                    style={{ textTransform: 'none' }}
                   >
                     {copiedIndex === globalIdx ? 'COPIED' : 'COPY CURL'}
                   </Button>
                 </Box>
+                </>
+                )}
               </AccordionDetails>
             </Accordion>
           );

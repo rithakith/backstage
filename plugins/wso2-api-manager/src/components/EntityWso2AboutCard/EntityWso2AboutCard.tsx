@@ -56,13 +56,26 @@ export const EntityWso2AboutCard = () => {
     const annotations = entity.metadata.annotations || {};
     const gridSizes = { xs: 12, sm: 6, lg: 4 };
 
+    const rawJson = annotations['wso2.com/api-raw-json'];
+    let parsedJson: any = {};
+    if (rawJson) {
+        try {
+            parsedJson = JSON.parse(rawJson);
+        } catch (e) {
+            console.error('Failed to parse raw JSON in AboutCard:', e);
+        }
+    }
+
     // Helper to get annotation value with fallback prefix
     const getAnnotation = (key: string) => annotations[`wso2.com/${key}`] || annotations[`wso2-gateway.com/${key}`];
 
-    const lifecycle = getAnnotation('api-lifecycle-status');
-    const context = getAnnotation('api-context');
-    const version = getAnnotation('api-version');
+    const lifecycle = getAnnotation('api-lifecycle-status') || parsedJson.lifeCycleStatus;
+    const context = getAnnotation('api-context') || parsedJson.context;
+    const version = getAnnotation('api-version') || parsedJson.version;
+    const provider = getAnnotation('api-provider') || parsedJson.provider;
     const endpointsRaw = getAnnotation('api-endpoints');
+
+    const description = entity.metadata.description || parsedJson.description;
 
     return (
         <InfoCard
@@ -80,6 +93,9 @@ export const EntityWso2AboutCard = () => {
                 )}
                 {version && (
                     <AboutField label="Version" value={version} gridSizes={gridSizes} />
+                )}
+                {provider && (
+                    <AboutField label="Provided By" value={provider} gridSizes={gridSizes} />
                 )}
                 {endpointsRaw && (
                     <AboutField 
@@ -100,27 +116,15 @@ export const EntityWso2AboutCard = () => {
                         gridSizes={gridSizes} 
                     />
                 )}
-                {getAnnotation('business-owner') && (
-                    <AboutField 
-                        label="Business Owner" 
-                        value={`${getAnnotation('business-owner')}${getAnnotation('business-owner-email') ? ` (${getAnnotation('business-owner-email')})` : ''}`} 
-                        gridSizes={gridSizes} 
-                    />
+                {parsedJson.throttlingPolicy && (
+                    <AboutField label="Throttling Policy" value={parsedJson.throttlingPolicy} gridSizes={gridSizes} />
                 )}
-                {getAnnotation('technical-owner') && (
-                    <AboutField 
-                        label="Technical Owner" 
-                        value={`${getAnnotation('technical-owner')}${getAnnotation('technical-owner-email') ? ` (${getAnnotation('technical-owner-email')})` : ''}`} 
-                        gridSizes={gridSizes} 
-                    />
+                {parsedJson.securityScheme && (
+                    <AboutField label="Security Scheme" value={Array.isArray(parsedJson.securityScheme) ? parsedJson.securityScheme.join(', ') : parsedJson.securityScheme} gridSizes={gridSizes} />
                 )}
-                {getAnnotation('api-visibility') && (
-                    <AboutField label="Visibility" value={getAnnotation('api-visibility')} gridSizes={gridSizes} />
-                )}
-               
-                {entity.metadata.description && (
+                {description && (
                     <Grid item xs={12}>
-                        <AboutField label="Description" value={entity.metadata.description} />
+                        <AboutField label="Description" value={description} />
                     </Grid>
                 )}
             </Grid>

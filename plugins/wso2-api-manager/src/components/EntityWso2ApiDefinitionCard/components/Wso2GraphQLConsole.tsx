@@ -33,6 +33,7 @@ import {
   IconButton,
   Tooltip,
 } from '@material-ui/core';
+import { Alert } from '@material-ui/lab';
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import FileCopyIcon from '@material-ui/icons/FileCopy';
 import CheckIcon from '@material-ui/icons/Check';
@@ -46,6 +47,7 @@ interface Wso2GraphQLConsoleProps {
   apiKeyRef: React.MutableRefObject<string | null>;
   externalApiKey: string;
   apiKeyAuthPolicy: any;
+  isDeployed?: boolean;
 }
 
 export const Wso2GraphQLConsole = ({
@@ -54,6 +56,7 @@ export const Wso2GraphQLConsole = ({
   apiKeyRef,
   externalApiKey,
   apiKeyAuthPolicy,
+  isDeployed = true,
 }: Wso2GraphQLConsoleProps) => {
   const [selectedUrl, setSelectedUrl] = useState('');
   const [customUrl, setCustomUrl] = useState('');
@@ -175,8 +178,17 @@ export const Wso2GraphQLConsole = ({
         Author your GraphQL commands and dynamically compile the exact `curl` statement, complete with your current gateway environments and credentials.
       </Typography>
 
+      {!isDeployed && (
+        <Box mb={3}>
+          <Alert severity="info">
+            <strong>Not Deployed:</strong> This API is not deployed to any gateway. Try it out functionality is disabled.
+          </Alert>
+        </Box>
+      )}
+
       <Grid container spacing={3}>
         {/* Left Side: Editors and Custom Headers */}
+        {isDeployed && (
         <Grid item xs={12} md={6}>
           {/* Endpoint/Gateway Selector */}
           <Card style={{ marginBottom: '16px' }}>
@@ -361,10 +373,12 @@ export const Wso2GraphQLConsole = ({
             </AccordionDetails>
           </Accordion>
         </Grid>
+        )}
 
         {/* Right Side: Compiled Curl & SDL explorer */}
-        <Grid item xs={12} md={6}>
+        <Grid item xs={12} md={isDeployed ? 6 : 12}>
           {/* Curl Command Display */}
+          {isDeployed && (
           <Card style={{ marginBottom: '16px' }}>
             <CardContent>
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -410,6 +424,7 @@ export const Wso2GraphQLConsole = ({
               </Box>
             </CardContent>
           </Card>
+          )}
 
           {/* GraphQL SDL Schema Viewer */}
           <Card>

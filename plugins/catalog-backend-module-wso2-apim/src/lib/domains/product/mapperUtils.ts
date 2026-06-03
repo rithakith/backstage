@@ -57,7 +57,7 @@ export function mapWso2ProductToEntity(
         'wso2.com/platform-gateway-endpoints': JSON.stringify(
           platformGateways.map(gw => ({
             environmentName: gw.environmentName,
-            environmentType: gw.environmentType || 'PRODUCTION',
+            environmentType: gw.environmentType || 'wso2',
             gatewayType: 'Self-hosted',
             displayName: gw.environmentName,
             urls: gw.urls.map(u => {
@@ -80,8 +80,8 @@ export function mapWso2ProductToEntity(
       tags: [...(product.tags || []), ...(product.initiatedFromGateway ? ['wso2-discovered'] : [])],
     },
     spec: {
-      type: 'openapi',
-      lifecycle: product.lifeCycleStatus === 'PUBLISHED' ? 'production' : 'experimental',
+      type: 'api_product',
+      lifecycle: undefined as any,
       owner: product.businessInformation?.technicalOwner || product.businessInformation?.businessOwner || product.provider || 'unknown',
       definition: product.definition || `WSO2 API Product: ${product.name}`,
     },

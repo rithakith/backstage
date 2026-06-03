@@ -95,11 +95,13 @@ const PolicyPagination = ({
 const Wso2PolicyFlowList = ({ 
   flowType, 
   policies, 
-  classes 
+  classes,
+  hideLabel = false
 }: { 
   flowType: string; 
   policies: any[]; 
   classes: any; 
+  hideLabel?: boolean;
 }) => {
   const [page, setPage] = useState(1);
   const itemsPerPage = 5;
@@ -111,9 +113,11 @@ const Wso2PolicyFlowList = ({
 
   return (
     <Box mb={2} width="100%">
-      <Typography variant="caption" style={{ fontWeight: 'bold', display: 'block', marginBottom: '12px', opacity: 0.6 }}>
-        {flowType.toUpperCase()} FLOW ({policies.length} {policies.length === 1 ? 'policy' : 'policies'})
-      </Typography>
+      {!hideLabel && (
+        <Typography variant="caption" style={{ fontWeight: 'bold', display: 'block', marginBottom: '12px', opacity: 0.6 }}>
+          {flowType.toUpperCase()} FLOW ({policies.length} {policies.length === 1 ? 'policy' : 'policies'})
+        </Typography>
+      )}
       <Box>
         {paginatedPolicies.map((policy: any, idx: number) => {
           const hasParams = (policy.parameters && Object.keys(policy.parameters).length > 0) || (policy.params && Object.keys(policy.params).length > 0);
@@ -184,8 +188,10 @@ export const Wso2PublisherPoliciesList = ({
     ? gatewayApiPolicies 
     : (details?.apiPolicies || {});
     
+  const isFlatApiPolicies = Array.isArray(rawApiPolicies);
+
   const apiPolicies = useMemo(() => {
-    if (Array.isArray(rawApiPolicies)) {
+    if (isFlatApiPolicies) {
       return { request: rawApiPolicies, response: [], fault: [] };
     }
     return {
@@ -193,7 +199,7 @@ export const Wso2PublisherPoliciesList = ({
       response: rawApiPolicies.response || [],
       fault: rawApiPolicies.fault || [],
     };
-  }, [rawApiPolicies]);
+  }, [rawApiPolicies, isFlatApiPolicies]);
 
   const operations = gatewayOperations && gatewayOperations.length > 0 
     ? gatewayOperations 
@@ -215,12 +221,12 @@ export const Wso2PublisherPoliciesList = ({
             >
               Global API Policies
             </Typography>
-            <Tooltip title="Policies applied globally across all resources and operations of this API." arrow>
+            <Tooltip title="Policies applied globally across all resources of this API." arrow>
               <InfoIcon style={{ fontSize: '1rem', marginLeft: '8px', cursor: 'pointer', opacity: 0.6 }} />
             </Tooltip>
           </Box>
           <Box p={0.5}>
-            <Wso2PolicyFlowList flowType="Request" policies={apiPolicies.request} classes={classes} />
+            <Wso2PolicyFlowList flowType="Request" policies={apiPolicies.request} classes={classes} hideLabel={isFlatApiPolicies} />
             <Wso2PolicyFlowList flowType="Response" policies={apiPolicies.response} classes={classes} />
             <Wso2PolicyFlowList flowType="Fault" policies={apiPolicies.fault} classes={classes} />
           </Box>
@@ -236,7 +242,7 @@ export const Wso2PublisherPoliciesList = ({
             >
               Operation Level Policies
             </Typography>
-            <Tooltip title="Policies applied specifically to individual HTTP verbs and sub-paths of this API." arrow>
+            <Tooltip title="Policies applied specifically to specific resources of this API." arrow>
               <InfoIcon style={{ fontSize: '1rem', marginLeft: '8px', cursor: 'pointer', opacity: 0.6 }} />
             </Tooltip>
           </Box>
@@ -244,7 +250,8 @@ export const Wso2PublisherPoliciesList = ({
           <Box>
             {paginatedOperations.map((op: any, idx: number) => {
               const rawOpPolicies = op.operationPolicies || op.policies || {};
-              const opPolicies = Array.isArray(rawOpPolicies) 
+              const isFlatOpPolicies = Array.isArray(rawOpPolicies);
+              const opPolicies = isFlatOpPolicies 
                 ? { request: rawOpPolicies, response: [], fault: [] }
                 : {
                     request: rawOpPolicies.request || [],
@@ -305,7 +312,7 @@ export const Wso2PublisherPoliciesList = ({
                     <Box width="100%">
                       {hasOpPolicies ? (
                         <>
-                          <Wso2PolicyFlowList flowType="Request" policies={opPolicies.request} classes={classes} />
+                          <Wso2PolicyFlowList flowType="Request" policies={opPolicies.request} classes={classes} hideLabel={isFlatOpPolicies} />
                           {opPolicies.response?.length > 0 && (
                             <>
                               <Divider style={{ margin: '16px 0' }} />

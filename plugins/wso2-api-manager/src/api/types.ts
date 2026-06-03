@@ -56,7 +56,7 @@ export type Wso2McpTool = {
   description?: string;
   authType?: string;
   throttlingPolicy?: string;
-  payloadSchema?: any;
+  version?: string;
 };
 
 export type Wso2McpSummary = {
@@ -67,9 +67,15 @@ export type Wso2McpSummary = {
   provider?: string;
   context?: string;
   lifeCycleStatus?: string;
-  isDiscovered?: boolean;
-  tools?: Wso2McpTool[];
-};
+  description?: string;
+  throttlingPolicy?: string;
+  transport?: string[];
+  visibility?: string;
+  policies?: string[];
+  securityScheme?: string[];
+  maxTps?: number;
+  authorizationHeader?: string;
+  apiKeyHeader?: string;};
 
 export type Wso2McpDetail = Wso2McpSummary & {
   description?: string;

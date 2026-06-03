@@ -205,5 +205,8 @@
       }
     },
     "tsConfig": "./tsconfig.json"
+  },
+  "majestic": {
+    "jestScript": "yarn test"
   }
 }

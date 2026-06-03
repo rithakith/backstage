@@ -148,6 +148,14 @@ export const EntityWso2ApiDefinitionCard = () => {
 
   const hasApiKeyHeader = useMemo(() => {
     if (!details) return true;
+    
+    // Check the official WSO2 securityScheme array if present
+    const securityScheme = (details as any).securityScheme;
+    if (Array.isArray(securityScheme) && securityScheme.length > 0) {
+      return securityScheme.includes('api_key');
+    }
+    
+    // Fallback to CORS headers
     const headers = details.corsConfiguration?.accessControlAllowHeaders || details.accessControlAllowHeaders;
     if (!headers || !Array.isArray(headers)) return true;
     return headers.some(h => h.toLowerCase() === 'apikey');
@@ -383,11 +391,13 @@ export const EntityWso2ApiDefinitionCard = () => {
                 )}
 
                 {/* External API Key Input (if api-key-auth policy is present) */}
-                <Wso2ExternalApiAuthSection
-                  apiKeyAuthPolicy={apiKeyAuthPolicy}
-                  externalApiKey={externalApiKey}
-                  setExternalApiKey={setExternalApiKey}
-                />
+                {isDeployed && (
+                  <Wso2ExternalApiAuthSection
+                    apiKeyAuthPolicy={apiKeyAuthPolicy}
+                    externalApiKey={externalApiKey}
+                    setExternalApiKey={setExternalApiKey}
+                  />
+                )}
 
                 {/* Gateway Server URL Display (hidden for HTTP/HTTP_AI since Swagger UI displays it) */}
                 {showGatewayUrlDisplay && (
@@ -441,11 +451,13 @@ export const EntityWso2ApiDefinitionCard = () => {
                 )}
 
                 {/* External API Key Input (if api-key-auth policy is present) */}
-                <Wso2ExternalApiAuthSection
-                  apiKeyAuthPolicy={apiKeyAuthPolicy}
-                  externalApiKey={externalApiKey}
-                  setExternalApiKey={setExternalApiKey}
-                />
+                {isDeployed && (
+                  <Wso2ExternalApiAuthSection
+                    apiKeyAuthPolicy={apiKeyAuthPolicy}
+                    externalApiKey={externalApiKey}
+                    setExternalApiKey={setExternalApiKey}
+                  />
+                )}
               </Box>
 
               <Wso2GraphQLConsole
@@ -454,6 +466,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                 apiKeyRef={apiKeyRef}
                 externalApiKey={externalApiKey}
                 apiKeyAuthPolicy={apiKeyAuthPolicy}
+                isDeployed={isDeployed}
               />
             </div>
           )}
@@ -481,11 +494,13 @@ export const EntityWso2ApiDefinitionCard = () => {
                 )}
 
                 {/* External API Key Input (if api-key-auth policy is present) */}
-                <Wso2ExternalApiAuthSection
-                  apiKeyAuthPolicy={apiKeyAuthPolicy}
-                  externalApiKey={externalApiKey}
-                  setExternalApiKey={setExternalApiKey}
-                />
+                {isDeployed && (
+                  <Wso2ExternalApiAuthSection
+                    apiKeyAuthPolicy={apiKeyAuthPolicy}
+                    externalApiKey={externalApiKey}
+                    setExternalApiKey={setExternalApiKey}
+                  />
+                )}
               </Box>
 
               <Wso2WebSocketConsole
@@ -494,6 +509,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                 apiKeyRef={apiKeyRef}
                 externalApiKey={externalApiKey}
                 apiKeyAuthPolicy={apiKeyAuthPolicy}
+                isDeployed={isDeployed}
               />
             </div>
           )}

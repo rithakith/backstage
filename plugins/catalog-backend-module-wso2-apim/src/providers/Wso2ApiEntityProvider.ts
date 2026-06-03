@@ -103,7 +103,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
   private parsePlatformGateways(): PlatformGateway[] {
     return this.config.getOptionalConfigArray('wso2PlatformGateway')?.map(gw => ({
       environmentName: gw.getString('name'),
-      environmentType: gw.getOptionalString('environmentType') || 'PRODUCTION',
+      environmentType: gw.getOptionalString('environmentType') || 'wso2',
       urls: gw.getStringArray('urls'),
       discoveryUrl: gw.getOptionalString('discoveryUrl'),
       discoveryAuth: (gw.getOptionalString('discoveryUsername') && gw.getOptionalString('discoveryPassword'))
