@@ -21,7 +21,8 @@ import {
   Tabs,
   Tab,
   Box,
-  CircularProgress, LinearProgress,
+  CircularProgress,
+  LinearProgress,
   Typography,
   Button,
   FormControl,
@@ -33,11 +34,13 @@ import {
   CardContent,
   Divider,
   Chip,
+  useTheme,
 } from '@material-ui/core';
 import RefreshIcon from '@material-ui/icons/Refresh';
 import LinkIcon from '@material-ui/icons/Link';
 import PowerSettingsNewIcon from '@material-ui/icons/PowerSettingsNew';
 import SyncIcon from '@material-ui/icons/Sync';
+import GetAppIcon from '@material-ui/icons/GetApp';
 import {
   Content,
   ContentHeader,
@@ -63,7 +66,6 @@ import {
 } from '../../api';
 
 // Write permissions are currently disabled and hardcoded to false
-
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const useStyles = makeStyles(_theme => ({
@@ -151,8 +153,8 @@ const useStyles = makeStyles(_theme => ({
     fontFamily: '"Fira Code", "Source Code Pro", monospace',
     fontSize: '0.85rem',
     wordBreak: 'break-all',
-    color: '#1a202c', 
-    backgroundColor: '#f1f5f9', 
+    color: '#1a202c',
+    backgroundColor: '#f1f5f9',
     padding: '14px 18px',
     borderRadius: '14px',
     marginTop: '10px',
@@ -187,15 +189,15 @@ const useStyles = makeStyles(_theme => ({
       '& .MuiCardHeader-title': {
         fontWeight: 800,
         color: '#ffffff', // White text for header
-      }
+      },
     },
   },
   debugInfo: {
-     fontSize: '0.75rem',
-     color: '#718096',
-     marginTop: '8px',
-     fontStyle: 'italic',
-  }
+    fontSize: '0.75rem',
+    color: '#718096',
+    marginTop: '8px',
+    fontStyle: 'italic',
+  },
 }));
 
 // ─── Health Tab Component ──────────────────────────────────────────────────
@@ -208,7 +210,10 @@ const HealthTab = () => {
 
   const healthState = useAsync(async () => {
     try {
-      const token = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_view'], { optional: true });
+      const token = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_view'],
+        { optional: true },
+      );
       return await wso2Api.getHealth(token);
     } catch (error) {
       console.error('❌ [WSO2-Health] Failed to fetch health:', error);
@@ -220,7 +225,10 @@ const HealthTab = () => {
     setRefreshing(true);
     setRefreshMessage(null);
     try {
-      const token = await oauthApi.getAccessToken(['openid', 'profile', 'email', 'apim:api_view'], { optional: true });
+      const token = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_view'],
+        { optional: true },
+      );
       const result = await wso2Api.refreshCatalog(token);
       setRefreshMessage(result.message);
     } catch (error: any) {
@@ -232,27 +240,49 @@ const HealthTab = () => {
 
   if (healthState.loading) {
     return (
-      <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
-        <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+      <Box
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        my={10}
+      >
+        <CircularProgress
+          size={50}
+          thickness={4}
+          style={{ color: '#ff5000' }}
+        />
         <Box mt={2}>
-          <Typography variant="h6" color="textSecondary">Checking system health...</Typography>
+          <Typography variant="h6" color="textSecondary">
+            Checking system health...
+          </Typography>
         </Box>
       </Box>
     );
   }
 
   if (healthState.error) {
-    return <WarningPanel title="Health Check Failed" message={healthState.error.message} />;
+    return (
+      <WarningPanel
+        title="Health Check Failed"
+        message={healthState.error.message}
+      />
+    );
   }
 
-  const { 
-    apim = { status: 'Offline', baseUrl: '' }, 
-    platform = [], 
-    configs = [] 
+  const {
+    apim = { status: 'Offline', baseUrl: '' },
+    platform = [],
+    configs = [],
   } = (healthState.value || {}) as any;
 
   return (
-    <Box mt={4} p={4} borderRadius={24} style={{ backgroundColor: '#edf2f7', border: '1px solid #e2e8f0' }}>
+    <Box
+      mt={4}
+      p={4}
+      borderRadius={24}
+      style={{ backgroundColor: '#edf2f7', border: '1px solid #e2e8f0' }}
+    >
       <Grid container spacing={4}>
         {/* APIM Gateway Card */}
         <Grid item xs={12} md={6}>
@@ -265,20 +295,44 @@ const HealthTab = () => {
               <Divider />
               <Box mt={3}>
                 <Typography className={classes.cardLabel}>Base URL:</Typography>
-                <Typography className={classes.configUrl}>{apim?.baseUrl}</Typography>
+                <Typography className={classes.configUrl}>
+                  {apim?.baseUrl}
+                </Typography>
               </Box>
               <Box mt={3} display="flex" alignItems="center">
-                <Typography className={classes.cardLabel} style={{ marginBottom: 0, marginRight: 12 }}>System Status:</Typography>
-                <Typography className={apim?.status === 'Online' ? classes.statusOnline : classes.statusOffline}>
+                <Typography
+                  className={classes.cardLabel}
+                  style={{ marginBottom: 0, marginRight: 12 }}
+                >
+                  System Status:
+                </Typography>
+                <Typography
+                  className={
+                    apim?.status === 'Online'
+                      ? classes.statusOnline
+                      : classes.statusOffline
+                  }
+                >
                   {apim?.status}
                 </Typography>
               </Box>
               {apim?.status === 'Online' && (
-                <Box mt={4} display="flex" flexDirection="column" alignItems="center">
+                <Box
+                  mt={4}
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                >
                   <Button
                     variant="contained"
                     className={classes.refetchButton}
-                    startIcon={refreshing ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />}
+                    startIcon={
+                      refreshing ? (
+                        <CircularProgress size={20} color="inherit" />
+                      ) : (
+                        <SyncIcon />
+                      )
+                    }
                     onClick={handleRefresh}
                     disabled={refreshing}
                   >
@@ -286,7 +340,13 @@ const HealthTab = () => {
                   </Button>
                   {refreshMessage && (
                     <Box mt={2}>
-                      <Typography variant="body2" color="primary" style={{ fontWeight: 600 }}>{refreshMessage}</Typography>
+                      <Typography
+                        variant="body2"
+                        color="primary"
+                        style={{ fontWeight: 600 }}
+                      >
+                        {refreshMessage}
+                      </Typography>
                     </Box>
                   )}
                 </Box>
@@ -301,34 +361,82 @@ const HealthTab = () => {
             <CardContent>
               <Box className={classes.healthHeader}>
                 <Typography variant="h6">API Platform Gateways</Typography>
-                <PowerSettingsNewIcon style={{ color: platform.length > 0 && platform.every((p: any) => p?.status === 'Online') ? '#2e7d32' : '#ed8936', fontSize: 28 }} />
+                <PowerSettingsNewIcon
+                  style={{
+                    color:
+                      platform.length > 0 &&
+                      platform.every((p: any) => p?.status === 'Online')
+                        ? '#2e7d32'
+                        : '#ed8936',
+                    fontSize: 28,
+                  }}
+                />
               </Box>
               <Divider />
               <Box mt={3}>
                 {platform.length === 0 ? (
-                  <Typography variant="body1" style={{ color: '#718096' }}>No self-hosted gateways configured in app-config.</Typography>
+                  <Typography variant="body1" style={{ color: '#718096' }}>
+                    No self-hosted gateways configured in app-config.
+                  </Typography>
                 ) : (
                   platform.map((p: any, i: number) => (
-                    <Box key={i} mb={3} p={2} bgcolor="#f7fafc" borderRadius={16} border="1px solid #e2e8f0">
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography variant="subtitle1" style={{ fontWeight: 700, color: '#2d3748' }}>{p?.name} <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>({p?.type})</span></Typography>
-                        {p?.status === 'Online' ? <StatusOK /> : <StatusError />}
+                    <Box
+                      key={i}
+                      mb={3}
+                      p={2}
+                      bgcolor="#f7fafc"
+                      borderRadius={16}
+                      border="1px solid #e2e8f0"
+                    >
+                      <Box
+                        display="flex"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        mb={1}
+                      >
+                        <Typography
+                          variant="subtitle1"
+                          style={{ fontWeight: 700, color: '#2d3748' }}
+                        >
+                          {p?.name}{' '}
+                          <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                            ({p?.type})
+                          </span>
+                        </Typography>
+                        {p?.status === 'Online' ? (
+                          <StatusOK />
+                        ) : (
+                          <StatusError />
+                        )}
                       </Box>
-                      <Typography className={classes.configUrl}>{p?.urls?.join(', ')}</Typography>
+                      <Typography className={classes.configUrl}>
+                        {p?.urls?.join(', ')}
+                      </Typography>
                       <Box mt={2} display="flex" alignItems="center">
-                         <Chip 
-                            size="small" 
-                            label={p?.discoveryAuthPresent ? "Auth Configured" : "No Auth"} 
-                            style={{ 
-                                backgroundColor: p?.discoveryAuthPresent ? '#e6fffa' : '#fff5f5',
-                                color: p?.discoveryAuthPresent ? '#234e52' : '#c53030',
-                                fontWeight: 700,
-                                fontSize: '0.7rem'
-                            }} 
-                         />
-                         <Typography className={classes.debugInfo} style={{ marginLeft: 12, marginTop: 0 }}>
-                            Status: {p?.status}
-                         </Typography>
+                        <Chip
+                          size="small"
+                          label={
+                            p?.discoveryAuthPresent
+                              ? 'Auth Configured'
+                              : 'No Auth'
+                          }
+                          style={{
+                            backgroundColor: p?.discoveryAuthPresent
+                              ? '#e6fffa'
+                              : '#fff5f5',
+                            color: p?.discoveryAuthPresent
+                              ? '#234e52'
+                              : '#c53030',
+                            fontWeight: 700,
+                            fontSize: '0.7rem',
+                          }}
+                        />
+                        <Typography
+                          className={classes.debugInfo}
+                          style={{ marginLeft: 12, marginTop: 0 }}
+                        >
+                          Status: {p?.status}
+                        </Typography>
                       </Box>
                     </Box>
                   ))
@@ -340,29 +448,60 @@ const HealthTab = () => {
 
         {/* Configuration Endpoints */}
         <Grid item xs={12}>
-          <InfoCard title="Infrastructure Configuration Status" className={classes.infoCardRoot}>
+          <InfoCard
+            title="Infrastructure Configuration Status"
+            className={classes.infoCardRoot}
+          >
             <Box p={3}>
               <Grid container spacing={3}>
                 {configs.map((c: any, i: number) => (
                   <Grid item xs={12} md={4} key={i}>
-                    <Box p={2} border="1px solid #e2e8f0" borderRadius={16} display="flex" flexDirection="column" height="100%" bgcolor="#ffffff">
+                    <Box
+                      p={2}
+                      border="1px solid #e2e8f0"
+                      borderRadius={16}
+                      display="flex"
+                      flexDirection="column"
+                      height="100%"
+                      bgcolor="#ffffff"
+                    >
                       <Box display="flex" alignItems="center" mb={2}>
-                        <LinkIcon style={{ marginRight: 12, color: '#ff5000', fontSize: 20 }} />
-                        <Typography variant="subtitle2" style={{ fontWeight: 700, color: '#2d3748' }}>{c?.name}</Typography>
+                        <LinkIcon
+                          style={{
+                            marginRight: 12,
+                            color: '#ff5000',
+                            fontSize: 20,
+                          }}
+                        />
+                        <Typography
+                          variant="subtitle2"
+                          style={{ fontWeight: 700, color: '#2d3748' }}
+                        >
+                          {c?.name}
+                        </Typography>
                         <Box flexGrow={1} />
-                        <Chip 
-                          size="small" 
-                          label={c?.status} 
-                          style={{ 
-                            backgroundColor: c?.status === 'Online' ? '#e8f5e9' : '#ffebee',
-                            color: c?.status === 'Online' ? '#2e7d32' : '#c62828',
+                        <Chip
+                          size="small"
+                          label={c?.status}
+                          style={{
+                            backgroundColor:
+                              c?.status === 'Online' ? '#e8f5e9' : '#ffebee',
+                            color:
+                              c?.status === 'Online' ? '#2e7d32' : '#c62828',
                             fontWeight: 800,
-                            fontSize: '0.7rem'
-                          }} 
+                            fontSize: '0.7rem',
+                          }}
                         />
                       </Box>
-                      <Typography className={classes.cardLabel}>Endpoint URL:</Typography>
-                      <Typography className={classes.configUrl} style={{ fontSize: '0.75rem' }}>{c?.url}</Typography>
+                      <Typography className={classes.cardLabel}>
+                        Endpoint URL:
+                      </Typography>
+                      <Typography
+                        className={classes.configUrl}
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        {c?.url}
+                      </Typography>
                     </Box>
                   </Grid>
                 ))}
@@ -388,7 +527,13 @@ function normalizeEntityName(name?: string): string {
  */
 function normalizeGatewayType(type?: string): string {
   const t = (type || '').toLowerCase().trim();
-  if (t === 'wso2/synapse' || t === 'synapse' || t === 'wso2' || t === 'regular') return 'WSO2';
+  if (
+    t === 'wso2/synapse' ||
+    t === 'synapse' ||
+    t === 'wso2' ||
+    t === 'regular'
+  )
+    return 'WSO2';
   if (!t || t === 'api-platform' || t === 'apiplatform') return 'Apiplatform';
   // Capitalize first letter (e.g., kong -> Kong, apigee -> Apigee)
   return t.charAt(0).toUpperCase() + t.slice(1);
@@ -403,7 +548,9 @@ interface Wso2GatewayInfo {
 /**
  * Extracts gateway information from annotations.
  */
-function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[] {
+function extractGateways(
+  annotations: Record<string, string>,
+): Wso2GatewayInfo[] {
   const result: Wso2GatewayInfo[] = [];
   const processedNames = new Set<string>();
 
@@ -412,7 +559,7 @@ function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[]
     result.push({
       name,
       displayName: displayName || name || 'Unknown',
-      gatewayType: normalizeGatewayType(type)
+      gatewayType: normalizeGatewayType(type),
     });
     processedNames.add(name);
   };
@@ -424,7 +571,11 @@ function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[]
       const raw = JSON.parse(rawJsonStr);
       // If the raw JSON has gateway info, use it
       if (raw.gatewayType || raw.gatewayVendor) {
-        addGateway('publisher-gateway', 'Default', raw.gatewayType || raw.gatewayVendor);
+        addGateway(
+          'publisher-gateway',
+          'Default',
+          raw.gatewayType || raw.gatewayVendor,
+        );
       }
     } catch (e) {
       console.error('Failed to parse api-raw-json in extractGateways:', e);
@@ -432,13 +583,19 @@ function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[]
   }
 
   // 2. Check standard and gateway-discovered endpoints
-  const endpointsStr = annotations['wso2.com/api-endpoints'] || annotations['wso2-gateway.com/api-endpoints'];
+  const endpointsStr =
+    annotations['wso2.com/api-endpoints'] ||
+    annotations['wso2-gateway.com/api-endpoints'];
   if (endpointsStr && endpointsStr !== '[]') {
     try {
       const endpoints = JSON.parse(endpointsStr);
       if (Array.isArray(endpoints)) {
         endpoints.forEach((ep: any) => {
-          addGateway(ep.environmentName || ep.name, ep.displayName || ep.environmentName || ep.name, ep.gatewayType);
+          addGateway(
+            ep.environmentName || ep.name,
+            ep.displayName || ep.environmentName || ep.name,
+            ep.gatewayType,
+          );
         });
       }
     } catch (e) {
@@ -453,7 +610,11 @@ function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[]
       const endpoints = JSON.parse(gwEndpointsStr);
       if (Array.isArray(endpoints)) {
         endpoints.forEach((ep: any) => {
-          addGateway(ep.environmentName || ep.name, ep.displayName || ep.environmentName || ep.name, ep.gatewayType);
+          addGateway(
+            ep.environmentName || ep.name,
+            ep.displayName || ep.environmentName || ep.name,
+            ep.gatewayType,
+          );
         });
       }
     } catch (e) {
@@ -478,6 +639,159 @@ function extractGateways(annotations: Record<string, string>): Wso2GatewayInfo[]
   return result;
 }
 
+// ─── Service Detail Panel ──────────────────────────────────────────────────
+const ServiceDetailPanel = ({ service, oauthApi, wso2Api, catalogApis = [] }: any) => {
+  const theme = useTheme();
+
+  const usageState = useAsync(async () => {
+    const token = await oauthApi.getAccessToken(
+      ['openid', 'profile', 'email', 'apim:api_view'],
+      { optional: true },
+    );
+    const actualService = service.rowData || service;
+    const id =
+      actualService.wso2Id || actualService.id || actualService.serviceKey;
+    if (!id)
+      throw new Error(
+        `Service ID is undefined. Raw service object: ${JSON.stringify(
+          service,
+        )}`,
+      );
+    return wso2Api.getServiceUsage(id, token);
+  }, [service, oauthApi, wso2Api]);
+
+  const definitionState = useAsync(async () => {
+    const token = await oauthApi.getAccessToken(
+      ['openid', 'profile', 'email', 'apim:api_view'],
+      { optional: true },
+    );
+    const actualService = service.rowData || service;
+    const id =
+      actualService.wso2Id || actualService.id || actualService.serviceKey;
+    if (!id)
+      throw new Error(
+        `Service ID is undefined. Raw service object: ${JSON.stringify(
+          service,
+        )}`,
+      );
+    return wso2Api.getServiceDefinition(id, token);
+  }, [service, oauthApi, wso2Api]);
+
+  const formattedDefinition = useMemo(() => {
+    if (!definitionState.value) return '';
+    try {
+      return JSON.stringify(JSON.parse(definitionState.value), null, 2);
+    } catch {
+      return definitionState.value;
+    }
+  }, [definitionState.value]);
+
+  const handleDownload = () => {
+    if (!definitionState.value) return;
+    const actualService = service.rowData || service;
+    const isJson = formattedDefinition !== definitionState.value;
+    const ext = isJson ? 'json' : 'txt';
+    const fileName = `${actualService.name || actualService.wso2Id || 'service'}-definition.${ext}`;
+    const blob = new Blob([formattedDefinition || definitionState.value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Box
+      p={3}
+      bgcolor={theme.palette.background.default}
+      borderBottom={`1px solid ${theme.palette.divider}`}
+    >
+      <Typography variant="h6" style={{ marginBottom: 16 }}>
+        Service Usage
+      </Typography>
+      {usageState.loading && <CircularProgress size={20} />}
+      {usageState.error && (
+        <Typography color="error">{usageState.error.message}</Typography>
+      )}
+      {usageState.value && (
+        <Table
+          options={{ paging: false, search: false, padding: 'dense' }}
+          columns={[
+            {
+              title: 'Name',
+              field: 'name',
+              render: (rowData: any) => {
+                const matchedApi = catalogApis.find(
+                  (api: any) =>
+                    api.id === rowData.id || api.name === rowData.name,
+                );
+                const entityName = matchedApi
+                  ? matchedApi.entityName
+                  : normalizeEntityName(rowData.name);
+                const ns = matchedApi ? matchedApi.namespace : 'default';
+                return (
+                  <Link to={`/catalog/${ns}/api/${entityName}`}>
+                    {rowData.name}
+                  </Link>
+                );
+              },
+            },
+            { title: 'Version', field: 'version' },
+            { title: 'Context', field: 'context' },
+            { title: 'Provider', field: 'provider' },
+          ]}
+          data={usageState.value.list || []}
+        />
+      )}
+
+      <Box display="flex" justifyContent="space-between" alignItems="center" mt={3} mb={2}>
+        <Typography variant="h6" style={{ margin: 0 }}>
+          Definition
+        </Typography>
+        {definitionState.value && (
+          <Button
+            variant="outlined"
+            color="primary"
+            size="small"
+            startIcon={<GetAppIcon />}
+            onClick={handleDownload}
+          >
+            Download
+          </Button>
+        )}
+      </Box>
+      {definitionState.loading && <CircularProgress size={20} />}
+      {definitionState.error && (
+        <Typography color="error">{definitionState.error.message}</Typography>
+      )}
+      {definitionState.value && (
+        <Box
+          p={2}
+          bgcolor={theme.palette.background.paper}
+          borderRadius={4}
+          style={{
+            border: `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <pre
+            style={{
+              margin: 0,
+              fontSize: '0.8rem',
+              color: theme.palette.text.primary,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {formattedDefinition}
+          </pre>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────
 export const Wso2ApiManagerPage = () => {
   const classes = useStyles();
@@ -485,7 +799,9 @@ export const Wso2ApiManagerPage = () => {
   const catalogApi = useApi(catalogApiRef);
   const wso2Api = useApi(wso2ApiManagerApiRef);
   const configApi = useApi(configApiRef);
-  const syncTimeout = configApi.getOptionalNumber('wso2ApiManager.catalogSyncTimeoutSeconds') || 60;
+  const syncTimeout =
+    configApi.getOptionalNumber('wso2ApiManager.catalogSyncTimeoutSeconds') ||
+    60;
   // Write permissions are currently disabled
 
   const [tabValue, setTabValue] = useState(0);
@@ -509,8 +825,6 @@ export const Wso2ApiManagerPage = () => {
     }
   }, [wso2Api, oauthApi]);
 
-
-
   const catalogState = useAsyncRetry(async () => {
     // Fetch all API entities from the catalog (increase limit to ensure we get everything)
     // Only retrieve necessary metadata and annotations to avoid loading large specs (like OpenAPI definitions)
@@ -522,104 +836,158 @@ export const Wso2ApiManagerPage = () => {
     const allEntities = response.items;
 
     // Filter to regular APIs (those with wso2-id but NOT products/mcps)
-    const apis = allEntities.filter(e => {
-      const ann = e.metadata.annotations || {};
-      return (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) &&
-        ann['wso2.com/is-api-product'] !== 'true' &&
-        ann['wso2.com/is-mcp-server'] !== 'true';
-    }).map(e => {
-      const ann = e.metadata.annotations || {};
-      const displayName = ann['wso2.com/api-name'] || ann['wso2-gateway.com/api-name'] || e.metadata.name;
-      const isGatewayDiscovered = !!ann['wso2-gateway.com/api-id'] || ann['wso2.com/api-discovery-type'] === 'api-platform';
-      return {
-        id: (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) as string,
-        name: displayName,
-        displayName,
-        entityName: e.metadata.name,
-        namespace: e.metadata.namespace,
-        version: (ann['wso2.com/api-version'] || ann['wso2-gateway.com/api-version']) as string,
-        context: (ann['wso2.com/api-context'] || ann['wso2-gateway.com/api-context']) as string,
-        provider: (ann['wso2.com/api-provider'] || 'Gateway') as string,
-        lifeCycleStatus: (ann['wso2.com/api-lifecycle-status'] || 'Published') as string,
-        type: (ann['wso2.com/api-type'] || 'HTTP') as string,
-        isDiscovered: ann['wso2.com/is-discovered'] === 'true' || isGatewayDiscovered,
-        source: isGatewayDiscovered ? 'Gateway' : 'Publisher',
-        gatewayVendor: ann['wso2.com/api-gateway-vendor'],
-        _rawAnnotations: ann, // Store for debug column
-        gateways: extractGateways(ann),
-      };
-    });
+    const apis = allEntities
+      .filter(e => {
+        const ann = e.metadata.annotations || {};
+        return (
+          (ann['wso2.com/api-id'] || ann['wso2-gateway.com/api-id']) &&
+          ann['wso2.com/is-api-product'] !== 'true' &&
+          ann['wso2.com/is-mcp-server'] !== 'true'
+        );
+      })
+      .map(e => {
+        const ann = e.metadata.annotations || {};
+        const displayName =
+          ann['wso2.com/api-name'] ||
+          ann['wso2-gateway.com/api-name'] ||
+          e.metadata.name;
+        const isGatewayDiscovered =
+          !!ann['wso2-gateway.com/api-id'] ||
+          ann['wso2.com/api-discovery-type'] === 'api-platform';
+        return {
+          id: (ann['wso2.com/api-id'] ||
+            ann['wso2-gateway.com/api-id']) as string,
+          name: displayName,
+          displayName,
+          entityName: e.metadata.name,
+          namespace: e.metadata.namespace,
+          version: (ann['wso2.com/api-version'] ||
+            ann['wso2-gateway.com/api-version']) as string,
+          context: (ann['wso2.com/api-context'] ||
+            ann['wso2-gateway.com/api-context']) as string,
+          provider: (ann['wso2.com/api-provider'] || 'Gateway') as string,
+          lifeCycleStatus: (ann['wso2.com/api-lifecycle-status'] ||
+            'Published') as string,
+          type: (ann['wso2.com/api-type'] || 'HTTP') as string,
+          isDiscovered:
+            ann['wso2.com/is-discovered'] === 'true' || isGatewayDiscovered,
+          source: isGatewayDiscovered ? 'Gateway' : 'Publisher',
+          gatewayVendor: ann['wso2.com/api-gateway-vendor'],
+          _rawAnnotations: ann, // Store for debug column
+          gateways: extractGateways(ann),
+        };
+      });
 
     // Filter to API Products
-    const apiProducts = allEntities.filter(e =>
-      e.metadata.annotations?.['wso2.com/is-api-product'] === 'true'
-    ).map(e => {
-      const ann = e.metadata.annotations || {};
-      const rawJson = ann['wso2.com/api-raw-json'];
-      let parsedJson: any = {};
-      if (rawJson) {
-        try {
-          parsedJson = JSON.parse(rawJson);
-        } catch (err) {
-          console.error('Failed to parse wso2.com/api-raw-json for product', err);
+    const apiProducts = allEntities
+      .filter(
+        e => e.metadata.annotations?.['wso2.com/is-api-product'] === 'true',
+      )
+      .map(e => {
+        const ann = e.metadata.annotations || {};
+        const rawJson = ann['wso2.com/api-raw-json'];
+        let parsedJson: any = {};
+        if (rawJson) {
+          try {
+            parsedJson = JSON.parse(rawJson);
+          } catch (err) {
+            console.error(
+              'Failed to parse wso2.com/api-raw-json for product',
+              err,
+            );
+          }
         }
-      }
-      return {
-        id: ann['wso2.com/api-id'] as string,
-        name: ann['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
-        namespace: e.metadata.namespace,
-        version: (ann['wso2.com/api-version'] as string) || parsedJson.version,
-        context: (ann['wso2.com/api-context'] as string) || parsedJson.context,
-        provider: (ann['wso2.com/api-provider'] as string) || parsedJson.provider,
-        lifeCycleStatus: (ann['wso2.com/api-lifecycle-status'] as string) || parsedJson.lifeCycleStatus,
-        type: 'API_PRODUCT',
-        isDiscovered: ann['wso2.com/is-discovered'] === 'true',
-        gateways: extractGateways(ann),
-        _rawAnnotations: ann,
-        entityName: e.metadata.name,
-      };
-    });
+        return {
+          id: ann['wso2.com/api-id'] as string,
+          name: ann['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
+          namespace: e.metadata.namespace,
+          version:
+            (ann['wso2.com/api-version'] as string) || parsedJson.version,
+          context:
+            (ann['wso2.com/api-context'] as string) || parsedJson.context,
+          provider:
+            (ann['wso2.com/api-provider'] as string) || parsedJson.provider,
+          lifeCycleStatus:
+            (ann['wso2.com/api-lifecycle-status'] as string) ||
+            parsedJson.lifeCycleStatus,
+          type: 'API_PRODUCT',
+          isDiscovered: ann['wso2.com/is-discovered'] === 'true',
+          gateways: extractGateways(ann),
+          _rawAnnotations: ann,
+          entityName: e.metadata.name,
+        };
+      });
 
     // Filter to MCP Servers
-    const mcpServers = allEntities.filter(e =>
-      e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true'
-    ).map(e => {
-      const rawJson = e.metadata.annotations?.['wso2.com/api-raw-json'];
-      let parsedJson: any = {};
-      if (rawJson) {
-        try {
-          parsedJson = JSON.parse(rawJson);
-        } catch (err) {
-          console.error('Failed to parse wso2.com/api-raw-json', err);
+    const mcpServers = allEntities
+      .filter(
+        e => e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true',
+      )
+      .map(e => {
+        const rawJson = e.metadata.annotations?.['wso2.com/api-raw-json'];
+        let parsedJson: any = {};
+        if (rawJson) {
+          try {
+            parsedJson = JSON.parse(rawJson);
+          } catch (err) {
+            console.error('Failed to parse wso2.com/api-raw-json', err);
+          }
         }
-      }
-      return {
-        id: (e.metadata.annotations?.['wso2.com/api-id'] as string) || parsedJson.id,
-        name: e.metadata.annotations?.['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
+        return {
+          id:
+            (e.metadata.annotations?.['wso2.com/api-id'] as string) ||
+            parsedJson.id,
+          name:
+            e.metadata.annotations?.['wso2.com/api-name'] ||
+            parsedJson.name ||
+            e.metadata.name,
+          namespace: e.metadata.namespace,
+          version:
+            (e.metadata.annotations?.['wso2.com/api-version'] as string) ||
+            parsedJson.version,
+          context:
+            (e.metadata.annotations?.['wso2.com/api-context'] as string) ||
+            parsedJson.context,
+          provider:
+            (e.metadata.annotations?.['wso2.com/api-provider'] as string) ||
+            parsedJson.provider,
+          lifeCycleStatus:
+            (e.metadata.annotations?.[
+              'wso2.com/api-lifecycle-status'
+            ] as string) || parsedJson.lifeCycleStatus,
+          isDiscovered:
+            e.metadata.annotations?.['wso2.com/is-discovered'] === 'true' ||
+            parsedJson.initiatedFromGateway === true,
+          description: parsedJson.description,
+          throttlingPolicy: parsedJson.throttlingPolicy,
+          transport: parsedJson.transport,
+          visibility: parsedJson.visibility,
+          policies: parsedJson.policies,
+          securityScheme: parsedJson.securityScheme,
+          maxTps: parsedJson.maxTps,
+          authorizationHeader: parsedJson.authorizationHeader,
+          apiKeyHeader: parsedJson.apiKeyHeader,
+        };
+      });
+    const services = allEntities
+      .filter(
+        e => e.metadata.annotations?.['wso2.com/is-service'] === 'true',
+      )
+      .map(e => ({
+        id: e.metadata.annotations?.['wso2.com/service-id'] as string,
+        name: e.metadata.annotations?.['wso2.com/service-name'] as string,
         namespace: e.metadata.namespace,
-        version: (e.metadata.annotations?.['wso2.com/api-version'] as string) || parsedJson.version,
-        context: (e.metadata.annotations?.['wso2.com/api-context'] as string) || parsedJson.context,
-        provider: (e.metadata.annotations?.['wso2.com/api-provider'] as string) || parsedJson.provider,
-        lifeCycleStatus: (e.metadata.annotations?.['wso2.com/api-lifecycle-status'] as string) || parsedJson.lifeCycleStatus,
-        isDiscovered: e.metadata.annotations?.['wso2.com/is-discovered'] === 'true' || parsedJson.initiatedFromGateway === true,
-        description: parsedJson.description,
-        throttlingPolicy: parsedJson.throttlingPolicy,
-        transport: parsedJson.transport,
-        visibility: parsedJson.visibility,
-        policies: parsedJson.policies,
-        securityScheme: parsedJson.securityScheme,
-        maxTps: parsedJson.maxTps,
-        authorizationHeader: parsedJson.authorizationHeader,
-        apiKeyHeader: parsedJson.apiKeyHeader,
-      };
-    });
+        entityName: e.metadata.name,
+      }));
 
-    return { apis, apiProducts, mcpServers };
+    return { apis, apiProducts, mcpServers, services };
   }, [catalogApi, tabValue]);
 
   // Derive offline gateways
   const offlineGateways = useMemo(() => {
-    return gatewaysState.value?.filter((gw: any) => gw.status === 'Offline') || [];
+    return (
+      gatewaysState.value?.filter((gw: any) => gw.status === 'Offline') || []
+    );
   }, [gatewaysState.value]);
 
   const apiListState = {
@@ -650,20 +1018,31 @@ export const Wso2ApiManagerPage = () => {
                   existing.gateways.push({
                     name: gw.name,
                     displayName: gw.displayName || gw.name,
-                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
+                    gatewayType: normalizeGatewayType(
+                      gw.gatewayType || gw.type,
+                    ),
                   });
                 }
-                if (existing.source !== 'Gateway' && existing.source !== 'Both') {
+                if (
+                  existing.source !== 'Gateway' &&
+                  existing.source !== 'Both'
+                ) {
                   existing.source = 'Both';
                 }
               } else {
                 // Add new live-only API
-                const apiName = liveApi.displayName || liveApi.name || liveApi.id || 'unknown';
+                const apiName =
+                  liveApi.displayName ||
+                  liveApi.name ||
+                  liveApi.id ||
+                  'unknown';
                 const newApi = {
                   id: liveApi.id,
                   name: apiName,
                   displayName: apiName,
-                  entityName: `${normalizeEntityName(apiName)}-${normalizeEntityName(gw.name)}`,
+                  entityName: `${normalizeEntityName(
+                    apiName,
+                  )}-${normalizeEntityName(gw.name)}`,
                   namespace: 'wso2-gateways',
                   version: liveApi.version || '1.0.0',
                   context: liveApi.context || '/',
@@ -672,11 +1051,15 @@ export const Wso2ApiManagerPage = () => {
                   // ritz check if this is used.
                   isDiscovered: true,
                   source: 'Gateway (Live)',
-                  gateways: [{
-                    name: gw.name,
-                    displayName: gw.displayName || gw.name,
-                    gatewayType: normalizeGatewayType(gw.gatewayType || gw.type)
-                  }],
+                  gateways: [
+                    {
+                      name: gw.name,
+                      displayName: gw.displayName || gw.name,
+                      gatewayType: normalizeGatewayType(
+                        gw.gatewayType || gw.type,
+                      ),
+                    },
+                  ],
                   provider: 'Gateway',
                 };
                 combinedApis.push(newApi as any);
@@ -687,29 +1070,76 @@ export const Wso2ApiManagerPage = () => {
         });
       }
 
-      console.log(`📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`);
+      console.log(
+        `📊 [WSO2-Frontend] API Merge: Catalog=${catalogState.value.apis.length}, LiveFound=${liveCount}, LiveMerged=${mergedCount}, Total=${combinedApis.length}`,
+      );
 
       return { apis: combinedApis };
     }, [catalogState.value, gatewaysState.value]),
     // Gateway errors are surfaced as warnings (offlineGateways panel), not as blocking errors.
     // Only treat catalog errors as blocking — gateways are supplemental.
     error: catalogState.error,
-    retry: () => { catalogState.retry(); gatewaysState.retry(); }
+    retry: () => {
+      catalogState.retry();
+      gatewaysState.retry();
+    },
   };
 
   const apiProductListState = {
     loading: catalogState.loading,
-    value: catalogState.value ? { apiProducts: catalogState.value.apiProducts, pagination: { total: catalogState.value.apiProducts.length, offset: 0, limit: 1000 } } : undefined,
+    value: catalogState.value
+      ? {
+          apiProducts: catalogState.value.apiProducts,
+          pagination: {
+            total: catalogState.value.apiProducts.length,
+            offset: 0,
+            limit: 1000,
+          },
+        }
+      : undefined,
     error: catalogState.error,
-    retry: catalogState.retry
+    retry: catalogState.retry,
   };
 
   const mcpListState = {
     loading: catalogState.loading,
-    value: catalogState.value ? { mcpServers: catalogState.value.mcpServers, pagination: { total: catalogState.value.mcpServers.length, offset: 0, limit: 1000 } } : undefined,
+    value: catalogState.value
+      ? {
+          mcpServers: catalogState.value.mcpServers,
+          pagination: {
+            total: catalogState.value.mcpServers.length,
+            offset: 0,
+            limit: 1000,
+          },
+        }
+      : undefined,
     error: catalogState.error,
-    retry: catalogState.retry
+    retry: catalogState.retry,
   };
+
+  const servicesListState = useAsyncRetry(async () => {
+    try {
+      const token = await oauthApi.getAccessToken(
+        ['openid', 'profile', 'email', 'apim:api_view'],
+        { optional: true },
+      );
+      const res = await wso2Api.getServices({ token, limit: 1000, offset: 0 });
+      
+      const catalogServices = catalogState.value?.services || [];
+      const mergedList = res.list.map((svc: any) => {
+        const catSvc = catalogServices.find((cs: any) => cs.id === svc.id || cs.name === svc.name);
+        if (catSvc) {
+          return { ...svc, namespace: catSvc.namespace, entityName: catSvc.entityName };
+        }
+        return svc;
+      });
+
+      return { ...res, list: mergedList };
+    } catch (error) {
+      console.error('❌ [WSO2-Frontend] Failed to fetch services:', error);
+      throw error;
+    }
+  }, [wso2Api, oauthApi, catalogState.value?.services]);
 
   // Derive all unique gateway names for the filter dropdown
   const availableGateways = useMemo(() => {
@@ -748,7 +1178,7 @@ export const Wso2ApiManagerPage = () => {
     let apis = apiListState.value?.apis || [];
     if (selectedGateway !== 'all') {
       apis = apis.filter(api =>
-        api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway)
+        api.gateways?.some((gw: any) => gw.gatewayType === selectedGateway),
       );
     }
     if (selectedApiType !== 'all') {
@@ -761,8 +1191,6 @@ export const Wso2ApiManagerPage = () => {
   const filteredApiProducts = useMemo(() => {
     return apiProductListState.value?.apiProducts || [];
   }, [apiProductListState.value?.apiProducts]);
-
-
 
   const columns = useMemo<TableColumn<Wso2ApiSummary>[]>(
     () => [
@@ -790,11 +1218,13 @@ export const Wso2ApiManagerPage = () => {
         render: rowData => {
           const gws = (rowData as any).gateways || [];
           if (gws.length > 0) {
-            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            const types = Array.from(
+              new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))),
+            );
             return types[0];
           }
           return 'WSO2';
-        }
+        },
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
@@ -810,7 +1240,8 @@ export const Wso2ApiManagerPage = () => {
         render: rowData => {
           const ns = rowData.namespace || 'default';
           // API Products use the same normalization as APIs
-          const name = (rowData as any).entityName || normalizeEntityName(rowData.name);
+          const name =
+            (rowData as any).entityName || normalizeEntityName(rowData.name);
           return (
             <Link
               to={`/catalog/${ns}/api/${name}`}
@@ -830,11 +1261,13 @@ export const Wso2ApiManagerPage = () => {
         render: rowData => {
           const gws = rowData.gateways || [];
           if (gws.length > 0) {
-            const types = Array.from(new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))));
+            const types = Array.from(
+              new Set(gws.map((g: any) => normalizeGatewayType(g.gatewayType))),
+            );
             return types[0];
           }
           return 'WSO2';
-        }
+        },
       },
       { title: 'Lifecycle', field: 'lifeCycleStatus' },
       { title: 'Context', field: 'context' },
@@ -844,7 +1277,8 @@ export const Wso2ApiManagerPage = () => {
 
   // Real-time progress bar ticker for catalog synchronization
   useEffect(() => {
-    const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
+    const hasApis =
+      apiListState.value?.apis && apiListState.value.apis.length > 0;
     if (hasApis || isTimedOut) {
       setElapsedSeconds(0);
       return;
@@ -859,32 +1293,63 @@ export const Wso2ApiManagerPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [syncStartTime, syncTimeout, isTimedOut, apiListState.value?.apis?.length]);
+  }, [
+    syncStartTime,
+    syncTimeout,
+    isTimedOut,
+    apiListState.value?.apis?.length,
+  ]);
 
-  const progressPercent = Math.min(100, Math.round((elapsedSeconds / syncTimeout) * 100));
+  const progressPercent = Math.min(
+    100,
+    Math.round((elapsedSeconds / syncTimeout) * 100),
+  );
 
   // Automatically retry fetching if the list is empty (polling every 15 seconds)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    const hasApis = apiListState.value?.apis && apiListState.value.apis.length > 0;
+    const hasApis =
+      apiListState.value?.apis && apiListState.value.apis.length > 0;
     const hasOfflineGateways = offlineGateways.length > 0;
 
     // Only poll if there's no error, no APIs found yet, no offline gateways, and we haven't timed out
     // If a gateway is offline, we should stop the infinite polling and show the current APIM APIs or error state.
-    if (!apiListState.loading && !apiListState.error && !hasApis && !isTimedOut && !hasOfflineGateways) {
+    if (
+      !apiListState.loading &&
+      !apiListState.error &&
+      !hasApis &&
+      !isTimedOut &&
+      !hasOfflineGateways
+    ) {
       interval = setInterval(() => {
         const elapsed = (Date.now() - syncStartTime) / 1000;
         if (elapsed > syncTimeout) {
-          console.warn(`🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`);
+          console.warn(
+            `🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`,
+          );
           setIsTimedOut(true);
         } else {
-          console.log(`🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(elapsed)}s elapsed)...`);
+          console.log(
+            `🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(
+              elapsed,
+            )}s elapsed)...`,
+          );
           apiListState.retry();
         }
       }, 15000);
     }
-    return () => { if (interval) clearInterval(interval); };
-  }, [apiListState.loading, apiListState.error, apiListState.value?.apis?.length, isTimedOut, syncTimeout, syncStartTime, offlineGateways.length]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [
+    apiListState.loading,
+    apiListState.error,
+    apiListState.value?.apis?.length,
+    isTimedOut,
+    syncTimeout,
+    syncStartTime,
+    offlineGateways.length,
+  ]);
 
   const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
     () => [
@@ -893,7 +1358,8 @@ export const Wso2ApiManagerPage = () => {
         field: 'name',
         render: rowData => {
           const ns = rowData.namespace || 'default';
-          const name = (rowData as any).entityName || normalizeEntityName(rowData.name);
+          const name =
+            (rowData as any).entityName || normalizeEntityName(rowData.name);
           return (
             <Link
               to={`/catalog/${ns}/api/${name}`}
@@ -913,13 +1379,25 @@ export const Wso2ApiManagerPage = () => {
     [],
   );
 
+  const serviceColumns = useMemo<TableColumn<any>[]>(
+    () => [
+      {
+        title: 'Name',
+        field: 'name',
+      },
+      { title: 'Version', field: 'version' },
+      { title: 'Service URL', field: 'serviceUrl' },
+      { title: 'Definition Type', field: 'definitionType' },
+      { title: 'Usage', field: 'usage' },
+    ],
+    [],
+  );
 
   return (
     <Page themeId="tool" className={classes.root}>
       <Header title="WSO2 API Manager" subtitle="Browse APIs and details" />
       <Content>
         <ContentHeader title="">
-
           <Box ml={2} minWidth={200}>
             <FormControl fullWidth variant="outlined" size="small">
               <InputLabel id="api-type-select-label">Select Type</InputLabel>
@@ -928,7 +1406,7 @@ export const Wso2ApiManagerPage = () => {
                 id="api-type-select"
                 value={selectedApiType}
                 label="Select Type"
-                onChange={(e) => setSelectedApiType(e.target.value as string)}
+                onChange={e => setSelectedApiType(e.target.value as string)}
               >
                 <MenuItem value="all">
                   <span>All Types</span>
@@ -950,7 +1428,7 @@ export const Wso2ApiManagerPage = () => {
                 id="gateway-select"
                 value={selectedGateway}
                 label="Select Gateway"
-                onChange={(e) => setSelectedGateway(e.target.value as string)}
+                onChange={e => setSelectedGateway(e.target.value as string)}
               >
                 <MenuItem value="all">
                   <span>All Gateways</span>
@@ -965,8 +1443,6 @@ export const Wso2ApiManagerPage = () => {
           </Box>
         </ContentHeader>
 
-
-
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs
             value={tabValue}
@@ -977,7 +1453,7 @@ export const Wso2ApiManagerPage = () => {
             <Tab label="APIs" />
             <Tab label="API Products" />
             <Tab label="MCPs" />
-
+            <Tab label="Services" />
           </Tabs>
         </Box>
 
@@ -987,25 +1463,46 @@ export const Wso2ApiManagerPage = () => {
               <Box mb={2}>
                 <WarningPanel
                   title="Gateway Discovery Warning"
-                  message={`Error during discovery for the following gateways: ${offlineGateways.map((g: any) => g.name).join(', ')}. They may be unreachable or offline. Displaying available APIM APIs instead.`}
+                  message={`Error during discovery for the following gateways: ${offlineGateways
+                    .map((g: any) => g.name)
+                    .join(
+                      ', ',
+                    )}. They may be unreachable or offline. Displaying available APIM APIs instead.`}
                 />
               </Box>
             )}
-            {apiListState.loading && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
-                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
-                <Box mt={2}>
-                  <Typography variant="h6" color="textSecondary">
-                    Fetching APIs from WSO2...
-                  </Typography>
+            {apiListState.loading &&
+              (!apiListState.value?.apis ||
+                apiListState.value.apis.length === 0) && (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  my={10}
+                >
+                  <CircularProgress
+                    size={50}
+                    thickness={4}
+                    style={{ color: '#ff5000' }}
+                  />
+                  <Box mt={2}>
+                    <Typography variant="h6" color="textSecondary">
+                      Fetching APIs from WSO2...
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            )}
-            {apiListState.loading && apiListState.value?.apis && apiListState.value.apis.length > 0 && (
-              <Box mb={2}>
-                <LinearProgress color="primary" style={{ height: 3, borderRadius: 2 }} />
-              </Box>
-            )}
+              )}
+            {apiListState.loading &&
+              apiListState.value?.apis &&
+              apiListState.value.apis.length > 0 && (
+                <Box mb={2}>
+                  <LinearProgress
+                    color="primary"
+                    style={{ height: 3, borderRadius: 2 }}
+                  />
+                </Box>
+              )}
             {apiListState.error && (
               <WarningPanel
                 title="Failed to load APIs"
@@ -1032,84 +1529,143 @@ export const Wso2ApiManagerPage = () => {
                 </Button>
               </WarningPanel>
             )}
-            {!apiListState.loading && !isTimedOut && offlineGateways.length === 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
-                <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6, marginBottom: '24px' }} />
-                <Box mt={3} maxWidth={500} width="100%" px={3}>
-                  <Typography variant="h5" gutterBottom style={{ fontWeight: 600, color: '#1a202c' }}>
-                    Synchronizing Catalog...
-                  </Typography>
-                  <Box my={3}>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={progressPercent} 
-                      style={{ 
-                        height: 8, 
-                        borderRadius: 4, 
-                        backgroundColor: '#e2e8f0',
-                      }} 
-                    />
-                    <Box display="flex" justifyContent="space-between" mt={1}>
-                      <Typography variant="caption" color="textSecondary">
-                        {elapsedSeconds}s elapsed
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary" style={{ fontWeight: 'bold' }}>
-                        Timeout: {syncTimeout}s
+            {!apiListState.loading &&
+              !isTimedOut &&
+              offlineGateways.length === 0 &&
+              (!apiListState.value?.apis ||
+                apiListState.value.apis.length === 0) && (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  my={10}
+                  textAlign="center"
+                >
+                  <CircularProgress
+                    size={60}
+                    thickness={2}
+                    style={{
+                      color: '#ff5000',
+                      opacity: 0.6,
+                      marginBottom: '24px',
+                    }}
+                  />
+                  <Box mt={3} maxWidth={500} width="100%" px={3}>
+                    <Typography
+                      variant="h5"
+                      gutterBottom
+                      style={{ fontWeight: 600, color: '#1a202c' }}
+                    >
+                      Synchronizing Catalog...
+                    </Typography>
+                    <Box my={3}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={progressPercent}
+                        style={{
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: '#e2e8f0',
+                        }}
+                      />
+                      <Box display="flex" justifyContent="space-between" mt={1}>
+                        <Typography variant="caption" color="textSecondary">
+                          {elapsedSeconds}s elapsed
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="textSecondary"
+                          style={{ fontWeight: 'bold' }}
+                        >
+                          Timeout: {syncTimeout}s
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Typography
+                      variant="body1"
+                      color="textSecondary"
+                      style={{ marginBottom: '16px' }}
+                    >
+                      We're currently discovering APIs from your WSO2
+                      environments and populating the Backstage Catalog. This
+                      page will update automatically once the catalog sync
+                      completes.
+                    </Typography>
+                    <Box mt={2}>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={() => apiListState.retry()}
+                        startIcon={<RefreshIcon />}
+                        disabled={apiListState.loading}
+                      >
+                        Refresh Now
+                      </Button>
+                    </Box>
+                    <Box mt={2}>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        style={{ fontStyle: 'italic' }}
+                      >
+                        Tip: You can monitor the progress in your backend logs
+                        for "[WSO2-DISCOVERY]" messages.
                       </Typography>
                     </Box>
                   </Box>
-                  <Typography variant="body1" color="textSecondary" style={{ marginBottom: '16px' }}>
-                    We're currently discovering APIs from your WSO2 environments and populating the Backstage Catalog.
-                    This page will update automatically once the catalog sync completes.
-                  </Typography>
-                  <Box mt={2}>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      onClick={() => apiListState.retry()}
-                      startIcon={<RefreshIcon />}
-                      disabled={apiListState.loading}
+                </Box>
+              )}
+            {!apiListState.loading &&
+              !isTimedOut &&
+              offlineGateways.length > 0 &&
+              (!apiListState.value?.apis ||
+                apiListState.value.apis.length === 0) && (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  my={10}
+                  textAlign="center"
+                >
+                  <Box mt={3} maxWidth={600}>
+                    <Typography
+                      variant="h5"
+                      gutterBottom
+                      style={{ fontWeight: 500 }}
                     >
-                      Refresh Now
-                    </Button>
-                  </Box>
-                  <Box mt={2}>
-                    <Typography variant="caption" color="textSecondary" style={{ fontStyle: 'italic' }}>
-                      Tip: You can monitor the progress in your backend logs for "[WSO2-DISCOVERY]" messages.
+                      No APIs Available
                     </Typography>
+                    <Typography variant="body1" color="textSecondary">
+                      We could not find any APIs in your catalog, and gateway
+                      discovery failed. Please check your backend logs or
+                      gateway configuration.
+                    </Typography>
+                    <Box mt={2}>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        onClick={() => apiListState.retry()}
+                        startIcon={<RefreshIcon />}
+                        disabled={apiListState.loading}
+                      >
+                        Refresh Now
+                      </Button>
+                    </Box>
+                    <Box mt={2}>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        style={{ fontStyle: 'italic' }}
+                      >
+                        Tip: You can monitor the progress in your backend logs
+                        for "[WSO2-DISCOVERY]" messages.
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
-              </Box>
-            )}
-            {!apiListState.loading && !isTimedOut && offlineGateways.length > 0 && (!apiListState.value?.apis || apiListState.value.apis.length === 0) && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
-                <Box mt={3} maxWidth={600}>
-                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
-                    No APIs Available
-                  </Typography>
-                  <Typography variant="body1" color="textSecondary">
-                    We could not find any APIs in your catalog, and gateway discovery failed. 
-                    Please check your backend logs or gateway configuration.
-                  </Typography>
-                  <Box mt={2}>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      onClick={() => apiListState.retry()}
-                      startIcon={<RefreshIcon />}
-                      disabled={apiListState.loading}
-                    >
-                      Refresh Now
-                    </Button>
-                  </Box>
-                  <Box mt={2}>
-                    <Typography variant="caption" color="textSecondary" style={{ fontStyle: 'italic' }}>
-                      Tip: You can monitor the progress in your backend logs for "[WSO2-DISCOVERY]" messages.
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-            )}
+              )}
             {apiListState.value?.apis && apiListState.value.apis.length > 0 && (
               <Table
                 options={{ paging: false, search: true }}
@@ -1123,8 +1679,18 @@ export const Wso2ApiManagerPage = () => {
         {tabValue === 1 && (
           <>
             {apiProductListState.loading && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
-                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                my={10}
+              >
+                <CircularProgress
+                  size={50}
+                  thickness={4}
+                  style={{ color: '#ff5000' }}
+                />
                 <Box mt={2}>
                   <Typography variant="h6" color="textSecondary">
                     Fetching API Products...
@@ -1138,54 +1704,85 @@ export const Wso2ApiManagerPage = () => {
                 message={apiProductListState.error.message}
               />
             )}
-            {apiProductListState.loading && apiProductListState.value?.apiProducts && apiProductListState.value.apiProducts.length === 0 && isTimedOut && (
-              <WarningPanel
-                title="Sync Timed Out"
-                message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load API Products. Please check your WSO2 backend logs or verify your provider configuration.`}
-              >
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => {
-                    setSyncStartTime(Date.now());
-                    setElapsedSeconds(0);
-                    setIsTimedOut(false);
-                    apiProductListState.retry();
-                  }}
-                  style={{ marginTop: '16px' }}
+            {apiProductListState.loading &&
+              apiProductListState.value?.apiProducts &&
+              apiProductListState.value.apiProducts.length === 0 &&
+              isTimedOut && (
+                <WarningPanel
+                  title="Sync Timed Out"
+                  message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load API Products. Please check your WSO2 backend logs or verify your provider configuration.`}
                 >
-                  Retry Now
-                </Button>
-              </WarningPanel>
-            )}
-            {!apiProductListState.loading && (!apiProductListState.value?.apiProducts || apiProductListState.value.apiProducts.length === 0) && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
-                <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
-                <Box mt={3} maxWidth={600}>
-                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
-                    Discovering API Products...
-                  </Typography>
-                  <Typography variant="body1" color="textSecondary">
-                    Searching for API Products in your WSO2 environments.
-                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      setSyncStartTime(Date.now());
+                      setElapsedSeconds(0);
+                      setIsTimedOut(false);
+                      apiProductListState.retry();
+                    }}
+                    style={{ marginTop: '16px' }}
+                  >
+                    Retry Now
+                  </Button>
+                </WarningPanel>
+              )}
+            {!apiProductListState.loading &&
+              (!apiProductListState.value?.apiProducts ||
+                apiProductListState.value.apiProducts.length === 0) && (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  my={10}
+                  textAlign="center"
+                >
+                  <CircularProgress
+                    size={60}
+                    thickness={2}
+                    style={{ color: '#ff5000', opacity: 0.6 }}
+                  />
+                  <Box mt={3} maxWidth={600}>
+                    <Typography
+                      variant="h5"
+                      gutterBottom
+                      style={{ fontWeight: 500 }}
+                    >
+                      Discovering API Products...
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary">
+                      Searching for API Products in your WSO2 environments.
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
-            )}
-            {apiProductListState.value?.apiProducts && apiProductListState.value.apiProducts.length > 0 && (
-              <Table
-                options={{ paging: false, search: true }}
-                columns={productColumns}
-                data={filteredApiProducts}
-              />
-            )}
+              )}
+            {apiProductListState.value?.apiProducts &&
+              apiProductListState.value.apiProducts.length > 0 && (
+                <Table
+                  options={{ paging: false, search: true }}
+                  columns={productColumns}
+                  data={filteredApiProducts}
+                />
+              )}
           </>
         )}
 
         {tabValue === 2 && (
           <>
             {mcpListState.loading && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10}>
-                <CircularProgress size={50} thickness={4} style={{ color: '#ff5000' }} />
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                my={10}
+              >
+                <CircularProgress
+                  size={50}
+                  thickness={4}
+                  style={{ color: '#ff5000' }}
+                />
                 <Box mt={2}>
                   <Typography variant="h6" color="textSecondary">
                     Fetching MCP Servers...
@@ -1199,54 +1796,120 @@ export const Wso2ApiManagerPage = () => {
                 message={mcpListState.error.message}
               />
             )}
-            {mcpListState.loading && !mcpListState.value?.mcpServers && isTimedOut && (
-              <WarningPanel
-                title="Sync Timed Out"
-                message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load MCP Servers. Please check your WSO2 backend logs or verify your provider configuration.`}
-              >
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => {
-                    setSyncStartTime(Date.now());
-                    setElapsedSeconds(0);
-                    setIsTimedOut(false);
-                    mcpListState.retry();
-                  }}
-                  style={{ marginTop: '16px' }}
+            {mcpListState.loading &&
+              !mcpListState.value?.mcpServers &&
+              isTimedOut && (
+                <WarningPanel
+                  title="Sync Timed Out"
+                  message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load MCP Servers. Please check your WSO2 backend logs or verify your provider configuration.`}
                 >
-                  Retry Now
-                </Button>
-              </WarningPanel>
-            )}
-            {!mcpListState.loading && (!mcpListState.value?.mcpServers || mcpListState.value.mcpServers.length === 0) && (
-              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" my={10} textAlign="center">
-                <CircularProgress size={60} thickness={2} style={{ color: '#ff5000', opacity: 0.6 }} />
-                <Box mt={3} maxWidth={600}>
-                  <Typography variant="h5" gutterBottom style={{ fontWeight: 500 }}>
-                    Scanning for MCP Servers...
-                  </Typography>
-                  <Typography variant="body1" color="textSecondary">
-                    Syncing Model Control Plane servers from the WSO2 ecosystem.
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      setSyncStartTime(Date.now());
+                      setElapsedSeconds(0);
+                      setIsTimedOut(false);
+                      mcpListState.retry();
+                    }}
+                    style={{ marginTop: '16px' }}
+                  >
+                    Retry Now
+                  </Button>
+                </WarningPanel>
+              )}
+            {!mcpListState.loading &&
+              (!mcpListState.value?.mcpServers ||
+                mcpListState.value.mcpServers.length === 0) && (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  my={10}
+                  textAlign="center"
+                >
+                  <CircularProgress
+                    size={60}
+                    thickness={2}
+                    style={{ color: '#ff5000', opacity: 0.6 }}
+                  />
+                  <Box mt={3} maxWidth={600}>
+                    <Typography
+                      variant="h5"
+                      gutterBottom
+                      style={{ fontWeight: 500 }}
+                    >
+                      Scanning for MCP Servers...
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary">
+                      Syncing Model Control Plane servers from the WSO2
+                      ecosystem.
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            {mcpListState.value?.mcpServers &&
+              mcpListState.value.mcpServers.length > 0 && (
+                <Table
+                  options={{ paging: false, search: true }}
+                  columns={mcpColumns}
+                  data={mcpListState.value.mcpServers}
+                />
+              )}
+          </>
+        )}
+
+        {tabValue === 3 && (
+          <>
+            {servicesListState.loading && (
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                my={10}
+              >
+                <CircularProgress
+                  size={50}
+                  thickness={4}
+                  style={{ color: '#ff5000' }}
+                />
+                <Box mt={2}>
+                  <Typography variant="h6" color="textSecondary">
+                    Fetching Services...
                   </Typography>
                 </Box>
               </Box>
             )}
-            {mcpListState.value?.mcpServers && mcpListState.value.mcpServers.length > 0 && (
-              <Table
-                options={{ paging: false, search: true }}
-                columns={mcpColumns}
-                data={mcpListState.value.mcpServers}
+            {servicesListState.error && (
+              <WarningPanel
+                title="Failed to load Services"
+                message={servicesListState.error.message}
               />
             )}
+            {servicesListState.value?.list &&
+              servicesListState.value.list.length > 0 && (
+                <Table
+                  options={{ paging: true, search: true }}
+                  columns={serviceColumns}
+                  data={servicesListState.value.list.map((s: any) => ({
+                    ...s,
+                    wso2Id: s.id,
+                  }))}
+                  detailPanel={rowData => (
+                    <ServiceDetailPanel
+                      service={rowData}
+                      oauthApi={oauthApi}
+                      wso2Api={wso2Api}
+                      catalogApis={apiListState.value?.apis || []}
+                    />
+                  )}
+                />
+              )}
           </>
         )}
-
-
-
       </Content>
-
-
     </Page>
   );
 };

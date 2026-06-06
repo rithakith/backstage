@@ -104,6 +104,7 @@ const Wso2PolicyFlowList = ({
   hideLabel?: boolean;
 }) => {
   const [page, setPage] = useState(1);
+  const theme = useTheme();
   const itemsPerPage = 5;
 
   if (!policies || policies.length === 0) return null;
@@ -111,13 +112,8 @@ const Wso2PolicyFlowList = ({
   const totalPages = Math.ceil(policies.length / itemsPerPage);
   const paginatedPolicies = policies.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-  return (
-    <Box mb={2} width="100%">
-      {!hideLabel && (
-        <Typography variant="caption" style={{ fontWeight: 'bold', display: 'block', marginBottom: '12px', opacity: 0.6 }}>
-          {flowType.toUpperCase()} FLOW ({policies.length} {policies.length === 1 ? 'policy' : 'policies'})
-        </Typography>
-      )}
+  const content = (
+    <Box>
       <Box>
         {paginatedPolicies.map((policy: any, idx: number) => {
           const hasParams = (policy.parameters && Object.keys(policy.parameters).length > 0) || (policy.params && Object.keys(policy.params).length > 0);
@@ -155,6 +151,31 @@ const Wso2PolicyFlowList = ({
       </Box>
       <PolicyPagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
     </Box>
+  );
+
+  if (hideLabel) {
+    return <Box mb={2} width="100%">{content}</Box>;
+  }
+
+  return (
+    <Accordion 
+      elevation={0} 
+      style={{ 
+        marginBottom: '12px', 
+        border: `1px solid ${theme.palette.divider}`, 
+        borderRadius: '4px',
+        backgroundColor: theme.palette.type === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'
+      }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+        <Typography variant="subtitle2" style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>
+          {flowType} FLOW <span style={{ opacity: 0.6, marginLeft: '8px', fontWeight: 'normal' }}>({policies.length} {policies.length === 1 ? 'policy' : 'policies'})</span>
+        </Typography>
+      </AccordionSummary>
+      <AccordionDetails style={{ display: 'block', padding: theme.spacing(2) }}>
+        {content}
+      </AccordionDetails>
+    </Accordion>
   );
 };
 

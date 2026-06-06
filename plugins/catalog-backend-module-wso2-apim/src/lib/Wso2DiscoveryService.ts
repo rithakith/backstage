@@ -21,6 +21,7 @@ import { fetchGlobalSettings } from './domains/settings';
 import { fetchApiList, mapWso2ApiToEntity } from './domains/api';
 import { fetchApiProductList, mapWso2ProductToEntity } from './domains/product';
 import { fetchMcpServerList, mapWso2McpToEntity } from './domains/mcp';
+import { fetchServiceList, mapWso2ServiceToEntity } from './domains/service';
 import { discoverGatewayApis, mapDiscoveredApiToEntity, PlatformGateway } from './domains/gateway';
 
 /**
@@ -52,6 +53,7 @@ export class Wso2DiscoveryService {
     const apiList = await fetchApiList(this.client, this.logger);
     const productList = await fetchApiProductList(this.client, this.logger);
     const mcpList = await fetchMcpServerList(this.client, this.logger);
+    const serviceList = await fetchServiceList(this.client, this.logger);
     const discoveredGatewayApis = await discoverGatewayApis(
       platformGateways,
       this.logger,
@@ -71,6 +73,10 @@ export class Wso2DiscoveryService {
       mapWso2McpToEntity(mcp, namespace, providerId),
     );
 
+    const serviceEntities = serviceList.map(svc =>
+      mapWso2ServiceToEntity(svc, namespace, providerId),
+    );
+
     const discoveredEntities = discoveredGatewayApis.map(api =>
       mapDiscoveredApiToEntity(api),
     );
@@ -79,6 +85,7 @@ export class Wso2DiscoveryService {
       ...apiEntities,
       ...productEntities,
       ...mcpEntities,
+      ...serviceEntities,
       ...discoveredEntities,
     ];
 

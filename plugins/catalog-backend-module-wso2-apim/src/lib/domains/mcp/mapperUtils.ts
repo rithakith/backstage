@@ -50,7 +50,7 @@ export function mapWso2McpToEntity(
     },
     spec: {
       type: 'mcp',
-      lifecycle: undefined as any,
+      lifecycle: 'production',
       owner: mcp.provider || 'unknown',
       definition: `WSO2 MCP Server: ${mcp.name}`,
     },

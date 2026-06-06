@@ -34,6 +34,7 @@ export function readWso2ApiManagerConfig(
   const baseUrl = wso2Config.getString('baseUrl');
   const publisherBasePath = wso2Config.getString('publisherBasePath');
   const developerBasePath = wso2Config.getString('developerBasePath');
+  const serviceCatalogBasePath = wso2Config.getOptionalString('serviceCatalogBasePath');
 
   const authConfig = wso2Config.getConfig('auth');
   const clientId = authConfig.getString('clientId');
@@ -66,6 +67,7 @@ export function readWso2ApiManagerConfig(
       baseUrl,
       publisherBasePath,
       developerBasePath,
+      serviceCatalogBasePath,
       auth: {
         clientId,
         clientSecret,
@@ -83,6 +85,7 @@ export class Wso2ApiManagerClient {
   private readonly logger: LoggerService;
   private readonly publisherBaseUrl: string;
   private readonly devportalBaseUrl: string;
+  private readonly serviceCatalogBaseUrl: string;
   private readonly dispatcher?: Agent;
 
   constructor(options: { config: Wso2ApiManagerConfig; logger: LoggerService }) {
@@ -95,6 +98,10 @@ export class Wso2ApiManagerClient {
     this.devportalBaseUrl = joinUrl(
       options.config.baseUrl,
       options.config.developerBasePath,
+    );
+    this.serviceCatalogBaseUrl = joinUrl(
+      options.config.baseUrl,
+      options.config.serviceCatalogBasePath || '/api/am/service-catalog/v1',
     );
     if (!options.config.tls.rejectUnauthorized) {
       this.dispatcher = new Agent({
@@ -188,7 +195,89 @@ export class Wso2ApiManagerClient {
     }
   }
 
+  private async requestServiceCatalog<T>(
+    path: string,
+    options?: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    },
+    token?: string
+  ): Promise<T> {
+    const isUserToken = !!token;
+    const accessToken = token || (await this.resolveAccessToken());
+    const url = `${this.serviceCatalogBaseUrl}${path}`;
 
+    this.logger.debug(`[WSO2-Client] Fetching Service Catalog ${url} using ${isUserToken ? 'USER' : 'SERVICE-ACCOUNT'} token`);
+
+    const response = await undiciFetch(url, {
+      method: options?.method ?? 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        ...(options?.headers ?? {}),
+      },
+      body: options?.body,
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 && isUserToken) {
+        this.logger.warn(`[WSO2-Client] User token failed with 401 for Service Catalog ${path}. Retrying with SERVICE-ACCOUNT token.`);
+        return await this.requestServiceCatalog(path, options, undefined);
+      }
+
+      const message = await this.extractWso2ErrorMessage(response);
+      const errorMsg = `WSO2 Service Catalog request failed, status ${response.status}: ${message}`;
+      this.logger.error(`[WSO2-Client] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch (e) {
+      return text as unknown as T;
+    }
+  }
+
+  async getServices(options?: { offset?: number; limit?: number; token?: string }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.offset !== undefined) params.set('offset', options.offset.toString());
+    if (options?.limit !== undefined) params.set('limit', options.limit.toString());
+    
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return await this.requestServiceCatalog<any>(`/services${query}`, {}, options?.token);
+  }
+
+  async getServiceUsage(serviceId: string, token?: string): Promise<any> {
+    return await this.requestServiceCatalog<any>(`/services/${serviceId}/usage`, {}, token);
+  }
+
+  async getServiceDefinition(serviceId: string, token?: string): Promise<string> {
+    const isUserToken = !!token;
+    const accessToken = token || (await this.resolveAccessToken());
+    const url = `${this.serviceCatalogBaseUrl}/services/${serviceId}/definition`;
+
+    const response = await undiciFetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      dispatcher: this.dispatcher,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 && isUserToken) {
+         return await this.getServiceDefinition(serviceId, undefined);
+      }
+      throw new Error(`Failed to fetch service definition for ${serviceId}`);
+    }
+    const text = await response.text();
+    return text;
+  }
   async getRevisions(
     apiId: string,
     options?: { query?: string; token?: string },
@@ -213,7 +302,15 @@ export class Wso2ApiManagerClient {
   }
 
   async getDocumentContentStream(apiId: string, documentId: string, token?: string): Promise<Response> {
-    return await this.fetchWithFallback(`/apis/${apiId}/documents/${documentId}/content?t=${Date.now()}`, {}, token);
+    return await this.fetchWithFallback(`/apis/${apiId}/documents/${documentId}/content?t=${Date.now()}`, {
+      headers: { Accept: '*/*' }
+    }, token);
+  }
+
+  async getApiWsdlStream(apiId: string, token?: string): Promise<Response> {
+    return await this.fetchWithFallback(`/apis/${apiId}/wsdl`, {
+      headers: { Accept: 'application/zip, application/wsdl+xml, text/xml, */*' }
+    }, token);
   }
 
   async getSettings(token?: string): Promise<any> {

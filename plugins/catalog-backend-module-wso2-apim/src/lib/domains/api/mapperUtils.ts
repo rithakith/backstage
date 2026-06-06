@@ -102,7 +102,7 @@ export function mapWso2ApiToEntity(
     },
     spec: {
       type: getApiSpecType(api.type),
-      lifecycle: undefined as any,
+      lifecycle: 'production',
       owner: normalizeEntityName(api.provider || 'unknown'),
       definition: api.definition || '',
     },

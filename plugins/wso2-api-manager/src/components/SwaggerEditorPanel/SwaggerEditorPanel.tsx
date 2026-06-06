@@ -26,6 +26,7 @@ import EditIcon from '@material-ui/icons/Edit';
 import SaveIcon from '@material-ui/icons/Save';
 import CancelIcon from '@material-ui/icons/Cancel';
 import CheckCircleOutlineIcon from '@material-ui/icons/CheckCircleOutline';
+import GetAppIcon from '@material-ui/icons/GetApp';
 
 const useStyles = makeStyles(theme => ({
     editorContainer: {
@@ -178,6 +179,19 @@ export const SwaggerEditorPanel = ({
             ? <span className={`${classes.badge} ${classes.editingBadge}`}>● EDITING</span>
             : null;
 
+    const handleDownload = () => {
+        const ext = lang.toLowerCase() === 'json' ? 'json' : 'yaml';
+        const blob = new Blob([value], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `source-definition.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className={classes.editorContainer}>
             {/* VS Code-style title bar */}
@@ -194,6 +208,26 @@ export const SwaggerEditorPanel = ({
                         <span style={{ color: '#85e89d', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
                             <CheckCircleOutlineIcon style={{ fontSize: 14 }} /> Definition updated
                         </span>
+                    )}
+
+                    {/* Download button */}
+                    {!isEditing && (
+                        <Tooltip title="Download definition">
+                            <Button
+                                id="swagger-download-btn"
+                                size="small"
+                                variant="outlined"
+                                startIcon={<GetAppIcon />}
+                                onClick={handleDownload}
+                                style={{
+                                    color: '#d4d4d4',
+                                    borderColor: '#555',
+                                    textTransform: 'none',
+                                }}
+                            >
+                                Download
+                            </Button>
+                        </Tooltip>
                     )}
 
                     {/* Edit mode buttons */}

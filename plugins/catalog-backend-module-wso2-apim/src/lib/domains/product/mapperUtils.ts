@@ -81,7 +81,7 @@ export function mapWso2ProductToEntity(
     },
     spec: {
       type: 'api_product',
-      lifecycle: undefined as any,
+      lifecycle: 'production',
       owner: product.businessInformation?.technicalOwner || product.businessInformation?.businessOwner || product.provider || 'unknown',
       definition: product.definition || `WSO2 API Product: ${product.name}`,
     },

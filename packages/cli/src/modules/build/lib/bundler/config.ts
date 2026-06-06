@@ -23,6 +23,7 @@ import { Config } from '@backstage/config';
 import ESLintRspackPlugin from 'eslint-rspack-plugin';
 import { TsCheckerRspackPlugin } from 'ts-checker-rspack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+// @ts-ignore
 import ModuleScopePlugin from 'react-dev-utils/ModuleScopePlugin';
 import { ModuleFederationPlugin } from '@module-federation/enhanced/rspack';
 import { paths as cliPaths } from '../../../../lib/paths';
@@ -394,6 +395,7 @@ export async function createConfig(
     optimization,
     ignoreWarnings: [
       /Critical dependency: the request of a dependency is an expression/,
+      { module: /monaco-editor/ },
     ],
     bail: false,
     performance: {

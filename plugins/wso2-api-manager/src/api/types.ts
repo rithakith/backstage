@@ -171,4 +171,8 @@ export interface Wso2ApiManagerApi {
   getGateways(token?: string): Promise<any[]>;
   getHealth(token?: string): Promise<Wso2HealthReport>;
   refreshCatalog(token?: string): Promise<{ message: string }>;
+  getServices(options?: { offset?: number; limit?: number; token?: string }): Promise<any>;
+  getServiceUsage(serviceId: string, token?: string): Promise<any>;
+  getServiceDefinition(serviceId: string, token?: string): Promise<string>;
+  getApiWsdl(apiId: string, token?: string): Promise<Blob>;
 }

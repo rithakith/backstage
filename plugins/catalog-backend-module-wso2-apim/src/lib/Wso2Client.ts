@@ -30,6 +30,7 @@ export class Wso2Client {
   private readonly logger: LoggerService;
   private readonly dispatcher: Agent;
   private readonly publisherBasePath: string;
+  private readonly serviceCatalogBasePath: string;
   private readonly scopes: string;
   private accessToken?: string;
   private tokenExpiresAt?: number;
@@ -54,6 +55,9 @@ export class Wso2Client {
     this.publisherBasePath = options.config.getString(
       'wso2ApiManager.publisherBasePath',
     );
+    this.serviceCatalogBasePath = options.config.getOptionalString(
+      'wso2ApiManager.serviceCatalogBasePath'
+    ) ?? '/api/am/service-catalog/v1';
     const additionalScopes = options.config.getOptionalStringArray('wso2ApiManager.auth.additionalScopes') || [];
     const baseScopes = [
       'apim:api_view',
@@ -95,6 +99,13 @@ export class Wso2Client {
    */
   getPublisherBasePath(): string {
     return this.publisherBasePath;
+  }
+
+  /**
+   * Returns the base path for the service catalog API.
+   */
+  getServiceCatalogBasePath(): string {
+    return this.serviceCatalogBasePath;
   }
 
   private async request<T>(

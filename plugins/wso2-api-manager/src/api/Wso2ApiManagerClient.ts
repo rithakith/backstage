@@ -124,4 +124,45 @@ export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
       token,
     });
   }
+
+  async getServices(options?: { offset?: number; limit?: number; token?: string }): Promise<any> {
+    const query = new URLSearchParams();
+    if (options?.offset !== undefined) query.append('offset', options.offset.toString());
+    if (options?.limit !== undefined) query.append('limit', options.limit.toString());
+    return this.request<any>('/services', { token: options?.token, query });
+  }
+
+  async getServiceUsage(serviceId: string, token?: string): Promise<any> {
+    return this.request<any>(`/services/${serviceId}/usage`, { token });
+  }
+
+  async getServiceDefinition(serviceId: string, token?: string): Promise<string> {
+    const baseUrl = await this.getBaseUrl();
+    const url = new URL(`${baseUrl}/services/${serviceId}/definition`);
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+    const response = await this.fetchApi.fetch(url.toString(), { headers });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`WSO2 API request failed [${response.status}]: ${errorText}`);
+    }
+    return response.text();
+  }
+
+  async getApiWsdl(apiId: string, token?: string): Promise<Blob> {
+    const baseUrl = await this.getBaseUrl();
+    const url = new URL(`${baseUrl}/apis/${apiId}/wsdl`);
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['X-WSO2-Access-Token'] = token;
+    }
+    const response = await this.fetchApi.fetch(url.toString(), { headers });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      throw new Error(`WSO2 API request failed [${response.status}]: ${errorText}`);
+    }
+    return response.blob();
+  }
 }

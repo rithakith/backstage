@@ -166,6 +166,82 @@ export async function createRouter(
     }
   });
 
+  router.get('/services', async (req, res) => {
+    try {
+      const token = await ensureAuthenticated(req);
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : undefined;
+      const result = await client.getServices({ limit, offset, token });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/services/:serviceId/usage', async (req, res) => {
+    try {
+      const token = await ensureAuthenticated(req);
+      const result = await client.getServiceUsage(req.params.serviceId, token);
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/services/:serviceId/definition', async (req, res) => {
+    try {
+      const token = await ensureAuthenticated(req);
+      const definition = await client.getServiceDefinition(req.params.serviceId, token);
+      res.send(definition);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/apis/:apiId/wsdl', async (req, res) => {
+    const { apiId } = req.params;
+    try {
+      const token = await ensureAuthenticated(req);
+      const response = await client.getApiWsdlStream(apiId, token);
+
+      if (!response.ok) {
+        let errBody = '';
+        try {
+          errBody = await response.text();
+        } catch {
+          errBody = response.statusText;
+        }
+        res.status(response.status).send(errBody);
+        return;
+      }
+
+      const contentType = response.headers.get('content-type') || 'application/xml';
+      const disposition = response.headers.get('content-disposition') || `attachment; filename="${apiId}-wsdl"`;
+
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (disposition) res.setHeader('Content-Disposition', disposition);
+
+      if (!response.body) {
+        res.status(204).send();
+        return;
+      }
+
+      const { Readable } = require('stream');
+      const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
+
+      nodeStream.on('error', (err: any) => {
+        logger.error(`Stream reading error: ${err.message}`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Error streaming WSDL content');
+        }
+      });
+      nodeStream.pipe(res);
+    } catch (e: any) {
+      logger.error(`Failed to stream WSDL content: ${e.message}`, e);
+      res.status(500).send(e.message);
+    }
+  });
+
   router.get('/apis/:apiId/documents/:documentId/content', async (req, res) => {
     const { apiId, documentId } = req.params;
     try {

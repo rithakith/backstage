@@ -85,7 +85,8 @@ export const useWso2ApiDefinition = (options: {
   const gatewayOperations = useMemo(() => {
     const val = definitionState.value as any;
     if (!val) return [];
-    return val.operations || val.configuration?.spec?.operations || [];
+    // AsyncAPI uses `channels`, OpenAPI uses `operations`, and custom K8s CRDs might use `configuration.spec.operations`
+    return val.channels || val.operations || val.configuration?.spec?.operations || [];
   }, [definitionState.value]);
 
   const gatewayApiPolicies = useMemo(() => {

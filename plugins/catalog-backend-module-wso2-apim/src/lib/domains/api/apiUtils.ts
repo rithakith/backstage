@@ -102,7 +102,7 @@ export async function fetchApiList(
   const basePath = client.getPublisherBasePath();
   logger.info(`[Wso2Fetchers] Fetching APIs from ${basePath}/apis`);
 
-  const data = await client.get<any>(`${basePath}/apis`);
+  const data = await client.get<any>(`${basePath}/apis?limit=1000`);
   const apiList = data.list || [];
   logger.info(`[Wso2Fetchers] Retrieved ${apiList.length} APIs from Publisher.`);
 

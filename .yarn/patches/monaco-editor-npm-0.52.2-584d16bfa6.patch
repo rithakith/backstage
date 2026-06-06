@@ -1,0 +1,13 @@
+diff --git a/esm/vs/editor/common/services/editorSimpleWorker.js b/esm/vs/editor/common/services/editorSimpleWorker.js
+index 91df4d4a6cda0a903a6e205b151e2a54e0d2098b..809ebd8371df0b02eb3d8271382a06b43d4a444c 100644
+--- a/esm/vs/editor/common/services/editorSimpleWorker.js
++++ b/esm/vs/editor/common/services/editorSimpleWorker.js
+@@ -316,7 +316,7 @@ export class EditorSimpleWorker extends BaseEditorSimpleWorker {
+                 resolve(getAllMethodNames(this._foreignModule));
+             };
+             if (!isESM) {
+-                require([`${moduleId}`], onModuleCallback, reject);
++                globalThis.require([`${moduleId}`], onModuleCallback, reject);
+             }
+             else {
+                 const url = FileAccess.asBrowserUri(`${moduleId}.js`).toString(true);

@@ -65,6 +65,7 @@ export type Wso2ApiManagerConfig = {
   baseUrl: string;
   publisherBasePath: string;
   developerBasePath: string;
+  serviceCatalogBasePath?: string;
   auth: {
     clientId: string;
     clientSecret: string;

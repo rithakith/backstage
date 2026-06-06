@@ -46,7 +46,7 @@ import { DisabledTryItOutButton } from './components/DisabledTryItOutButton';
 import { Wso2OperationsList } from './components/Wso2OperationsList';
 import { Wso2PublisherPoliciesList } from './components/Wso2PublisherPoliciesList';
 import { Wso2ApiAuthSection } from './components/Wso2ApiAuthSection';
-import { Wso2ExternalApiAuthSection } from './components/Wso2ExternalApiAuthSection';
+
 import { Wso2GatewayUrlDisplay } from './components/Wso2GatewayUrlDisplay';
 import { Wso2SwaggerConsole } from './components/Wso2SwaggerConsole';
 import { Wso2GraphQLConsole } from './components/Wso2GraphQLConsole';
@@ -129,6 +129,7 @@ export const EntityWso2ApiDefinitionCard = () => {
 
   const hasSwaggerTab = details?.type !== 'GRAPHQL' && !isAsyncType(details?.type);
   const hasSourceTab = !hasOperationsOnly;
+  const hasWsdlTab = details?.type === 'SOAP';
   const hasConsoleTab =
     hasOperationsOnly &&
     swaggerSpec &&
@@ -145,6 +146,26 @@ export const EntityWso2ApiDefinitionCard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [externalApiKey, setExternalApiKey] = useState('');
+  const [isWsdlDownloading, setIsWsdlDownloading] = useState(false);
+
+  const handleDownloadWsdl = async () => {
+    setIsWsdlDownloading(true);
+    try {
+      const blob = await apiClient.getApiWsdl(apiId!, token || undefined);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${apiId}-wsdl.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Failed to download WSDL:', err);
+    } finally {
+      setIsWsdlDownloading(false);
+    }
+  };
 
   const hasApiKeyHeader = useMemo(() => {
     if (!details) return true;
@@ -161,6 +182,16 @@ export const EntityWso2ApiDefinitionCard = () => {
     return headers.some(h => h.toLowerCase() === 'apikey');
   }, [details]);
 
+
+
+  const hasSubscriptionlessPolicies = useMemo(() => {
+    if (!details || !Array.isArray(details.policies)) return false;
+    return details.policies.some((p: string) => {
+      const lower = p.toLowerCase().trim();
+      return lower === 'defaultsubscriptionless' || lower === 'asyncdefaultsubscriptionless';
+    });
+  }, [details]);
+
   const apiKeyAuthPolicy = useMemo(() => {
     // Check API level
     const globalOps = Array.isArray(gatewayApiPolicies) ? gatewayApiPolicies : [];
@@ -175,8 +206,14 @@ export const EntityWso2ApiDefinitionCard = () => {
       );
       if (local) return local;
     }
+
+    // Fallback for subscriptionless API with an API key header
+    if (hasSubscriptionlessPolicies && hasApiKeyHeader) {
+      return { name: 'API Key', params: { in: 'header', key: 'apikey' } };
+    }
+
     return null;
-  }, [gatewayApiPolicies, gatewayOperations]);
+  }, [gatewayApiPolicies, gatewayOperations, hasSubscriptionlessPolicies, hasApiKeyHeader]);
 
   // Sync display content when definition loads
   useEffect(() => {
@@ -189,17 +226,23 @@ export const EntityWso2ApiDefinitionCard = () => {
         setActiveTab('policies');
       } else if (hasSourceTab) {
         setActiveTab('source');
+      } else if (hasWsdlTab) {
+        setActiveTab('wsdl');
       }
     }
-  }, [details, hasSwaggerTab, showPublisherPoliciesTab, hasSourceTab]);
-  // Swagger UI Plugin to replace the 'Try It Out' button based on deployment and discovery type
+  }, [details, hasSwaggerTab, showPublisherPoliciesTab, hasSourceTab, hasWsdlTab]);
   const tryItOutPlugin = useMemo(() => {
     const type = (details?.type || '').toUpperCase();
     const isSoap = type === 'SOAP';
     const isAsync = isAsyncType(type);
 
+    const isWso2Api = !isDiscovered && !skipKeyGeneration;
+
     const canTry =
-      isDeployed && !isSoap && !isAsync && (!isDiscovered || skipKeyGeneration);
+      isDeployed && 
+      !isSoap && 
+      (!isWso2Api || hasSubscriptionlessPolicies) && 
+      (!isDiscovered || skipKeyGeneration);
     if (canTry) return {};
 
     let message = 'Try it out is not available for this API';
@@ -214,7 +257,7 @@ export const EntityWso2ApiDefinitionCard = () => {
         TryItOutButton: () => <DisabledTryItOutButton message={message} />,
       },
     };
-  }, [isDeployed, isApiPlatform, details, isDiscovered]);
+  }, [isDeployed, isApiPlatform, details, isDiscovered, hasSubscriptionlessPolicies, skipKeyGeneration]);
 
   if (!apiId) return null;
 
@@ -365,6 +408,14 @@ export const EntityWso2ApiDefinitionCard = () => {
                   className={classes.tabRoot}
                 />
               )}
+              {hasWsdlTab && (
+                <Tab
+                  id="tab-wsdl"
+                  label="WSDL"
+                  value="wsdl"
+                  className={classes.tabRoot}
+                />
+              )}
             </Tabs>
           </Box>
 
@@ -373,7 +424,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             <div className={classes.root}>
               <Box style={{ paddingLeft: '20px', paddingRight: '20px' }}>
                 {/* API Key Display and Regeneration */}
-                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasSubscriptionlessPolicies && hasApiKeyHeader && (
                   <Wso2ApiAuthSection
                     manualKeyInput={manualKeyInput}
                     setManualKeyInput={setManualKeyInput}
@@ -390,14 +441,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                   />
                 )}
 
-                {/* External API Key Input (if api-key-auth policy is present) */}
-                {isDeployed && (
-                  <Wso2ExternalApiAuthSection
-                    apiKeyAuthPolicy={apiKeyAuthPolicy}
-                    externalApiKey={externalApiKey}
-                    setExternalApiKey={setExternalApiKey}
-                  />
-                )}
+
 
                 {/* Gateway Server URL Display (hidden for HTTP/HTTP_AI since Swagger UI displays it) */}
                 {showGatewayUrlDisplay && (
@@ -416,7 +460,7 @@ export const EntityWso2ApiDefinitionCard = () => {
               ) : (
                 <Box p={2}>
                   <Wso2SwaggerConsole
-                    key={`swagger-ui-${lastUpdated}`}
+                    key={`swagger-ui-${lastUpdated}-${isDeployed}`}
                     swaggerSpec={swaggerSpec}
                     tryItOutPlugin={tryItOutPlugin}
                     apiKeyRef={apiKeyRef}
@@ -433,7 +477,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             <div className={classes.root}>
               <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 {/* API Key Display and Regeneration */}
-                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasSubscriptionlessPolicies && hasApiKeyHeader && (
                   <Wso2ApiAuthSection
                     manualKeyInput={manualKeyInput}
                     setManualKeyInput={setManualKeyInput}
@@ -450,14 +494,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                   />
                 )}
 
-                {/* External API Key Input (if api-key-auth policy is present) */}
-                {isDeployed && (
-                  <Wso2ExternalApiAuthSection
-                    apiKeyAuthPolicy={apiKeyAuthPolicy}
-                    externalApiKey={externalApiKey}
-                    setExternalApiKey={setExternalApiKey}
-                  />
-                )}
+
               </Box>
 
               <Wso2GraphQLConsole
@@ -476,7 +513,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             <div className={classes.root}>
               <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
                 {/* API Key Display and Regeneration */}
-                {isDeployed && !isDiscovered && !skipKeyGeneration && hasApiKeyHeader && (
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasSubscriptionlessPolicies && hasApiKeyHeader && (
                   <Wso2ApiAuthSection
                     manualKeyInput={manualKeyInput}
                     setManualKeyInput={setManualKeyInput}
@@ -493,14 +530,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                   />
                 )}
 
-                {/* External API Key Input (if api-key-auth policy is present) */}
-                {isDeployed && (
-                  <Wso2ExternalApiAuthSection
-                    apiKeyAuthPolicy={apiKeyAuthPolicy}
-                    externalApiKey={externalApiKey}
-                    setExternalApiKey={setExternalApiKey}
-                  />
-                )}
+
               </Box>
 
               <Wso2WebSocketConsole
@@ -519,7 +549,7 @@ export const EntityWso2ApiDefinitionCard = () => {
             <div className={classes.root}>
               <div style={{ padding: '16px', borderRadius: '4px' }}>
                 <Wso2SwaggerConsole
-                  key={`swagger-console-${lastUpdated}`}
+                  key={`swagger-console-${lastUpdated}-${isDeployed}`}
                   swaggerSpec={swaggerSpec}
                   tryItOutPlugin={tryItOutPlugin}
                   apiKeyRef={apiKeyRef}
@@ -542,6 +572,27 @@ export const EntityWso2ApiDefinitionCard = () => {
           {/* Tab Content: Source View */}
           {activeTab === 'source' && hasSourceTab && (
             <SwaggerEditorPanel value={formattedSource} readOnly />
+          )}
+
+          {/* Tab Content: WSDL View */}
+          {activeTab === 'wsdl' && hasWsdlTab && (
+            <Box p={4} display="flex" flexDirection="column" alignItems="center" justifyContent="center">
+              <Typography variant="h6" gutterBottom>
+                WSDL Definition
+              </Typography>
+              <Typography variant="body2" color="textSecondary" paragraph align="center">
+                Download the WSDL definition for this SOAP API. The downloaded file may be a single WSDL file or a ZIP archive containing multiple schema files.
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleDownloadWsdl}
+                disabled={isWsdlDownloading}
+                startIcon={isWsdlDownloading ? <CircularProgress size={20} /> : undefined}
+              >
+                {isWsdlDownloading ? 'Downloading...' : 'Download WSDL'}
+              </Button>
+            </Box>
           )}
         </>
       )}
