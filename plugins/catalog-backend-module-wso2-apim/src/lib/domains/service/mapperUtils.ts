@@ -1,12 +1,14 @@
 import { Entity } from '@backstage/catalog-model';
-import type { Wso2Service } from './types.ts';
+import type { Wso2Service } from './types';
 
 export function mapWso2ServiceToEntity(
   service: Wso2Service,
   namespace: string,
   providerId: string,
 ): Entity {
-  const entityName = (service.name || 'unknown').replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+  const entityName = (service.name || 'unknown')
+    .replace(/[^a-zA-Z0-9-]/g, '-')
+    .toLocaleLowerCase('en-US');
 
   return {
     apiVersion: 'backstage.io/v1alpha1',

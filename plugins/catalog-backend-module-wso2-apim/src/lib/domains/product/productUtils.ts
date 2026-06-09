@@ -47,7 +47,7 @@ export async function fetchApiProductDetail(
   productSummary: any,
 ): Promise<Wso2ApiProduct> {
   const productId = productSummary.id;
-  let product = { ...productSummary };
+  const product = { ...productSummary };
 
   try {
     const basePath = client.getPublisherBasePath();

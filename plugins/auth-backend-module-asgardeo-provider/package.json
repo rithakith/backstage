@@ -1,10 +1,11 @@
 {
-  "name": "@local/backstage-plugin-catalog-backend-module-wso2-apim",
-  "version": "0.0.2",
+  "name": "@local/backstage-plugin-auth-backend-module-asgardeo-provider",
+  "version": "0.0.1",
+  "description": "The asgardeo-provider backend module for the auth plugin.",
   "backstage": {
     "role": "backend-plugin-module",
-    "pluginId": "catalog",
-    "pluginPackage": "@local/backstage-plugin-catalog-backend-module-wso2-apim"
+    "pluginId": "auth",
+    "pluginPackage": "@backstage/plugin-auth-backend"
   },
   "publishConfig": {
     "access": "public",
@@ -12,10 +13,11 @@
     "types": "dist/index.d.ts"
   },
   "license": "Apache-2.0",
-  "main": "dist/index.cjs.js",
+  "main": "src/index.ts",
   "types": "src/index.ts",
   "files": [
-    "dist"
+    "dist",
+    "config.d.ts"
   ],
   "scripts": {
     "build": "backstage-cli package build",
@@ -28,19 +30,15 @@
   },
   "dependencies": {
     "@backstage/backend-plugin-api": "workspace:^",
-    "@backstage/catalog-model": "workspace:^",
-    "@backstage/config": "workspace:^",
-    "@backstage/errors": "workspace:^",
-    "@backstage/plugin-catalog-node": "workspace:^",
-    "undici": "^6.11.1",
-    "uuid": "^9.0.0"
+    "@backstage/plugin-auth-backend-module-oidc-provider": "workspace:^",
+    "@backstage/plugin-auth-node": "workspace:^"
   },
   "devDependencies": {
     "@backstage/backend-defaults": "workspace:^",
     "@backstage/backend-test-utils": "workspace:^",
     "@backstage/cli": "workspace:^",
-    "@types/jest": "^30",
-    "@types/node": "^18.0.0",
-    "@types/uuid": "^9.0.0"
-  }
+    "@backstage/plugin-auth-backend": "workspace:^",
+    "@backstage/types": "workspace:^"
+  },
+  "configSchema": "config.d.ts"
 }

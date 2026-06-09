@@ -64,9 +64,12 @@ describe('mcp domain', () => {
             'backstage.io/managed-by-origin-location': 'wso2-apim:my-provider',
             'wso2.com/api-id': 'mcp-123',
             'wso2.com/api-name': 'Gitea Tools MCP',
+            'wso2.com/api-version': '',
+            'wso2.com/api-context': '',
+            'wso2.com/api-provider': 'devops-team',
+            'wso2.com/api-lifecycle-status': 'PUBLISHED',
             'wso2.com/api-type': 'MCP',
             'wso2.com/is-mcp-server': 'true',
-            'wso2.com/api-raw-json': JSON.stringify(mcp),
             'wso2.com/mcp-tools': JSON.stringify(mcp.tools),
             'wso2.com/api-documents': JSON.stringify(mcp.documents),
           },
@@ -74,7 +77,7 @@ describe('mcp domain', () => {
         },
         spec: {
           type: 'mcp',
-          lifecycle: undefined,
+          lifecycle: 'production',
           owner: 'devops-team',
           definition: 'WSO2 MCP Server: Gitea Tools MCP',
         },
@@ -88,12 +91,12 @@ Spec owner: "${entity.spec.owner}" (from provider)
 `));
     });
 
-    it('should fallback to unknown for owner, and experimental for lifecycle', () => {
+    it('should fallback to unknown for owner, and production lifecycle', () => {
       // 1. Fallback to unknown & experimental
       const mcp1: Wso2McpServer = { id: '1', name: 'm1' };
       const ent1 = mapWso2McpToEntity(mcp1, 'default', 'prov');
       expect(ent1.spec.owner).toBe('unknown');
-      expect(ent1.spec.lifecycle).toBeUndefined();
+      expect(ent1.spec.lifecycle).toBe('production');
 
       console.log(formatTestCaseDoc(`
 === [MCP Mapper: MCP Server Spec Fallbacks] ===

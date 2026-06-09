@@ -131,7 +131,7 @@ Expected Exception:
               apiVersion: 'backstage.io/v1alpha1',
               kind: 'User',
               metadata: {
-                name: 'bob',
+                name: 'bob-wso2-com',
                 annotations: {
                   'backstage.io/managed-by-location': 'asgardeo:explicit-org',
                   'backstage.io/managed-by-origin-location': 'asgardeo:explicit-org',
@@ -143,7 +143,7 @@ Expected Exception:
                   displayName: 'bob',
                   email: 'bob@wso2.com',
                 },
-                memberOf: ['admin'],
+                memberOf: ['internal-admin'],
               },
             },
             locationKey: 'asgardeo',
@@ -153,7 +153,7 @@ Expected Exception:
               apiVersion: 'backstage.io/v1alpha1',
               kind: 'Group',
               metadata: {
-                name: 'admin',
+                name: 'internal-admin',
                 description: 'Asgardeo group: Internal/admin',
                 annotations: {
                   'backstage.io/managed-by-location': 'asgardeo:explicit-org',
@@ -185,73 +185,6 @@ Resulting Mutation applied:
 `));
     });
 
-    it('should parse organization from metadataUrl fallback config', async () => {
-      const config = new ConfigReader({
-        auth: {
-          providers: {
-            oidc: {
-              development: {
-                metadataUrl: 'https://api.asgardeo.io/t/parsed-metadata-org/oauth2/token',
-              },
-            },
-          },
-        },
-      });
-
-      const provider = AsgardeoEntityProvider.fromConfig(config, {
-        id: 'asgardeo-fallback',
-        logger,
-      });
-
-      await provider.connect(mockConnection);
-      mockFetchGroups.mockResolvedValue([]);
-      mockFetchUsers.mockResolvedValue([]);
-
-      await provider.run();
-
-      expect(mockFetchGroups).toHaveBeenCalledWith('parsed-metadata-org');
-      expect(mockFetchUsers).toHaveBeenCalledWith('parsed-metadata-org');
-
-      console.log(formatTestCaseDoc(`
-=== [Entity Provider: Fallback parsing from Metadata URL] ===
-metadataUrl: "https://api.asgardeo.io/t/parsed-metadata-org/oauth2/token"
-Parsed Organization Result: "parsed-metadata-org"
-`));
-    });
-
-    it('should default organization name if config and metadataUrl are missing', async () => {
-      const config = new ConfigReader({
-        auth: {
-          providers: {
-            oidc: {
-              development: {
-                metadataUrl: 'https://other-auth-server.com/oauth',
-              },
-            },
-          },
-        },
-      });
-
-      const provider = AsgardeoEntityProvider.fromConfig(config, {
-        id: 'asgardeo-default',
-        logger,
-      });
-
-      await provider.connect(mockConnection);
-      mockFetchGroups.mockResolvedValue([]);
-      mockFetchUsers.mockResolvedValue([]);
-
-      await provider.run();
-
-      expect(mockFetchGroups).toHaveBeenCalledWith('backstageplugin');
-
-      console.log(formatTestCaseDoc(`
-=== [Entity Provider: Default organization name fallback] ===
-metadataUrl does not contain Asgardeo namespace.
-Resulting Organization Name (Default): "backstageplugin"
-`));
-    });
-
     it('should gracefully log and catch run-time fetch exceptions', async () => {
       const config = new ConfigReader({
         catalog: { providers: { asgardeo: { organization: 'err-org' } } },
@@ -261,7 +194,7 @@ Resulting Organization Name (Default): "backstageplugin"
 
       mockFetchGroups.mockRejectedValue(new Error('SCIM Server Down'));
 
-      await provider.run();
+      await expect(provider.run()).rejects.toThrow('SCIM Server Down');
 
       expect(logger.error).toHaveBeenCalledWith('Error syncing entities from Asgardeo: SCIM Server Down');
 

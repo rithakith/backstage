@@ -49,19 +49,7 @@ describe('catalogModuleAsgardeoEntityProvider', () => {
     });
 
     const config = mockServices.rootConfig.factory({
-      data: {
-        auth: {
-          providers: {
-            oidc: {
-              development: {
-                clientId: 'c-id',
-                clientSecret: 'c-secret',
-                metadataUrl: 'https://api.asgardeo.io/t/myorg/token',
-              },
-            },
-          },
-        },
-      },
+      data: {},
     });
 
     await startTestBackend({
@@ -115,17 +103,6 @@ Wiring:
 
     const config = mockServices.rootConfig.factory({
       data: {
-        auth: {
-          providers: {
-            oidc: {
-              development: {
-                clientId: 'c-id',
-                clientSecret: 'c-secret',
-                metadataUrl: 'https://api.asgardeo.io/t/myorg/token',
-              },
-            },
-          },
-        },
         catalog: {
           providers: {
             asgardeo: {

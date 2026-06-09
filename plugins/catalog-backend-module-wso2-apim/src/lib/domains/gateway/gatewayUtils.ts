@@ -34,7 +34,7 @@ export async function discoverGatewayApis(
       );
       try {
         const headers: Record<string, string> = { Accept: 'application/json' };
-        if (gw.discoveryAuth) headers['Authorization'] = gw.discoveryAuth;
+        if (gw.discoveryAuth) headers.Authorization = gw.discoveryAuth;
 
         const response = await undiciFetch(gw.discoveryUrl, { headers, dispatcher });
         if (response.ok) {

@@ -49,7 +49,7 @@ export async function fetchMcpServerDetail(
   mcpSummary: any,
 ): Promise<Wso2McpServer> {
   const mcpId = mcpSummary.id;
-  let mcp = { ...mcpSummary };
+  const mcp = { ...mcpSummary };
 
   try {
     const basePath = client.getPublisherBasePath();

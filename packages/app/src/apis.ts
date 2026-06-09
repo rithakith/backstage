@@ -114,7 +114,7 @@ export const apis: AnyApiFactory[] = [
         discoveryApi,
         oauthRequestApi,
         provider: {
-          id: 'oidc',
+          id: 'asgardeo',
           title: 'Asgardeo',
           icon: () => null,
         },
@@ -137,7 +137,7 @@ export const apis: AnyApiFactory[] = [
         discoveryApi,
         oauthRequestApi,
         provider: {
-          id: 'oidc',  // Use the same OIDC provider as Backstage login (Asgardeo)
+          id: 'asgardeo',
           title: 'Asgardeo',
           icon: () => null,
         },

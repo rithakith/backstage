@@ -39,14 +39,8 @@ describe('Wso2Client', () => {
   };
 
   const config = new ConfigReader({
-    catalog: {
-      providers: {
-        wso2Apim: {
-          baseUrl: 'https://apim.wso2.com',
-        },
-      },
-    },
     wso2ApiManager: {
+      baseUrl: 'https://apim.wso2.com',
       auth: {
         clientId: 'test-client-id',
         clientSecret: 'test-client-secret',
@@ -150,7 +144,7 @@ Cached Token reused successfully. Bypassed token fetch.
       await expect(client.get('/apis')).rejects.toThrow();
 
       expect(logger.error).toHaveBeenCalledWith(
-        '[Wso2Client] Token request failed with status 400: Invalid client credentials',
+        '[Wso2Client] Token request failed with status 400',
       );
 
       console.log(formatTestCaseDoc(`

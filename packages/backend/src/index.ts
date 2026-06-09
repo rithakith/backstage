@@ -46,7 +46,7 @@ backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('./authModuleGithubProvider'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-oauth2-provider'));
-backend.add(import('./authModuleOidcProvider'));
+backend.add(import('@local/backstage-plugin-auth-backend-module-asgardeo-provider'));
 backend.add(import('@backstage/plugin-auth-backend-module-openshift-provider'));
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-unprocessed'));

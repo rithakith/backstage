@@ -56,7 +56,7 @@ Output: "${output}"
 
     const case3_input = 'group#$_name';
     const case3_output = normalizeEntityName(case3_input);
-    expect(case3_output).toBe('group---name');
+    expect(case3_output).toBe('group-name');
 
     console.log(formatTestCaseDoc(`
 === [Entity Name Normalization: Replace Forbidden Characters] ===

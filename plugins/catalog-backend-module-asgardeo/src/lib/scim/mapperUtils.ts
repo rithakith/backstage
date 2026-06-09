@@ -27,13 +27,8 @@ export function mapScimGroupToEntity(
 ): GroupEntity {
   const { organization } = options;
   const displayName = group.displayName || group.id;
-
-  // Extract just the role name after any prefix (e.g. "Internal/admin" -> "admin")
-  const baseName = displayName.includes('/')
-    ? displayName.split('/').pop()!
-    : displayName;
-
-  const normalizedName = normalizeEntityName(baseName);
+  const normalizedName =
+    normalizeEntityName(displayName) || normalizeEntityName(group.id);
 
   return {
     apiVersion: 'backstage.io/v1alpha1',
@@ -81,11 +76,10 @@ export function mapScimUserToEntity(
     ? rawUserName.split('/').pop()!
     : rawUserName;
 
-  // Backstage names must be alphanumeric/dashes
-  const name = cleanUserName
-    .split('@')[0]
-    .replace(/[^a-zA-Z0-9-]/g, '-')
-    .toLowerCase();
+  const name =
+    normalizeEntityName(email || cleanUserName) ||
+    normalizeEntityName(cleanUserName) ||
+    normalizeEntityName(user.id);
 
   // Extract group memberships from SCIM groups attribute
   const memberOf: string[] = [];
@@ -95,11 +89,10 @@ export function mapScimUserToEntity(
       if (groupId && groupIdToName.has(groupId)) {
         memberOf.push(groupIdToName.get(groupId)!);
       } else if (grp.display) {
-        // Fallback: use display name and normalize it
-        const baseName = grp.display.includes('/')
-          ? grp.display.split('/').pop()!
-          : grp.display;
-        memberOf.push(normalizeEntityName(baseName));
+        const normalizedGroupName = normalizeEntityName(grp.display);
+        if (normalizedGroupName) {
+          memberOf.push(normalizedGroupName);
+        }
       }
     }
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 WSO2 LLC
+ * Copyright 2026 The Backstage Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,13 +15,10 @@
  */
 
 /**
- * Normalizes a name for use as a Backstage entity name.
- * Backstage names must be lowercase alphanumeric with dashes only.
+ * The asgardeo-provider backend module for the auth plugin.
+ *
+ * @packageDocumentation
  */
-export function normalizeEntityName(name: string): string {
-  return name
-    .replace(/[^a-zA-Z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase();
-}
+
+export { authModuleAsgardeoProvider as default } from './module';
+export { asgardeoSignInResolvers } from './resolvers';

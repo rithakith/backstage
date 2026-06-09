@@ -106,6 +106,7 @@ describe('gateway/gatewayUtils', () => {
     expect(result[0]).toEqual({
       id: 'api-1',
       description: 'Details 1',
+      environmentType: 'PRODUCTION',
       spec: { version: '1.0.0', context: 's1' },
       initiatedFromGateway: true,
       isDirectDiscovery: true,

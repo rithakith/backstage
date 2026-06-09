@@ -33,6 +33,11 @@ export function mapWso2ProductToEntity(
   logger: LoggerService,
 ): ApiEntity {
   const normalizedName = normalizeEntityName(product.name);
+  const productDetails = product as Wso2ApiProduct & {
+    securityScheme?: string[] | string;
+    maxTps?: unknown;
+    policies?: unknown[];
+  };
   return {
     apiVersion: 'backstage.io/v1alpha1',
     kind: 'API',
@@ -54,6 +59,7 @@ export function mapWso2ProductToEntity(
         'wso2.com/is-discovered': product.initiatedFromGateway === true ? 'true' : 'false',
         'wso2.com/is-api-product': 'true',
         'wso2.com/gateway-endpoints': reconstructGatewayEndpoints(product, globalSettings, logger),
+        'wso2.com/api-endpoints': '[]',
         'wso2.com/platform-gateway-endpoints': JSON.stringify(
           platformGateways.map(gw => ({
             environmentName: gw.environmentName,
@@ -67,7 +73,6 @@ export function mapWso2ProductToEntity(
             }),
           })),
         ),
-        'wso2.com/api-raw-json': JSON.stringify(product),
         'wso2.com/product-resources': product.apis ? JSON.stringify(product.apis) : '[]',
         'wso2.com/business-owner': product.businessInformation?.businessOwner || '',
         'wso2.com/business-owner-email': product.businessInformation?.businessOwnerEmail || '',
@@ -76,6 +81,9 @@ export function mapWso2ProductToEntity(
         'wso2.com/api-throttling-policy': product.apiThrottlingPolicy || '',
         'wso2.com/api-visibility': product.visibility || '',
         'wso2.com/api-transports': Array.isArray(product.transport) ? JSON.stringify(product.transport) : '[]',
+        'wso2.com/api-security-scheme': productDetails.securityScheme ? JSON.stringify(productDetails.securityScheme) : '',
+        'wso2.com/api-max-tps': productDetails.maxTps !== undefined ? String(productDetails.maxTps) : '',
+        'wso2.com/api-policies': Array.isArray(productDetails.policies) ? JSON.stringify(productDetails.policies) : '[]',
       },
       tags: [...(product.tags || []), ...(product.initiatedFromGateway ? ['wso2-discovered'] : [])],
     },

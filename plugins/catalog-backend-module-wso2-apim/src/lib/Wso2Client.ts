@@ -35,7 +35,6 @@ export class Wso2Client {
   private accessToken?: string;
   private tokenExpiresAt?: number;
   private readonly tokenUrl: string;
-  private readonly grantType: string; // e.g., client_credentials or jwt-bearer
 
   constructor(options: { config: Config; logger: LoggerService }) {
     this.baseUrl = options.config.getString('wso2ApiManager.baseUrl');
@@ -45,9 +44,6 @@ export class Wso2Client {
       'wso2ApiManager.auth.clientSecret',
     );
     this.logger = options.logger;
-
-    // optional grant type, defaults to client_credentials
-    this.grantType = options.config.getOptionalString('wso2ApiManager.auth.grantType') ?? 'client_credentials';
 
     const rejectUnauthorized = options.config.getOptionalBoolean('wso2ApiManager.tls.rejectUnauthorized') ?? true;
     this.dispatcher = new Agent({ connect: { rejectUnauthorized } });
@@ -118,9 +114,8 @@ export class Wso2Client {
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`[Wso2Client DEBUG] Attempting to fetch URL: ${url}`);
+        this.logger.debug(`[Wso2Client] ${method} ${url}`);
         const token = await this.getAccessToken();
-        this.logger.info(`[Wso2Client] Using token starting with: ${token.substring(0, 10)}... for ${method} ${url}`);
         const response = await undiciFetch(url, {
           method,
           headers: {
@@ -138,7 +133,6 @@ export class Wso2Client {
 
         return (await response.json()) as T;
       } catch (error: any) {
-        console.error('DEBUG: Request Error:', error);
         lastError = error;
 
         const status = error.status ?? error.statusCode;
@@ -173,17 +167,18 @@ export class Wso2Client {
   }
 
   private async getAccessToken(): Promise<string> {
-    console.log('DEBUG: Entering getAccessToken');
-    if (this.accessToken && this.tokenExpiresAt && Date.now() < this.tokenExpiresAt) {
+    if (
+      this.accessToken &&
+      this.tokenExpiresAt &&
+      Date.now() < this.tokenExpiresAt - 60000
+    ) {
       return this.accessToken;
     }
     // Clear stale token
     this.accessToken = undefined;
     this.tokenExpiresAt = undefined;
 
-    this.logger.info(
-      `[Wso2Client] Fetching token from ${this.baseUrl}/oauth2/token`,
-    );
+    this.logger.debug(`[Wso2Client] Fetching access token`);
 
     const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString(
       'base64',
@@ -194,9 +189,7 @@ export class Wso2Client {
     params.append('grant_type', 'client_credentials');
     params.append('scope', this.scopes);
 
-    const tokenUrl = this.tokenUrl;
-    console.log(`[Wso2Client DEBUG] Attempting to fetch token URL: ${tokenUrl}`);
-    const response = await undiciFetch(tokenUrl, {
+    const response = await undiciFetch(this.tokenUrl, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${auth}`,
@@ -207,15 +200,23 @@ export class Wso2Client {
     });
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      this.logger.error(`[Wso2Client] Token request failed with status ${response.status}: ${errorBody}`);
+      this.logger.error(
+        `[Wso2Client] Token request failed with status ${response.status}`,
+      );
       throw await ResponseError.fromResponse(response);
     }
 
-    const data = (await response.json()) as { access_token: string };
+    const data = (await response.json()) as {
+      access_token?: string;
+      expires_in?: number;
+    };
+    if (!data.access_token) {
+      throw new Error('WSO2 token grant: no access_token in response');
+    }
+
     this.logger.info(`[Wso2Client] Successfully obtained access token`);
     this.accessToken = data.access_token;
-    this.tokenExpiresAt = Date.now() + 50 * 60 * 1000; // Expire 50 min from now
+    this.tokenExpiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
     return this.accessToken;
   }
 }

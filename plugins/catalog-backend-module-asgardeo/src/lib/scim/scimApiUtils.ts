@@ -15,9 +15,10 @@
  */
 
 import { LoggerService } from '@backstage/backend-plugin-api';
-import fetch from 'node-fetch';
 import { AsgardeoClient } from '../AsgardeoClient';
 import { ScimGroup, ScimUser, ScimListResponse } from './types';
+
+const DEFAULT_PAGE_SIZE = 100;
 
 /**
  * Fetches groups from Asgardeo SCIM 2.0 API.
@@ -27,24 +28,13 @@ export async function fetchScimGroups(
   organization: string,
   logger: LoggerService,
 ): Promise<ScimGroup[]> {
-  const token = await client.getAccessToken(organization);
-  const response = await fetch(
-    `https://api.asgardeo.io/t/${organization}/scim2/Groups`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/scim+json',
-      },
-    },
+  const groups = await fetchAllScimResources<ScimGroup>(
+    client,
+    organization,
+    'Groups',
   );
-
-  if (!response.ok) {
-    logger.warn(`Failed to fetch Asgardeo groups: ${response.statusText}`);
-    return [];
-  }
-
-  const data = (await response.json()) as ScimListResponse<ScimGroup>;
-  return data.Resources || [];
+  logger.info(`Fetched ${groups.length} groups from Asgardeo SCIM API`);
+  return groups;
 }
 
 /**
@@ -53,23 +43,44 @@ export async function fetchScimGroups(
 export async function fetchScimUsers(
   client: AsgardeoClient,
   organization: string,
-  _logger: LoggerService,
+  logger: LoggerService,
 ): Promise<ScimUser[]> {
-  const token = await client.getAccessToken(organization);
-  const response = await fetch(
-    `https://api.asgardeo.io/t/${organization}/scim2/Users`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/scim+json',
-      },
-    },
+  const users = await fetchAllScimResources<ScimUser>(
+    client,
+    organization,
+    'Users',
   );
+  logger.info(`Fetched ${users.length} users from Asgardeo SCIM API`);
+  return users;
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch Asgardeo users: ${response.statusText}`);
-  }
+async function fetchAllScimResources<T>(
+  client: AsgardeoClient,
+  organization: string,
+  resourcePath: 'Groups' | 'Users',
+): Promise<T[]> {
+  const resources: T[] = [];
+  let startIndex = 1;
+  let totalResults: number | undefined;
 
-  const data = (await response.json()) as ScimListResponse<ScimUser>;
-  return data.Resources || [];
+  do {
+    const page = await client.fetchScimPage<ScimListResponse<T>>(
+      organization,
+      resourcePath,
+      startIndex,
+      DEFAULT_PAGE_SIZE,
+    );
+
+    const pageResources = page.Resources ?? [];
+    resources.push(...pageResources);
+    totalResults = page.totalResults ?? resources.length;
+
+    if (pageResources.length === 0) {
+      break;
+    }
+
+    startIndex += pageResources.length;
+  } while (resources.length < totalResults);
+
+  return resources;
 }

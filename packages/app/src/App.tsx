@@ -101,7 +101,7 @@ const app = createApp({
       <SignInPage
         {...props}
         provider={{
-          id: 'oidc',
+          id: 'asgardeo',
           title: 'Asgardeo',
           message: 'Sign in using Asgardeo',
           apiRef: asgardeoAuthApiRef,

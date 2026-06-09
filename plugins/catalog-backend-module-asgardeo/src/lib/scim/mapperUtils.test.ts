@@ -68,7 +68,7 @@ ${JSON.stringify(entity, null, 2)}
       };
 
       const entity = mapScimGroupToEntity(group, { organization });
-      expect(entity.metadata.name).toBe('everyone');
+      expect(entity.metadata.name).toBe('internal-everyone');
       expect(entity.metadata.description).toBe('Asgardeo group: Internal/everyone');
 
       console.log(formatTestCaseDoc(`
@@ -125,7 +125,7 @@ Resulting Name: "${entity.metadata.name}"
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'User',
         metadata: {
-          name: 'john-doe',
+            name: 'john-doe-wso2-com',
           annotations: {
             'backstage.io/managed-by-location': 'asgardeo:wso2',
             'backstage.io/managed-by-origin-location': 'asgardeo:wso2',
@@ -178,7 +178,7 @@ Mapped Email Result: "${entity.spec.profile?.email}"
 
       const entity = mapScimUserToEntity(user, { organization, groupIdToName });
       expect(entity.spec.profile?.email).toBe('DEFAULT/alice@wso2.com');
-      expect(entity.metadata.name).toBe('alice');
+      expect(entity.metadata.name).toBe('default-alice-wso2-com');
 
       console.log(formatTestCaseDoc(`
 === [Mapper Utility: User Mapping (Email Fallback to Username)] ===
@@ -201,7 +201,7 @@ Mapped Name Result: "${entity.metadata.name}"
       };
 
       const entity = mapScimUserToEntity(user, { organization, groupIdToName });
-      expect(entity.spec.memberOf).toEqual(['custom-viewers']);
+      expect(entity.spec.memberOf).toEqual(['internal-custom-viewers']);
 
       console.log(formatTestCaseDoc(`
 === [Mapper Utility: User Mapping (Group Fallback Resolution)] ===

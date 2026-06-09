@@ -28,14 +28,14 @@ export function normalizeEntityName(name: string): string {
     .replace(/[^a-zA-Z0-9-]/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-+/g, '-')
-    .toLowerCase() || 'unknown';
+    .toLocaleLowerCase('en-US') || 'unknown';
 }
 
 /**
  * Normalizes gateway types for consistent display.
  */
 export function normalizeGatewayType(type?: string): string {
-  const t = (type || '').toLowerCase().trim();
+  const t = (type || '').toLocaleLowerCase('en-US').trim();
   if (!t || t === 'wso2/synapse' || t === 'synapse' || t === 'regular' || t === 'wso2')
     return 'wso2';
   return t;
@@ -53,7 +53,14 @@ export function mapWso2ApiToEntity(
   logger: LoggerService,
 ): ApiEntity {
   const normalizedName = normalizeEntityName(api.name);
-  const rawApiJsonString = JSON.stringify(api);
+  const apiDetails = api as Wso2Api & {
+    authorizationHeader?: string;
+    apiKeyHeader?: string;
+    maxTps?: unknown;
+    policies?: unknown[];
+    securityScheme?: string[] | string;
+    throttlingPolicy?: string;
+  };
 
   return {
     apiVersion: 'backstage.io/v1alpha1',
@@ -77,6 +84,7 @@ export function mapWso2ApiToEntity(
         'wso2.com/api-gateway': api.gatewayType || api.gatewayVendor || '',
         'wso2.com/is-discovered': api.initiatedFromGateway === true ? 'true' : 'false',
         'wso2.com/api-documents': api.documents ? JSON.stringify(api.documents) : '[]',
+        'wso2.com/api-endpoints': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
         'wso2.com/gateway-endpoints': reconstructGatewayEndpoints(api, globalSettings, logger),
         'wso2.com/raw-endpoint-urls': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
         ...(platformGateways.length > 0 ? {
@@ -94,10 +102,14 @@ export function mapWso2ApiToEntity(
             })),
           ),
         } : {}),
-        'wso2.com/api-raw-json': rawApiJsonString || '',
         'wso2.com/api-throttling-policy': api.apiThrottlingPolicy || '',
         'wso2.com/api-transports': Array.isArray(api.transport) ? JSON.stringify(api.transport) : '[]',
         'wso2.com/api-visibility': api.visibility || '',
+        'wso2.com/api-security-scheme': apiDetails.securityScheme ? JSON.stringify(apiDetails.securityScheme) : '',
+        'wso2.com/api-authorization-header': apiDetails.authorizationHeader || '',
+        'wso2.com/api-key-header': apiDetails.apiKeyHeader || '',
+        'wso2.com/api-max-tps': apiDetails.maxTps !== undefined ? String(apiDetails.maxTps) : '',
+        'wso2.com/api-policies': Array.isArray(apiDetails.policies) ? JSON.stringify(apiDetails.policies) : '[]',
       },
     },
     spec: {
@@ -119,14 +131,14 @@ export function reconstructGatewayEndpoints(api: any, globalSettings: GlobalSett
     ...(Array.isArray(api.deployedGatewayNames) ? api.deployedGatewayNames : []),
     ...(Array.isArray(api.deploymentEnvironments) ? api.deploymentEnvironments : []),
     ...(Array.isArray(api.deployments) ? api.deployments.map((d: any) => d.name || d) : []),
-  ].map(g => String(g).toUpperCase());
+  ].map(g => String(g).toLocaleUpperCase('en-US'));
 
-  const apiGatewayType = normalizeGatewayType(api.gatewayType || api.gatewayVendor || 'wso2').toUpperCase();
+  const apiGatewayType = normalizeGatewayType(api.gatewayType || api.gatewayVendor || 'wso2').toLocaleUpperCase('en-US');
 
   const matchedEnvs = globalSettings.environment.filter((env: any) => {
-    const envName = env.name.toUpperCase();
-    const envDisplayName = env.displayName?.toUpperCase();
-    const envType = normalizeGatewayType(env.gatewayType || env.type || '').toUpperCase();
+    const envName = env.name.toLocaleUpperCase('en-US');
+    const envDisplayName = env.displayName?.toLocaleUpperCase('en-US');
+    const envType = normalizeGatewayType(env.gatewayType || env.type || '').toLocaleUpperCase('en-US');
 
     return deployedGateways.includes(envName) || 
            deployedGateways.includes(envDisplayName) || 
@@ -189,5 +201,5 @@ export function reconstructGatewayEndpoints(api: any, globalSettings: GlobalSett
 }
 
 function getApiSpecType(type: string): string {
-  return (type || 'api').toLowerCase();
+  return (type || 'api').toLocaleLowerCase('en-US');
 }

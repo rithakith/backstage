@@ -117,20 +117,13 @@ export class AsgardeoEntityProvider implements EntityProvider {
           error instanceof Error ? error.message : error
         }`,
       );
+      throw error;
     }
   }
 
   private getOrganization(): string {
-    let organization = this.config.getOptionalString(
+    return this.config.getString(
       `catalog.providers.${this.id}.organization`,
     );
-    if (!organization) {
-      const metadataUrl = this.config.getString(
-        'auth.providers.oidc.development.metadataUrl',
-      );
-      const match = metadataUrl.match(/\/t\/([^\/]+)\//);
-      organization = match ? match[1] : 'backstageplugin';
-    }
-    return organization;
   }
 }

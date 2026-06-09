@@ -26,6 +26,7 @@ const GATEWAY_ENDPOINTS_ANNOTATION = 'wso2-gateway.com/api-endpoints';
 const WSO2_GATEWAY_ENDPOINTS_ANNOTATION = 'wso2.com/gateway-endpoints';
 const PLATFORM_GATEWAY_ENDPOINTS_ANNOTATION = 'wso2.com/platform-gateway-endpoints';
 const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
+const API_TYPE_ANNOTATION = 'wso2.com/api-type';
 
 export const useWso2ApiDefinition = (options: {
   entity: Entity;
@@ -50,16 +51,10 @@ export const useWso2ApiDefinition = (options: {
   const { entity, apiId, token, isTokenLoading, isApiPlatform } = options;
   const apiClient = useApi(wso2ApiManagerApiRef);
 
-  const apiRawJson = entity.metadata.annotations?.['wso2.com/api-raw-json'];
-
   const details = useMemo(() => {
-    if (!apiRawJson) return undefined;
-    try {
-      return JSON.parse(apiRawJson) as Wso2ApiDetail;
-    } catch (e) {
-      return undefined;
-    }
-  }, [apiRawJson]);
+    const type = entity.metadata.annotations?.[API_TYPE_ANNOTATION];
+    return type ? ({ type } as Wso2ApiDetail) : undefined;
+  }, [entity.metadata.annotations]);
 
   const definitionState = useMemo(() => {
     const definition = entity.spec?.definition as string | undefined;

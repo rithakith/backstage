@@ -56,26 +56,26 @@ export const EntityWso2AboutCard = () => {
     const annotations = entity.metadata.annotations || {};
     const gridSizes = { xs: 12, sm: 6, lg: 4 };
 
-    const rawJson = annotations['wso2.com/api-raw-json'];
-    let parsedJson: any = {};
-    if (rawJson) {
-        try {
-            parsedJson = JSON.parse(rawJson);
-        } catch (e) {
-            console.error('Failed to parse raw JSON in AboutCard:', e);
-        }
-    }
-
     // Helper to get annotation value with fallback prefix
     const getAnnotation = (key: string) => annotations[`wso2.com/${key}`] || annotations[`wso2-gateway.com/${key}`];
+    const parseJsonAnnotation = (value?: string) => {
+        if (!value) return undefined;
+        try {
+            return JSON.parse(value);
+        } catch {
+            return undefined;
+        }
+    };
 
-    const lifecycle = getAnnotation('api-lifecycle-status') || parsedJson.lifeCycleStatus;
-    const context = getAnnotation('api-context') || parsedJson.context;
-    const version = getAnnotation('api-version') || parsedJson.version;
-    const provider = getAnnotation('api-provider') || parsedJson.provider;
+    const lifecycle = getAnnotation('api-lifecycle-status');
+    const context = getAnnotation('api-context');
+    const version = getAnnotation('api-version');
+    const provider = getAnnotation('api-provider');
     const endpointsRaw = getAnnotation('api-endpoints');
+    const throttlingPolicy = getAnnotation('api-throttling-policy');
+    const securityScheme = parseJsonAnnotation(getAnnotation('api-security-scheme'));
 
-    const description = entity.metadata.description || parsedJson.description;
+    const description = entity.metadata.description;
 
     return (
         <InfoCard
@@ -116,11 +116,11 @@ export const EntityWso2AboutCard = () => {
                         gridSizes={gridSizes} 
                     />
                 )}
-                {parsedJson.throttlingPolicy && (
-                    <AboutField label="Throttling Policy" value={parsedJson.throttlingPolicy} gridSizes={gridSizes} />
+                {throttlingPolicy && (
+                    <AboutField label="Throttling Policy" value={throttlingPolicy} gridSizes={gridSizes} />
                 )}
-                {parsedJson.securityScheme && (
-                    <AboutField label="Security Scheme" value={Array.isArray(parsedJson.securityScheme) ? parsedJson.securityScheme.join(', ') : parsedJson.securityScheme} gridSizes={gridSizes} />
+                {securityScheme && (
+                    <AboutField label="Security Scheme" value={Array.isArray(securityScheme) ? securityScheme.join(', ') : securityScheme} gridSizes={gridSizes} />
                 )}
                 {description && (
                     <Grid item xs={12}>

@@ -564,22 +564,9 @@ function extractGateways(
     processedNames.add(name);
   };
 
-  // 1. Check raw JSON for gateway info (High priority source)
-  const rawJsonStr = annotations['wso2.com/api-raw-json'];
-  if (rawJsonStr) {
-    try {
-      const raw = JSON.parse(rawJsonStr);
-      // If the raw JSON has gateway info, use it
-      if (raw.gatewayType || raw.gatewayVendor) {
-        addGateway(
-          'publisher-gateway',
-          'Default',
-          raw.gatewayType || raw.gatewayVendor,
-        );
-      }
-    } catch (e) {
-      console.error('Failed to parse api-raw-json in extractGateways:', e);
-    }
+  const gatewayType = annotations['wso2.com/api-gateway'];
+  if (gatewayType) {
+    addGateway('publisher-gateway', 'Default', gatewayType);
   }
 
   // 2. Check standard and gateway-discovered endpoints
@@ -830,7 +817,13 @@ export const Wso2ApiManagerPage = () => {
     // Only retrieve necessary metadata and annotations to avoid loading large specs (like OpenAPI definitions)
     const response = await catalogApi.getEntities({
       filter: { kind: 'API' },
-      fields: ['metadata.name', 'metadata.namespace', 'metadata.annotations'],
+      fields: [
+        'metadata.name',
+        'metadata.namespace',
+        'metadata.title',
+        'metadata.description',
+        'metadata.annotations',
+      ],
     });
 
     const allEntities = response.items;
@@ -885,31 +878,14 @@ export const Wso2ApiManagerPage = () => {
       )
       .map(e => {
         const ann = e.metadata.annotations || {};
-        const rawJson = ann['wso2.com/api-raw-json'];
-        let parsedJson: any = {};
-        if (rawJson) {
-          try {
-            parsedJson = JSON.parse(rawJson);
-          } catch (err) {
-            console.error(
-              'Failed to parse wso2.com/api-raw-json for product',
-              err,
-            );
-          }
-        }
         return {
           id: ann['wso2.com/api-id'] as string,
-          name: ann['wso2.com/api-name'] || parsedJson.name || e.metadata.name,
+          name: ann['wso2.com/api-name'] || e.metadata.title || e.metadata.name,
           namespace: e.metadata.namespace,
-          version:
-            (ann['wso2.com/api-version'] as string) || parsedJson.version,
-          context:
-            (ann['wso2.com/api-context'] as string) || parsedJson.context,
-          provider:
-            (ann['wso2.com/api-provider'] as string) || parsedJson.provider,
-          lifeCycleStatus:
-            (ann['wso2.com/api-lifecycle-status'] as string) ||
-            parsedJson.lifeCycleStatus,
+          version: ann['wso2.com/api-version'] as string,
+          context: ann['wso2.com/api-context'] as string,
+          provider: ann['wso2.com/api-provider'] as string,
+          lifeCycleStatus: ann['wso2.com/api-lifecycle-status'] as string,
           type: 'API_PRODUCT',
           isDiscovered: ann['wso2.com/is-discovered'] === 'true',
           gateways: extractGateways(ann),
@@ -924,49 +900,17 @@ export const Wso2ApiManagerPage = () => {
         e => e.metadata.annotations?.['wso2.com/is-mcp-server'] === 'true',
       )
       .map(e => {
-        const rawJson = e.metadata.annotations?.['wso2.com/api-raw-json'];
-        let parsedJson: any = {};
-        if (rawJson) {
-          try {
-            parsedJson = JSON.parse(rawJson);
-          } catch (err) {
-            console.error('Failed to parse wso2.com/api-raw-json', err);
-          }
-        }
+        const ann = e.metadata.annotations || {};
         return {
-          id:
-            (e.metadata.annotations?.['wso2.com/api-id'] as string) ||
-            parsedJson.id,
-          name:
-            e.metadata.annotations?.['wso2.com/api-name'] ||
-            parsedJson.name ||
-            e.metadata.name,
+          id: ann['wso2.com/api-id'] as string,
+          name: ann['wso2.com/api-name'] || e.metadata.title || e.metadata.name,
           namespace: e.metadata.namespace,
-          version:
-            (e.metadata.annotations?.['wso2.com/api-version'] as string) ||
-            parsedJson.version,
-          context:
-            (e.metadata.annotations?.['wso2.com/api-context'] as string) ||
-            parsedJson.context,
-          provider:
-            (e.metadata.annotations?.['wso2.com/api-provider'] as string) ||
-            parsedJson.provider,
-          lifeCycleStatus:
-            (e.metadata.annotations?.[
-              'wso2.com/api-lifecycle-status'
-            ] as string) || parsedJson.lifeCycleStatus,
-          isDiscovered:
-            e.metadata.annotations?.['wso2.com/is-discovered'] === 'true' ||
-            parsedJson.initiatedFromGateway === true,
-          description: parsedJson.description,
-          throttlingPolicy: parsedJson.throttlingPolicy,
-          transport: parsedJson.transport,
-          visibility: parsedJson.visibility,
-          policies: parsedJson.policies,
-          securityScheme: parsedJson.securityScheme,
-          maxTps: parsedJson.maxTps,
-          authorizationHeader: parsedJson.authorizationHeader,
-          apiKeyHeader: parsedJson.apiKeyHeader,
+          version: ann['wso2.com/api-version'] as string,
+          context: ann['wso2.com/api-context'] as string,
+          provider: ann['wso2.com/api-provider'] as string,
+          lifeCycleStatus: ann['wso2.com/api-lifecycle-status'] as string,
+          isDiscovered: ann['wso2.com/is-discovered'] === 'true',
+          description: e.metadata.description,
         };
       });
     const services = allEntities

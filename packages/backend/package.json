@@ -69,6 +69,7 @@
     "@backstage/plugin-search-backend-node": "workspace:^",
     "@backstage/plugin-signals-backend": "workspace:^",
     "@backstage/plugin-techdocs-backend": "workspace:^",
+    "@local/backstage-plugin-auth-backend-module-asgardeo-provider": "workspace:^",
     "@local/backstage-plugin-catalog-backend-module-asgardeo": "workspace:^",
     "@local/backstage-plugin-catalog-backend-module-wso2-apim": "workspace:^",
     "@local/backstage-plugin-wso2-api-manager-backend": "workspace:^",

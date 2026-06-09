@@ -255,6 +255,7 @@ ${JSON.stringify(parsed[0].urls, null, 2)}
             'wso2.com/api-gateway': 'synapse',
             'wso2.com/is-discovered': 'true',
             'wso2.com/api-documents': JSON.stringify(api.documents),
+            'wso2.com/api-endpoints': '[]',
             'wso2.com/gateway-endpoints': '[]',
             'wso2.com/raw-endpoint-urls': '[]',
             'wso2.com/platform-gateway-endpoints': JSON.stringify([
@@ -266,15 +267,19 @@ ${JSON.stringify(parsed[0].urls, null, 2)}
                 urls: ['https://mygate.com/customers'],
               },
             ]),
-            'wso2.com/api-raw-json': JSON.stringify(api),
             'wso2.com/api-throttling-policy': 'Unlimited',
             'wso2.com/api-transports': JSON.stringify(['http', 'https']),
             'wso2.com/api-visibility': 'PUBLIC',
+            'wso2.com/api-security-scheme': '',
+            'wso2.com/api-authorization-header': '',
+            'wso2.com/api-key-header': '',
+            'wso2.com/api-max-tps': '',
+            'wso2.com/api-policies': '[]',
           },
         },
         spec: {
           type: 'http',
-          lifecycle: undefined,
+          lifecycle: 'production',
           owner: 'admin-team',
           definition: 'openapi: 3.0.0...',
         },
@@ -288,7 +293,7 @@ Resulting Backstage Entity Lifecycle: "${entity.spec.lifecycle}"
 `));
     });
 
-    it('should map different spec types (GraphQL/WS) and experimental lifecycles correctly', () => {
+    it('should map different spec types (GraphQL/WS) and production lifecycles correctly', () => {
       const api: Wso2Api = {
         id: 'graphql-api',
         name: 'GraphQL API',
@@ -309,7 +314,7 @@ Resulting Backstage Entity Lifecycle: "${entity.spec.lifecycle}"
       );
 
       expect(entity.spec.type).toBe('graphql');
-      expect(entity.spec.lifecycle).toBeUndefined();
+      expect(entity.spec.lifecycle).toBe('production');
 
       const wsApi: Wso2Api = {
         id: 'ws-api',

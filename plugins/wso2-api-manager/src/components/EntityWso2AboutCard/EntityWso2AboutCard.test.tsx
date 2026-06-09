@@ -239,31 +239,27 @@ Outcome: Component mounted safely with Name ("test-api") and Display Name ("test
 `));
   });
 
-  it('should parse and display values from wso2.com/api-raw-json annotation', () => {
+  it('should display values from explicit WSO2 annotations', () => {
     mockEntity.metadata.annotations = {
-      'wso2.com/api-raw-json': JSON.stringify({
-        version: '1.2.3-raw',
-        context: '/raw-context',
-        lifeCycleStatus: 'RAW_STATUS',
-        provider: 'raw-provider',
-
-        description: 'Raw description from json',
-
-      }),
+      'wso2.com/api-version': '1.2.3',
+      'wso2.com/api-context': '/annotation-context',
+      'wso2.com/api-lifecycle-status': 'PUBLISHED',
+      'wso2.com/api-provider': 'annotation-provider',
     };
+    mockEntity.metadata.description = 'Description from catalog metadata';
     render(<EntityWso2AboutCard />);
 
     expect(screen.getByText('Version')).toBeDefined();
-    expect(screen.getByText('1.2.3-raw')).toBeDefined();
+    expect(screen.getByText('1.2.3')).toBeDefined();
     expect(screen.getByText('Context')).toBeDefined();
-    expect(screen.getByText('/raw-context')).toBeDefined();
+    expect(screen.getByText('/annotation-context')).toBeDefined();
     expect(screen.getByText('Lifecycle')).toBeDefined();
-    expect(screen.getByText('RAW_STATUS')).toBeDefined();
+    expect(screen.getByText('PUBLISHED')).toBeDefined();
     expect(screen.getByText('Provided By')).toBeDefined();
-    expect(screen.getByText('raw-provider')).toBeDefined();
+    expect(screen.getByText('annotation-provider')).toBeDefined();
 
     expect(screen.getByText('Description')).toBeDefined();
-    expect(screen.getByText('Raw description from json')).toBeDefined();
+    expect(screen.getByText('Description from catalog metadata')).toBeDefined();
 
   });
 });

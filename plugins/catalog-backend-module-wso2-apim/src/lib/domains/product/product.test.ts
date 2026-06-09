@@ -99,6 +99,7 @@ describe('product domain', () => {
             'wso2.com/is-discovered': 'true',
             'wso2.com/is-api-product': 'true',
             'wso2.com/gateway-endpoints': '[]',
+            'wso2.com/api-endpoints': '[]',
             'wso2.com/platform-gateway-endpoints': JSON.stringify([
               {
                 environmentName: 'DevGate',
@@ -108,7 +109,6 @@ describe('product domain', () => {
                 urls: ['https://dev.gateway.com/billing'],
               },
             ]),
-            'wso2.com/api-raw-json': JSON.stringify(product),
             'wso2.com/product-resources': JSON.stringify(product.apis),
             'wso2.com/business-owner': 'Alice',
             'wso2.com/business-owner-email': 'alice@company.com',
@@ -117,12 +117,15 @@ describe('product domain', () => {
             'wso2.com/api-throttling-policy': 'Bronze',
             'wso2.com/api-visibility': 'PUBLIC',
             'wso2.com/api-transports': JSON.stringify(['http']),
+            'wso2.com/api-security-scheme': '',
+            'wso2.com/api-max-tps': '',
+            'wso2.com/api-policies': '[]',
           },
           tags: ['finance', 'billing', 'wso2-discovered'],
         },
         spec: {
           type: 'api_product',
-          lifecycle: undefined,
+          lifecycle: 'production',
           owner: 'Bob',
           definition: 'openapi: 3.0.0...',
         },
@@ -136,7 +139,7 @@ Spec owner: "${entity.spec.owner}" (from technicalOwner)
 `));
     });
 
-    it('should fallback to businessOwner, provider, and unknown for owner, and experimental for lifecycle', () => {
+    it('should fallback to businessOwner, provider, and unknown for owner, and production lifecycle', () => {
       // 1. Fallback to businessOwner
       const prod1: Wso2ApiProduct = {
         id: '1', name: 'p1', version: '1', context: 'c', provider: 'p',
@@ -144,7 +147,7 @@ Spec owner: "${entity.spec.owner}" (from technicalOwner)
       };
       const ent1 = mapWso2ProductToEntity(prod1, 'default', 'prov', undefined, [], logger);
       expect(ent1.spec.owner).toBe('Alice Business');
-      expect(ent1.spec.lifecycle).toBeUndefined();
+      expect(ent1.spec.lifecycle).toBe('production');
 
       // 2. Fallback to provider
       const prod2: Wso2ApiProduct = { id: '2', name: 'p2', version: '1', context: 'c', provider: 'p-team' };

@@ -31,15 +31,12 @@ import {
 } from '@backstage/core-components';
 import Link from '@material-ui/core/Link';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import {
-    Wso2ApiDetail,
-    Wso2ApiProductDetail,
-} from '../../api';
 import { EntityWso2ApiDocumentsCard } from '../EntityWso2ApiDocumentsCard';
 
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const API_DOCUMENTS_ANNOTATION = 'wso2.com/api-documents';
+const API_ENDPOINTS_ANNOTATION = 'wso2.com/api-endpoints';
 const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
 
 
@@ -51,6 +48,7 @@ export const EntityWso2ApiOverviewCard = () => {
 
     const apiId = entity.metadata.annotations?.[WSO2_API_ID_ANNOTATION];
     const apiDocumentsRaw = entity.metadata.annotations?.[API_DOCUMENTS_ANNOTATION];
+    const apiEndpointsRaw = entity.metadata.annotations?.[API_ENDPOINTS_ANNOTATION];
     const isApiPlatform = entity.metadata.annotations?.[DISCOVERY_TYPE_ANNOTATION] === 'api-platform-gateway';
 
     const apiDocuments = useMemo(() => {
@@ -64,17 +62,15 @@ export const EntityWso2ApiOverviewCard = () => {
     }, [apiDocumentsRaw]);
 
 
-    const apiRawJson = entity.metadata.annotations?.['wso2.com/api-raw-json'];
-
-    const details = useMemo(() => {
-        if (!apiRawJson) return undefined;
+    const endpoints = useMemo(() => {
+        if (!apiEndpointsRaw) return [];
         try {
-            return JSON.parse(apiRawJson) as Wso2ApiDetail | Wso2ApiProductDetail;
+            return JSON.parse(apiEndpointsRaw) as any[];
         } catch (e) {
-            console.error('Failed to parse WSO2 API raw JSON:', e);
-            return undefined;
+            console.error('Failed to parse WSO2 API endpoints:', e);
+            return [];
         }
-    }, [apiRawJson]);
+    }, [apiEndpointsRaw]);
 
     if (!apiId) {
         return (
@@ -82,16 +78,6 @@ export const EntityWso2ApiOverviewCard = () => {
                 title="Missing WSO2 API annotation"
                 missing="info"
                 description={`Add ${WSO2_API_ID_ANNOTATION} to the entity annotations.`}
-            />
-        );
-    }
-
-    if (!details) {
-        return (
-            <EmptyState
-                title="API not found"
-                missing="info"
-                description="The API metadata could not be found in the Catalog."
             />
         );
     }
@@ -105,10 +91,10 @@ export const EntityWso2ApiOverviewCard = () => {
                     loading={false}
                 />
             </Grid>
-            { 'endpointURLs' in details && details.endpointURLs && details.endpointURLs.length > 0 && !isApiPlatform && (
+            { endpoints.length > 0 && !isApiPlatform && (
                 <Grid item xs={12}>
                     <InfoCard title="Gateway Endpoints">
-                        <EndpointTable endpoints={details.endpointURLs} />
+                        <EndpointTable endpoints={endpoints} />
                     </InfoCard>
                 </Grid>
             )}
