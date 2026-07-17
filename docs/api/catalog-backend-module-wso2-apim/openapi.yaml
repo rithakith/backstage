@@ -1,0 +1,3065 @@
+openapi: 3.0.3
+info:
+  title: WSO2 APIM Catalog Backend Module Dependencies
+  version: 1.0.0
+  description: >
+    Outbound WSO2 APIs consumed by the catalog-backend-module-wso2-apim plugin
+    while discovering APIs, API products, MCP servers, services, global settings,
+    and self-hosted gateway APIs.
+
+    Direct OpenAPI YAML: [catalog-backend-module-wso2-apim.yaml](./catalog-backend-module-wso2-apim.yaml)
+
+    Postman collection: [catalog-backend-module-wso2-apim.postman_collection.json](../postman/catalog-backend-module-wso2-apim.postman_collection.json)
+servers:
+  - url: https://localhost:9447
+    description: Local WSO2 API Manager base URL from WSO2_BASE_URL in 4.7.0.env.
+tags:
+  - name: OAuth
+  - name: Publisher
+  - name: DevPortal
+  - name: Service Catalog
+  - name: Gateway Discovery
+paths:
+  /oauth2/token:
+    post:
+      tags:
+        - OAuth
+      summary: Exchange client credentials for a WSO2 access token
+      description: |
+        Exchanges client credentials for a WSO2 access token. 
+        
+        **Important:** The client credentials must belong to an application owned/subscribed by a user with appropriate roles/permissions (such as `admin` or a publisher role) to authorize the requested scopes.
+        
+        The scopes are categorized by task:
+        * **Core API Ingestion:** `apim:api_view apim:publisher_settings`
+        * **Advanced Ingestion & Publishing:** `apim:api_create apim:api_publish apim:api_import_export`
+        * **MCP Server Ingestion:** `apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:llm_provider_read`
+      operationId: getWso2AccessToken
+      x-codeSamples:
+        - lang: curl
+          label: Get access token (All Scopes)
+          source: |
+            curl -k -X POST 'https://localhost:9447/oauth2/token' \
+              -u "$WSO2_CLIENT_ID:$WSO2_CLIENT_SECRET" \
+              -H 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode 'grant_type=client_credentials' \
+              --data-urlencode 'scope=apim:api_view apim:publisher_settings apim:api_create apim:api_publish apim:api_import_export apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:llm_provider_read'
+      security:
+        - BasicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - grant_type
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                    - client_credentials
+                scope:
+                  type: string
+                  description: |
+                    Space-separated list of scopes to request. Ensure the client credentials possess roles/permissions that allow requesting these scopes.
+                  example: apim:api_view apim:publisher_settings apim:api_create apim:api_publish apim:api_import_export apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:llm_provider_read
+      responses:
+        '200':
+          description: OAuth token response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Bad request (e.g. missing grant type).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+              example:
+                error: invalid_request
+                error_description: Missing grant_type parameter value
+        '401':
+          description: Unauthorized (e.g. invalid client credentials).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthError'
+              example:
+                error: invalid_client
+                error_description: Client credentials are invalid.
+  /api/am/publisher/v4/settings:
+    get:
+      tags:
+        - Publisher
+      summary: Get global Publisher settings
+      operationId: getPublisherSettings
+      x-codeSamples:
+        - lang: curl
+          label: Get settings
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/settings' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      responses:
+        '200':
+          description: WSO2 Publisher settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                devportalUrl: "https://localhost:9447/devportal"
+                environment:
+                  - id: "Default"
+                    name: "Default"
+                    displayName: "Default"
+                    type: "hybrid"
+                    gatewayType: "Regular"
+                    mode: "WRITE_ONLY"
+                    serverUrl: "https://localhost:9447/services/"
+                    provider: "wso2"
+                    showInApiConsole: true
+                    vhosts:
+                      - host: "localhost"
+                        httpContext: ""
+                        httpPort: 8284
+                        httpsPort: 8247
+                        wsPort: 9099
+                        wsHost: "localhost"
+                        wssPort: 8099
+                        wssHost: "localhost"
+                        websubHttpPort: 9021
+                        websubHttpsPort: 8021
+                    endpointURIs: []
+                    additionalProperties: []
+                    permissions:
+                      permissionType: "PUBLIC"
+                      roles: []
+                  - id: "014681a1-c2db-4bed-8b4a-41e14a793764"
+                    name: "Dasun-gateway"
+                    displayName: "Dasun-gateway"
+                    type: "hybrid"
+                    gatewayType: "AWS"
+                    mode: "WRITE_ONLY"
+                    serverUrl: null
+                    provider: "external"
+                    showInApiConsole: true
+                    vhosts:
+                      - host: "{apiId}.execute-api.{region}.amazonaws.com"
+                        httpContext: ""
+                        httpPort: 80
+                        httpsPort: 443
+                        wsPort: null
+                        wsHost: "{apiId}.execute-api.{region}.amazonaws.com"
+                        wssPort: null
+                        wssHost: "{apiId}.execute-api.{region}.amazonaws.com"
+                        websubHttpPort: 9021
+                        websubHttpsPort: 8021
+                    endpointURIs: []
+                    additionalProperties:
+                      - key: "secret_key"
+                        value: "*****"
+                      - key: "stage"
+                        value: "fed"
+                      - key: "region"
+                        value: "ap-south-1"
+                      - key: "access_key"
+                        value: "*****"
+                      - key: "organization"
+                        value: "carbon.super"
+                    permissions:
+                      permissionType: "PUBLIC"
+                      roles: []
+                gatewayTypes:
+                  - "Regular"
+                  - "APK"
+                  - "AWS"
+                  - "Azure"
+                  - "Kong"
+                  - "Envoy"
+                  - "APIPlatform"
+                gatewayFeatureCatalog:
+                  gatewayFeatures:
+                    Azure:
+                      basic: []
+                      runtime:
+                        - "cors"
+                        - "transportsHTTP"
+                        - "transportsHTTPS"
+                      resources: []
+                      localScopes: []
+                      policies:
+                        - "policies"
+                      monetization: []
+                      subscriptions: []
+                      endpoints:
+                        - "http"
+                        - "typePRODUCTION"
+                      endpointSecurity: []
+                      tryout: []
+                scopes:
+                  - "apim:admin"
+                  - "apim:publisher_settings"
+                  - "openid"
+                monetizationAttributes: []
+                subscriberContactAttributes:
+                  - recipient: ""
+                    delimiter: ""
+                securityAuditProperties:
+                  isGlobal: null
+                  overrideGlobal: null
+                  apiToken: null
+                  collectionId: null
+                  baseUrl: null
+                externalStoresEnabled: false
+                docVisibilityEnabled: false
+                portalConfigurationOnlyModeEnabled: false
+                retryCallWithNewOAuthTokenEnabled: true
+                crossTenantSubscriptionEnabled: false
+                defaultAdvancePolicy: "Unlimited"
+                defaultSubscriptionPolicy: "Unlimited"
+                authorizationHeader: "Authorization"
+                isJWTEnabledForLoginTokens: false
+                orgAccessControlEnabled: true
+                allowSubscriptionValidationDisabling: true
+                designAssistantEnabled: true
+                aiAuthTokenProvided: false
+                isGatewayNotificationEnabled: true
+                isMCPSupportEnabled: true
+                customProperties: []
+        '401':
+          description: Unauthorized request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2Error'
+              example:
+                code: 401
+                message: ""
+                description: "Unauthenticated request"
+                moreInfo: ""
+                error: []
+        '500':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/apis:
+    get:
+      tags:
+        - Publisher
+      summary: List APIs from WSO2 Publisher
+      description: |
+        The catalog backend reads this endpoint in pages using `limit=1000` and an increasing `offset` value until all Publisher APIs have been collected. API details, documents, and Swagger/AsyncAPI definitions are then enriched with bounded concurrency before the provider applies one full catalog mutation.
+      operationId: listPublisherApis
+      x-codeSamples:
+        - lang: curl
+          label: List APIs
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis?limit=1000&offset=0' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of API summaries to return per page. The catalog backend uses 1000.
+          schema:
+            type: integer
+            default: 1000
+        - name: offset
+          in: query
+          required: false
+          description: Zero-based offset of the first API summary to return. The catalog backend increments this by the number of APIs returned on each page.
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: API list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+              example:
+                count: 14
+                list:
+                  - id: "b779100d-982b-4771-b329-ce05a3c98b67"
+                    name: "Chats"
+                    displayName: "Chats websocket"
+                    description: null
+                    context: "/chats"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "subadmin"
+                    type: "WS"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378737952"
+                    updatedTime: "1780577491332"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "69664fec-acd3-466f-b6df-27126abafc2a"
+                    name: "dataflex web service"
+                    displayName: "dataflex web service"
+                    description: null
+                    context: "/dataflex"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1"
+                    provider: "admin"
+                    type: "SOAP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1781006112167"
+                    updatedTime: "1781006288719"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "b23c8513-efe1-4d76-b02a-f08d9e1fb9cc"
+                    name: "endpoint1"
+                    displayName: "endpoint1"
+                    description: "This is a RESTFul API for Pizza Shack online pizza delivery store.\n"
+                    context: "/endpoint1"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1"
+                    provider: "admin"
+                    type: "HTTP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1781023935417"
+                    updatedTime: "1781058466779"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "f703e447-ed7c-4488-9951-a7ef7a4e322f"
+                    name: "GeminiAPI"
+                    displayName: "GeminiAPI"
+                    description: >-
+                      The Gemini API allows developers to build generative AI applications using Gemini models. Gemini is our most capable model, built from the ground up to be multimodal. It can generalize and seamlessly understand, operate across, and combine different types of information including language, images, audio, video, and code. You can use the Gemini API for use cases like reasoning across text and images, content generation, dialogue agents, summarization and classification systems, and more.
+                    context: "/geminiapi"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1beta"
+                    provider: "admin"
+                    type: "HTTP"
+                    subtype: "AIAPI"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "CREATED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378743061"
+                    updatedTime: "1780564619755"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: true
+                    initiatedFromGateway: false
+                  - id: "2bb7508a-b033-447b-9fa8-331866f73bcd"
+                    name: "graphql-2"
+                    displayName: "graphql-2"
+                    description: null
+                    context: "/graphql"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1"
+                    provider: "admin"
+                    type: "GRAPHQL"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780478655676"
+                    updatedTime: "1780479078819"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "6b5e8620-19c6-4d24-8931-f535d9567499"
+                    name: "PhoneVerification"
+                    displayName: "PhoneVerification"
+                    description: null
+                    context: "/phoneverify"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "subadmin"
+                    type: "SOAP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378765210"
+                    updatedTime: "1781010410525"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "bc4449a7-6654-4669-8786-506e86473f67"
+                    name: "PizzaShackAPI"
+                    displayName: "PizzaShackAPI"
+                    description: "This is a simple API for Pizza Shack online pizza delivery store."
+                    context: "/pizzashack"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "admin"
+                    type: "HTTP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378767829"
+                    updatedTime: "1780640368496"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: "Jane Roe"
+                    businessOwnerEmail: "marketing@pizzashack.com"
+                    technicalOwner: "John Doe"
+                    technicalOwnerEmail: "architecture@pizzashack.com"
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "5cb37703-e41c-45ef-8f0b-61d28b4e39f2"
+                    name: "RepoWatcher"
+                    displayName: "RepoWatcher websub webhook"
+                    description: null
+                    context: "/repo-watcher"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "subadmin"
+                    type: "WEBSUB"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378771188"
+                    updatedTime: "1780378771471"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "b5fe46f9-90fe-407f-9b82-018f3875e269"
+                    name: "ResilienceTest_API_001-azure"
+                    displayName: "ResilienceTest_API_001"
+                    description: "Automated mock API for WSO2 Federated Discovery resilience testing (API #1)"
+                    context: "/resilience-test-api-001"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "admin"
+                    type: "HTTP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "CREATED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1781155694984"
+                    updatedTime: "1781155695033"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "external"
+                    gatewayType: "Azure"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: true
+                  - id: "f8039c3a-0b73-40c2-ab18-0c25656e298c"
+                    name: "ServerSentEvents"
+                    displayName: "ServerSentEvents SSE"
+                    description: null
+                    context: "/events"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "subadmin"
+                    type: "SSE"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378777382"
+                    updatedTime: "1780378777902"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "4e08dd1f-e4e8-4df5-922f-b78cb844cc19"
+                    name: "StreetlightsAPI"
+                    displayName: "StreetlightsAPI AsyncAPI"
+                    description: null
+                    context: "/streetlights"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.0"
+                    provider: "subadmin"
+                    type: "WS"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378782627"
+                    updatedTime: "1780378783233"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "621f52df-dc25-4b47-b76b-9df2845a2d91"
+                    name: "SwaggerPetstore-OpenAPI30"
+                    displayName: "SwaggerPetstore-OpenAPI30"
+                    description: >-
+                      This is a sample Pet Store Server based on the OpenAPI 3.0 specification.  You can find out more about
+                      Swagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach!
+                      You can now help us improve the API whether it's by making changes to the definition itself or to the code.
+                      That way, with time, we can improve the API in general, and expose some of the new features in OAS3.
+
+                      Some useful links:
+                      - [The Pet Store repository](https://github.com/swagger-api/swagger-petstore)
+                      - [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)
+                    context: "/swaggerpetstore-openapi3.0"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "1.0.27"
+                    provider: "subadmin"
+                    type: "HTTP"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "CREATED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780378787743"
+                    updatedTime: "1780378788313"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "18c7fba3-3bdc-4d95-aaa5-268e16d25af6"
+                    name: "webhook websub"
+                    displayName: "webhook websub"
+                    description: null
+                    context: "/wehbook"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1"
+                    provider: "admin"
+                    type: "WEBSUB"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1781007752852"
+                    updatedTime: "1781007872447"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                  - id: "6e3a87d8-7b05-40c0-8d73-dc8b6b445c77"
+                    name: "websocket api"
+                    displayName: "websocket api"
+                    description: null
+                    context: "/ws-echo"
+                    additionalProperties: []
+                    additionalPropertiesMap: {}
+                    version: "v1"
+                    provider: "admin"
+                    type: "WS"
+                    subtype: "DEFAULT"
+                    audience: null
+                    audiences:
+                      - "all"
+                    lifeCycleStatus: "PUBLISHED"
+                    workflowStatus: null
+                    hasThumbnail: false
+                    securityScheme: []
+                    createdTime: "1780475048721"
+                    updatedTime: "1780476141799"
+                    updatedBy: "wso2.system.user"
+                    gatewayVendor: "wso2"
+                    gatewayType: "wso2/synapse"
+                    advertiseOnly: false
+                    monetizedInfo: false
+                    businessOwner: null
+                    businessOwnerEmail: null
+                    technicalOwner: null
+                    technicalOwnerEmail: null
+                    egress: false
+                    initiatedFromGateway: false
+                pagination:
+                  offset: 0
+                  limit: 1000
+                  total: 14
+                  next: ""
+                  previous: ""
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+        '500':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/apis/{apiId}:
+    get:
+      tags:
+        - Publisher
+      summary: Get API details
+      operationId: getPublisherApi
+      x-codeSamples:
+        - lang: curl
+          label: Get API details
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis/{apiId}' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: API details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                id: "bc4449a7-6654-4669-8786-506e86473f67"
+                name: "PizzaShackAPI"
+                displayName: "PizzaShackAPI"
+                description: "This is a simple API for Pizza Shack online pizza delivery store."
+                context: "/pizzashack"
+                version: "1.0.0"
+                provider: "admin"
+                lifeCycleStatus: "PUBLISHED"
+                wsdlInfo: null
+                wsdlUrl: null
+                responseCachingEnabled: false
+                cacheTimeout: 300
+                hasThumbnail: false
+                isDefaultVersion: false
+                isRevision: false
+                revisionedApiId: null
+                revisionId: 0
+                enableSchemaValidation: false
+                enableSubscriberVerification: false
+                type: "HTTP"
+                audience: null
+                audiences:
+                  - "all"
+                transport:
+                  - "http"
+                  - "https"
+                tags:
+                  - "pizza"
+                policies:
+                  - "DefaultSubscriptionless"
+                organizationPolicies: []
+                apiThrottlingPolicy: "Unlimited"
+                authorizationHeader: "Authorization"
+                apiKeyHeader: "ApiKey"
+                securityScheme:
+                  - "api_key"
+                  - "oauth_basic_auth_api_key_mandatory"
+                  - "oauth2"
+                maxTps: null
+                visibility: "PUBLIC"
+                visibleRoles: []
+                visibleTenants: []
+                visibleOrganizations:
+                  - "none"
+                mediationPolicies: []
+                apiPolicies: null
+                apiHubPolicies: []
+                subscriptionAvailability: "CURRENT_TENANT"
+                subscriptionAvailableTenants: []
+                additionalProperties: []
+                additionalPropertiesMap: {}
+                monetization: null
+                accessControl: "NONE"
+                accessControlRoles: []
+                businessInformation:
+                  businessOwner: "Jane Roe"
+                  businessOwnerEmail: "marketing@pizzashack.com"
+                  technicalOwner: "John Doe"
+                  technicalOwnerEmail: "architecture@pizzashack.com"
+                corsConfiguration:
+                  corsConfigurationEnabled: false
+                  accessControlAllowOrigins:
+                    - "*"
+                  accessControlAllowCredentials: false
+                  accessControlAllowHeaders:
+                    - "authorization"
+                    - "Access-Control-Allow-Origin"
+                    - "Content-Type"
+                    - "SOAPAction"
+                    - "apikey"
+                    - "Internal-Key"
+                  accessControlAllowMethods:
+                    - "GET"
+                    - "PUT"
+                    - "POST"
+                    - "DELETE"
+                    - "PATCH"
+                    - "OPTIONS"
+                websubSubscriptionConfiguration:
+                  enable: false
+                  secret: ""
+                  signingAlgorithm: "SHA1"
+                  signatureHeader: "x-hub-signature"
+                workflowStatus: null
+                createdTime: "1780378767829"
+                lastUpdatedTimestamp: "1780640368496"
+                lastUpdatedTime: "2026-06-05 06:19:28.496"
+                endpointConfig:
+                  endpoint_type: "http"
+                  sandbox_endpoints:
+                    url: "https://localhost:9447/am/sample/pizzashack/v1/api/"
+                  production_endpoints:
+                    url: "https://localhost:9447/am/sample/pizzashack/v1/api/"
+                primaryProductionEndpointId: null
+                primarySandboxEndpointId: null
+                endpointImplementationType: "ENDPOINT"
+                subtypeConfiguration:
+                  subtype: "DEFAULT"
+                  configuration: null
+                scopes:
+                  - scope:
+                      id: null
+                      name: "gdfg"
+                      displayName: "gdfg"
+                      description: ""
+                      bindings: []
+                      usageCount: null
+                    shared: false
+                  - scope:
+                      id: null
+                      name: "hehe"
+                      displayName: "hehe"
+                      description: ""
+                      bindings: []
+                      usageCount: null
+                    shared: false
+                  - scope:
+                      id: null
+                      name: "rewrew"
+                      displayName: "rewrew"
+                      description: ""
+                      bindings:
+                        - "admin"
+                      usageCount: null
+                    shared: false
+                  - scope:
+                      id: null
+                      name: "testing"
+                      displayName: "testing"
+                      description: ""
+                      bindings: []
+                      usageCount: null
+                    shared: false
+                operations:
+                  - id: ""
+                    target: "/order"
+                    verb: "POST"
+                    authType: "Application & Application User"
+                    throttlingPolicy: "Unlimited"
+                    scopes: []
+                    usedProductIds: []
+                    amznResourceName: null
+                    amznResourceTimeout: null
+                    amznResourceContentEncode: null
+                    payloadSchema: null
+                    uriMapping: null
+                    operationPolicies:
+                      request: []
+                      response: []
+                      fault: []
+                    operationHubPolicies: []
+                  - id: ""
+                    target: "/menu"
+                    verb: "GET"
+                    authType: "Application & Application User"
+                    throttlingPolicy: "Unlimited"
+                    scopes:
+                      - "rewrew"
+                    usedProductIds: []
+                    amznResourceName: null
+                    amznResourceTimeout: null
+                    amznResourceContentEncode: null
+                    payloadSchema: null
+                    uriMapping: null
+                    operationPolicies:
+                      request: []
+                      response: []
+                      fault: []
+                    operationHubPolicies: []
+                  - id: ""
+                    target: "/order/{orderId}"
+                    verb: "PUT"
+                    authType: "Application & Application User"
+                    throttlingPolicy: "Unlimited"
+                    scopes: []
+                    usedProductIds: []
+                    amznResourceName: null
+                    amznResourceTimeout: null
+                    amznResourceContentEncode: null
+                    payloadSchema: null
+                    uriMapping: null
+                    operationPolicies:
+                      request: []
+                      response: []
+                      fault: []
+                    operationHubPolicies: []
+                  - id: ""
+                    target: "/order/{orderId}"
+                    verb: "DELETE"
+                    authType: "Application & Application User"
+                    throttlingPolicy: "Unlimited"
+                    scopes: []
+                    usedProductIds: []
+                    amznResourceName: null
+                    amznResourceTimeout: null
+                    amznResourceContentEncode: null
+                    payloadSchema: null
+                    uriMapping: null
+                    operationPolicies:
+                      request: []
+                      response: []
+                      fault: []
+                    operationHubPolicies: []
+                threatProtectionPolicies: null
+                categories: []
+                keyManagers:
+                  - "all"
+                serviceInfo: null
+                advertiseInfo:
+                  advertised: false
+                  apiExternalProductionEndpoint: null
+                  apiExternalSandboxEndpoint: null
+                  originalDevPortalUrl: null
+                  apiOwner: "admin"
+                  vendor: "WSO2"
+                gatewayVendor: "wso2"
+                gatewayType: "wso2/synapse"
+                initiatedFromGateway: false
+                asyncTransportProtocols: []
+                egress: false
+        '401':
+          description: Unauthorized request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2Error'
+        '404':
+          description: The requested API was not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2Error'
+              example:
+                code: 404
+                message: "Not Found"
+                description: "Requested API with Id 'fjdskjfds' not found"
+                moreInfo: ""
+                error: []
+  /api/am/publisher/v4/apis/{apiId}/swagger:
+    get:
+      tags:
+        - Publisher
+      summary: Get API OpenAPI definition
+      operationId: getPublisherApiSwagger
+      x-codeSamples:
+        - lang: curl
+          label: Get OpenAPI definition
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis/{apiId}/swagger' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: API OpenAPI definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                openapi: "3.0.0"
+                info:
+                  title: "PizzaShackAPI"
+                  description: "This is an online pizza delivery store.\n"
+                  contact:
+                    name: "John Doe"
+                    url: "http://www.pizzashack.com"
+                    email: "architecture@pizzashack.com"
+                  license:
+                    name: "Apache 2.0"
+                    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+                  version: "1.0.0"
+                servers:
+                  - url: "https://localhost:9443/am/sample/pizzashack/v1/api"
+                    description: "Production API server"
+                    x-internal: false
+                security:
+                  - default: []
+                tags:
+                  - name: "menu"
+                    description: "Operations related to menu management."
+                  - name: "order"
+                    description: "Operations related to order management."
+                paths:
+                  /order:
+                    post:
+                      tags:
+                        - "order"
+                      description: "Create a new Order"
+                      operationId: "getOrders"
+                      requestBody:
+                        $ref: "#/components/requestBodies/Order"
+                      responses:
+                        "201":
+                          description: "Created. Successful response with the newly created object as entity inthe body.Location header contains URL of newly created entity."
+                          headers:
+                            Location:
+                              description: "The URL of the newly created resource."
+                              style: "simple"
+                              explode: false
+                              schema:
+                                type: "string"
+                            Content-Type:
+                              description: "The content type of the body."
+                              style: "simple"
+                              explode: false
+                              schema:
+                                type: "string"
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Order"
+                        "400":
+                          description: "Bad Request. Invalid request or validation error."
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                        "415":
+                          description: "Unsupported Media Type. The entity of the request was in a not supported format."
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                      security:
+                        - default: []
+                      x-auth-type: "Application & Application User"
+                      x-throttling-tier: "Unlimited"
+                      x-wso2-application-security:
+                        security-types:
+                          - "api_key"
+                          - "oauth2"
+                        optional: false
+                  /menu:
+                    get:
+                      tags:
+                        - "menu"
+                      description: "Return a list of available menu items"
+                      operationId: "getMenu"
+                      responses:
+                        "200":
+                          description: "OK. List of APIs is returned."
+                          content:
+                            application/json:
+                              schema:
+                                type: "array"
+                                items:
+                                  $ref: "#/components/schemas/MenuItem"
+                        "406":
+                          description: "Not Acceptable. The requested media type is not supported"
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                      security:
+                        - default:
+                            - "rewrew"
+                      x-auth-type: "Application & Application User"
+                      x-throttling-tier: "Unlimited"
+                      x-wso2-application-security:
+                        security-types:
+                          - "api_key"
+                          - "oauth2"
+                        optional: false
+                  /order/{orderId}:
+                    put:
+                      tags:
+                        - "order"
+                      description: "Update an existing Order"
+                      operationId: "updateOrder"
+                      requestBody:
+                        $ref: "#/components/requestBodies/Order"
+                      responses:
+                        "200":
+                          description: "OK. Successful response with updated Order"
+                          headers:
+                            Location:
+                              description: "The URL of the newly created resource."
+                              style: "simple"
+                              explode: false
+                              schema:
+                                type: "string"
+                            Content-Type:
+                              description: "The content type of the body."
+                              style: "simple"
+                              explode: false
+                              schema:
+                                type: "string"
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Order"
+                        "400":
+                          description: "Bad Request. Invalid request or validation error"
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                        "404":
+                          description: "Not Found. The resource to be updated does not exist."
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                      security:
+                        - default: []
+                      x-auth-type: "Application & Application User"
+                      x-throttling-tier: "Unlimited"
+                      x-wso2-application-security:
+                        security-types:
+                          - "api_key"
+                          - "oauth2"
+                        optional: false
+                    delete:
+                      tags:
+                        - "order"
+                      description: "Delete an existing Order"
+                      operationId: "deleteOrder"
+                      responses:
+                        "200":
+                          description: "OK. Resource successfully deleted."
+                        "404":
+                          description: "Not Found. Resource to be deleted does not exist."
+                          content:
+                            application/json:
+                              schema:
+                                $ref: "#/components/schemas/Error"
+                      security:
+                        - default: []
+                      x-auth-type: "Application & Application User"
+                      x-throttling-tier: "Unlimited"
+                      x-wso2-application-security:
+                        security-types:
+                          - "api_key"
+                          - "oauth2"
+                        optional: false
+                    parameters:
+                      - name: "orderId"
+                        in: "path"
+                        description: "Order Id"
+                        required: true
+                        style: "simple"
+                        explode: false
+                        schema:
+                          type: "string"
+                          format: "string"
+                components:
+
+        
+                  schemas:
+                    ErrorListItem:
+                      title: "Description of individual errors that may have occurred during a request."
+                      required:
+                        - "code"
+                        - "message"
+                      properties:
+                        message:
+                          type: "string"
+                          description: "Description about individual errors occurred"
+                        code:
+                          type: "integer"
+                          format: "int64"
+                    MenuItem:
+                      title: "Pizza menu Item"
+                      required:
+                        - "name"
+                      properties:
+                        price:
+                          type: "string"
+                        description:
+                          type: "string"
+                        name:
+                          type: "string"
+                        image:
+                          type: "string"
+                    Order:
+                      title: "Pizza Order"
+                      required:
+                        - "orderId"
+                      properties:
+                        customerName:
+                          type: "string"
+                        delivered:
+                          type: "boolean"
+                        address:
+                          type: "string"
+                        pizzaType:
+                          type: "string"
+                        creditCardNumber:
+                          type: "string"
+                        quantity:
+                          type: "number"
+                        orderId:
+                          type: "string"
+                    Error:
+                      title: "Error object returned with 4XX HTTP status"
+                      required:
+                        - "code"
+                        - "message"
+                      properties:
+                        message:
+                          type: "string"
+                          description: "Error message."
+                        error:
+                          type: "array"
+                          description: "If there are more than one error list them out. Ex. list out validation errors by each field."
+                          items:
+                            $ref: "#/components/schemas/ErrorListItem"
+                        description:
+                          type: "string"
+                          description: "A detail description about the error message."
+                        code:
+                          type: "integer"
+                          format: "int64"
+                        moreInfo:
+                          type: "string"
+                          description: "Preferably an url with more details about the error."
+                  requestBodies:
+                    Order:
+                      description: "Order object that needs to be added"
+                      content:
+                        application/json:
+                          schema:
+                            $ref: "#/components/schemas/Order"
+                      required: true
+                  securitySchemes:
+                    default:
+                      type: "oauth2"
+                      flows:
+                        implicit:
+                          authorizationUrl: "https://test.com"
+                          scopes:
+                            testing: ""
+                            gdfg: ""
+                            rewrew: ""
+                            hehe: ""
+                          x-scopes-bindings:
+                            testing: ""
+                            hehe: ""
+                            gdfg: ""
+                            rewrew: "admin"
+                x-wso2-api-key-header: "ApiKey"
+                x-wso2-auth-header: "Authorization"
+                x-throttling-tier: "Unlimited"
+                x-wso2-cors:
+                  corsConfigurationEnabled: false
+                  accessControlAllowOrigins:
+                    - "*"
+                  accessControlAllowCredentials: false
+                  accessControlAllowHeaders:
+                    - "authorization"
+                    - "Access-Control-Allow-Origin"
+                    - "Content-Type"
+                    - "SOAPAction"
+                    - "apikey"
+                    - "Internal-Key"
+                  accessControlAllowMethods:
+                    - "GET"
+                    - "PUT"
+                    - "POST"
+                    - "DELETE"
+                    - "PATCH"
+                    - "OPTIONS"
+                x-wso2-production-endpoints:
+                  urls:
+                    - "https://localhost:9447/am/sample/pizzashack/v1/api/"
+                  type: "http"
+                x-wso2-sandbox-endpoints:
+                  urls:
+                    - "https://localhost:9447/am/sample/pizzashack/v1/api/"
+                  type: "http"
+                x-wso2-basePath: "/pizzashack/1.0.0"
+                x-wso2-transports:
+                  - "http"
+                  - "https"
+                x-wso2-application-security:
+                  security-types:
+                    - "api_key"
+                    - "oauth2"
+                  optional: false
+                x-wso2-response-cache:
+                  enabled: false
+                  cacheTimeoutInSeconds: 300
+            application/yaml:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+        '500':
+          description: Internal server error (e.g. if trying to retrieve swagger for a non-HTTP API type like WS/WebSocket).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2Error'
+              example:
+                code: 500
+                message: "Internal server error"
+                description: "Error while retrieving swagger of API : b779100d-982b-4771-b329-ce05a3c98b67"
+                moreInfo: ""
+                error: []
+  /api/am/publisher/v4/apis/{apiId}/wsdl:
+    get:
+      tags:
+        - Publisher
+      summary: Get API WSDL definition
+      operationId: getPublisherApiWsdl
+      description: |
+        Gets the WSDL definition for SOAP and SOAP-to-REST APIs.
+
+        The catalog WSO2 provider calls this endpoint while syncing SOAP APIs and stores the text WSDL response on the `wso2.com/api-wsdl` entity annotation when available. If WSO2 returns a ZIP archive instead of text WSDL, the provider skips storing it in the catalog annotation.
+      x-codeSamples:
+        - lang: curl
+          label: Get WSDL definition
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis/{apiId}/wsdl' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN" \
+              -H "Accept: application/wsdl+xml, text/xml, application/xml, application/zip, */*" \
+              -o '{apiId}-wsdl'
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: |
+            API WSDL definition.
+            
+            Returns the WSDL definition for SOAP and SOAP-to-REST APIs. Can be returned as a plain XML document or as a ZIP file.
+          content:
+            application/wsdl+xml:
+              schema:
+                type: string
+              examples:
+                CountryInfoService:
+                  $ref: '#/components/examples/CountryInfoServiceWsdl'
+            text/xml:
+              schema:
+                type: string
+              examples:
+                CountryInfoService:
+                  $ref: '#/components/examples/CountryInfoServiceWsdl'
+            application/xml:
+              schema:
+                type: string
+              examples:
+                CountryInfoService:
+                  $ref: '#/components/examples/CountryInfoServiceWsdl'
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+              examples:
+                CountryInfoService:
+                  $ref: '#/components/examples/CountryInfoServiceWsdl'
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+        '500':
+          description: Internal server error while retrieving the WSDL definition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2Error'
+              examples:
+                generalError:
+                  summary: General Error (e.g. for non-SOAP APIs)
+                  value:
+                    code: 900967
+                    message: "General Error"
+                    description: "Server Error Occurred"
+                    moreInfo: ""
+                    error: []
+                internalServerError:
+                  summary: Internal Server Error
+                  value:
+                    code: 500
+                    message: "Internal server error"
+                    description: "Error while retrieving WSDL of API : b779100d-982b-4771-b329-ce05a3c98b67"
+                    moreInfo: ""
+                    error: []
+  /api/am/publisher/v4/apis/{apiId}/asyncapi:
+    get:
+      tags:
+        - Publisher
+      summary: Get API AsyncAPI definition
+      operationId: getPublisherApiAsyncApi
+      x-codeSamples:
+        - lang: curl
+          label: Get AsyncAPI definition
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis/{apiId}/asyncapi' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: |
+            API AsyncAPI definition.
+            
+            Returns the AsyncAPI definition for WebSocket or other asynchronous APIs. For non-AsyncAPIs (such as HTTP REST APIs), an empty/blank response (`{}`) is returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              examples:
+                asyncApi:
+                  summary: Definition for AsyncAPIs (e.g. WebSocket, WebSub)
+                  value:
+                    asyncapi: "3.0.0"
+                    info:
+                      title: "Chats"
+                      version: "1.0.0"
+                    servers:
+                      production:
+                        host: "localhost:8080"
+                        protocol: "ws"
+                        pathname: "/"
+                      sandbox:
+                        host: "localhost:8080"
+                        protocol: "ws"
+                        pathname: "/"
+                    channels:
+                      "*":
+                        address: "/*"
+                    operations:
+                      receive_/*:
+                        action: "receive"
+                        channel:
+                          $ref: "#/channels/*"
+                      send_/*:
+                        action: "send"
+                        channel:
+                          $ref: "#/channels/*"
+                    components:
+                      securitySchemes:
+                        oauth2:
+                          type: "oauth2"
+                          flows:
+                            implicit:
+                              authorizationUrl: "http://localhost:9999"
+                              availableScopes: {}
+                              x-scopes-bindings: {}
+                nonAsyncApi:
+                  summary: Blank response for non-AsyncAPIs (e.g. standard REST HTTP APIs)
+                  value: {}
+            application/yaml:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/apis/{apiId}/documents:
+    get:
+      tags:
+        - Publisher
+      summary: List API documents
+      operationId: listPublisherApiDocuments
+      x-codeSamples:
+        - lang: curl
+          label: List API documents
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/apis/{apiId}/documents' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: API document list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/api-products:
+    get:
+      tags:
+        - Publisher
+      summary: List API products
+      operationId: listPublisherApiProducts
+      x-codeSamples:
+        - lang: curl
+          label: List API products
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/api-products' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      responses:
+        '200':
+          description: API product list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/api-products/{productId}:
+    get:
+      tags:
+        - Publisher
+      summary: Get API product details
+      operationId: getPublisherApiProduct
+      x-codeSamples:
+        - lang: curl
+          label: Get API product details
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/api-products/{productId}' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: API product details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/api-products/{productId}/swagger:
+    get:
+      tags:
+        - Publisher
+      summary: Get API product OpenAPI definition
+      operationId: getPublisherApiProductSwagger
+      x-codeSamples:
+        - lang: curl
+          label: Get API product OpenAPI definition
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/api-products/{productId}/swagger' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: API product OpenAPI definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/yaml:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/mcp-servers:
+    get:
+      tags:
+        - Publisher
+      summary: List MCP servers
+      operationId: listPublisherMcpServers
+      x-codeSamples:
+        - lang: curl
+          label: List MCP servers
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/mcp-servers' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      responses:
+        '200':
+          description: MCP server list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/mcp-servers/{mcpId}:
+    get:
+      tags:
+        - Publisher
+      summary: Get MCP server details
+      operationId: getPublisherMcpServer
+      x-codeSamples:
+        - lang: curl
+          label: Get MCP server details
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/mcp-servers/{mcpId}' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/McpId'
+      responses:
+        '200':
+          description: MCP server details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/publisher/v4/mcp-servers/{mcpId}/documents:
+    get:
+      tags:
+        - Publisher
+      summary: List MCP server documents
+      operationId: listPublisherMcpServerDocuments
+      x-codeSamples:
+        - lang: curl
+          label: List MCP server documents
+          source: |
+            curl -k 'https://localhost:9447/api/am/publisher/v4/mcp-servers/{mcpId}/documents' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/McpId'
+      responses:
+        '200':
+          description: MCP server document list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/devportal/v3/apis/{apiId}/api-keys/generate:
+    post:
+      tags:
+        - DevPortal
+      summary: Generate an API key through WSO2 DevPortal
+      operationId: generateDevportalApiKey
+      x-codeSamples:
+        - lang: curl
+          label: Generate API key
+          source: |
+            curl -k -X POST 'https://localhost:9447/api/am/devportal/v3/apis/{apiId}/api-keys/generate' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{
+                "keyType": "PRODUCTION",
+                "keyManager": "Resident Key Manager",
+                "keyName": "backstage-key"
+              }'
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keyType:
+                  type: string
+                  example: PRODUCTION
+                keyManager:
+                  type: string
+                  example: Resident Key Manager
+                keyName:
+                  type: string
+      responses:
+        '200':
+          description: Generated key response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+        '500':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/service-catalog/v1/services:
+    get:
+      tags:
+        - Service Catalog
+      summary: List services
+      operationId: listServiceCatalogServices
+      x-codeSamples:
+        - lang: curl
+          label: List services
+          source: |
+            curl -k 'https://localhost:9447/api/am/service-catalog/v1/services?limit=1000&offset=0' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1000
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Service list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListResponse'
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/service-catalog/v1/services/{serviceId}/usage:
+    get:
+      tags:
+        - Service Catalog
+      summary: Get service usage
+      operationId: getServiceCatalogUsage
+      x-codeSamples:
+        - lang: curl
+          label: Get service usage
+          source: |
+            curl -k 'https://localhost:9447/api/am/service-catalog/v1/services/{serviceId}/usage' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      responses:
+        '200':
+          description: Service usage.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /api/am/service-catalog/v1/services/{serviceId}/definition:
+    get:
+      tags:
+        - Service Catalog
+      summary: Get service definition
+      operationId: getServiceCatalogDefinition
+      x-codeSamples:
+        - lang: curl
+          label: Get service definition
+          source: |
+            curl -k 'https://localhost:9447/api/am/service-catalog/v1/services/{serviceId}/definition' \
+              -H "Authorization: Bearer $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+      responses:
+        '200':
+          description: Raw service definition.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/yaml:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+  /rest-apis:
+    get:
+      tags:
+        - Gateway Discovery
+      summary: Discover APIs from a self-hosted gateway
+      operationId: discoverGatewayApis
+      x-codeSamples:
+        - lang: curl
+          label: Discover gateway APIs
+          source: |
+            curl 'https://fab4-14-1-78-245.ngrok-free.app/rest-apis' \
+              -H "Authorization: Basic $WSO2_GATEWAY_DISCOVERY_BASIC_TOKEN"
+      servers:
+        - url: https://fab4-14-1-78-245.ngrok-free.app
+          description: Configured wso2PlatformGateway.discoveryUrl host for APIPlatform.
+      security:
+        - GatewayDiscoveryAuth: []
+        - {}
+      responses:
+        '200':
+          description: Gateway discovery API list.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  - $ref: '#/components/schemas/ListResponse'
+        '401':
+          $ref: '#/components/responses/Wso2Error'
+        '500':
+          $ref: '#/components/responses/Wso2Error'
+  /rest-apis/{apiId}:
+    get:
+      tags:
+        - Gateway Discovery
+      summary: Discover API details from a self-hosted gateway
+      operationId: discoverGatewayApi
+      x-codeSamples:
+        - lang: curl
+          label: Discover gateway API details
+          source: |
+            curl 'https://fab4-14-1-78-245.ngrok-free.app/rest-apis/{apiId}' \
+              -H "Authorization: Basic $WSO2_GATEWAY_DISCOVERY_BASIC_TOKEN"
+      servers:
+        - url: https://fab4-14-1-78-245.ngrok-free.app
+          description: Configured wso2PlatformGateway.discoveryUrl host for APIPlatform.
+      security:
+        - GatewayDiscoveryAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+      responses:
+        '200':
+          description: Gateway API details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/Wso2Error'
+components:
+  examples:
+    CountryInfoServiceWsdl:
+      summary: CountryInfoService WSDL Example
+      value: |
+        <?xml version="1.0" encoding="UTF-8"?>
+        <definitions name="CountryInfoService" targetNamespace="http://www.oorsprong.org/websamples.countryinfo" xmlns="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://www.oorsprong.org/websamples.countryinfo" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/">
+          <types>
+            <xs:schema elementFormDefault="qualified" targetNamespace="http://www.oorsprong.org/websamples.countryinfo">
+              <xs:complexType name="tContinent">
+                <xs:sequence>
+                  <xs:element name="sCode" type="xs:string"/>
+                  <xs:element name="sName" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="tCurrency">
+                <xs:sequence>
+                  <xs:element name="sISOCode" type="xs:string"/>
+                  <xs:element name="sName" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="tCountryCodeAndName">
+                <xs:sequence>
+                  <xs:element name="sISOCode" type="xs:string"/>
+                  <xs:element name="sName" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="tCountryCodeAndNameGroupedByContinent">
+                <xs:sequence>
+                  <xs:element name="Continent" type="tns:tContinent"/>
+                  <xs:element name="CountryCodeAndNames" type="tns:ArrayOftCountryCodeAndName"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="tCountryInfo">
+                <xs:sequence>
+                  <xs:element name="sISOCode" type="xs:string"/>
+                  <xs:element name="sName" type="xs:string"/>
+                  <xs:element name="sCapitalCity" type="xs:string"/>
+                  <xs:element name="sPhoneCode" type="xs:string"/>
+                  <xs:element name="sContinentCode" type="xs:string"/>
+                  <xs:element name="sCurrencyISOCode" type="xs:string"/>
+                  <xs:element name="sCountryFlag" type="xs:string"/>
+                  <xs:element name="Languages" type="tns:ArrayOftLanguage"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="tLanguage">
+                <xs:sequence>
+                  <xs:element name="sISOCode" type="xs:string"/>
+                  <xs:element name="sName" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftCountryCodeAndName">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tCountryCodeAndName" nillable="true" type="tns:tCountryCodeAndName"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftLanguage">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tLanguage" nillable="true" type="tns:tLanguage"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftContinent">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tContinent" nillable="true" type="tns:tContinent"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftCurrency">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tCurrency" nillable="true" type="tns:tCurrency"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftCountryCodeAndNameGroupedByContinent">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tCountryCodeAndNameGroupedByContinent" nillable="true" type="tns:tCountryCodeAndNameGroupedByContinent"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:complexType name="ArrayOftCountryInfo">
+                <xs:sequence>
+                  <xs:element maxOccurs="unbounded" minOccurs="0" name="tCountryInfo" nillable="true" type="tns:tCountryInfo"/>
+                </xs:sequence>
+              </xs:complexType>
+              <xs:element name="ListOfContinentsByName">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfContinentsByNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfContinentsByNameResult" type="tns:ArrayOftContinent"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfContinentsByCode">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfContinentsByCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfContinentsByCodeResult" type="tns:ArrayOftContinent"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCurrenciesByName">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCurrenciesByNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfCurrenciesByNameResult" type="tns:ArrayOftCurrency"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCurrenciesByCode">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCurrenciesByCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfCurrenciesByCodeResult" type="tns:ArrayOftCurrency"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CurrencyName">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCurrencyISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CurrencyNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CurrencyNameResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesByCode">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesByCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfCountryNamesByCodeResult" type="tns:ArrayOftCountryCodeAndName"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesByName">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesByNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfCountryNamesByNameResult" type="tns:ArrayOftCountryCodeAndName"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesGroupedByContinent">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfCountryNamesGroupedByContinentResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfCountryNamesGroupedByContinentResult" type="tns:ArrayOftCountryCodeAndNameGroupedByContinent"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryName">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountryNameResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryISOCode">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryName" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryISOCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountryISOCodeResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CapitalCity">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CapitalCityResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CapitalCityResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryCurrency">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryCurrencyResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountryCurrencyResult" type="tns:tCurrency"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryFlag">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryFlagResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountryFlagResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryIntPhoneCode">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountryIntPhoneCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountryIntPhoneCodeResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="FullCountryInfo">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sCountryISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="FullCountryInfoResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="FullCountryInfoResult" type="tns:tCountryInfo"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="FullCountryInfoAllCountries">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="FullCountryInfoAllCountriesResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="FullCountryInfoAllCountriesResult" type="tns:ArrayOftCountryInfo"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountriesUsingCurrency">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sISOCurrencyCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="CountriesUsingCurrencyResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="CountriesUsingCurrencyResult" type="tns:ArrayOftCountryCodeAndName"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfLanguagesByName">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfLanguagesByNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfLanguagesByNameResult" type="tns:ArrayOftLanguage"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfLanguagesByCode">
+                <xs:complexType>
+                  <xs:sequence/>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="ListOfLanguagesByCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="ListOfLanguagesByCodeResult" type="tns:ArrayOftLanguage"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="LanguageName">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sISOCode" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="LanguageNameResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="LanguageNameResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="LanguageISOCode">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="sLanguageName" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+              <xs:element name="LanguageISOCodeResponse">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="LanguageISOCodeResult" type="xs:string"/>
+                  </xs:sequence>
+                </xs:complexType>
+              </xs:element>
+            </xs:schema>
+          </types>
+          <message name="LanguageNameSoapRequest">
+            <part name="parameters" element="tns:LanguageName">
+            </part>
+          </message>
+          <message name="ListOfCurrenciesByNameSoapRequest">
+            <part name="parameters" element="tns:ListOfCurrenciesByName">
+            </part>
+          </message>
+          <message name="LanguageNameSoapResponse">
+            <part name="parameters" element="tns:LanguageNameResponse">
+            </part>
+          </message>
+          <message name="ListOfContinentsByCodeSoapResponse">
+            <part name="parameters" element="tns:ListOfContinentsByCodeResponse">
+            </part>
+          </message>
+          <message name="CountryFlagSoapResponse">
+            <part name="parameters" element="tns:CountryFlagResponse">
+            </part>
+          </message>
+          <message name="CurrencyNameSoapResponse">
+            <part name="parameters" element="tns:CurrencyNameResponse">
+            </part>
+          </message>
+          <message name="ListOfLanguagesByNameSoapRequest">
+            <part name="parameters" element="tns:ListOfLanguagesByName">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesByNameSoapRequest">
+            <part name="parameters" element="tns:ListOfCountryNamesByName">
+            </part>
+          </message>
+          <message name="CapitalCitySoapRequest">
+            <part name="parameters" element="tns:CapitalCity">
+            </part>
+          </message>
+          <message name="ListOfCurrenciesByCodeSoapRequest">
+            <part name="parameters" element="tns:ListOfCurrenciesByCode">
+            </part>
+          </message>
+          <message name="ListOfLanguagesByCodeSoapRequest">
+            <part name="parameters" element="tns:ListOfLanguagesByCode">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesByCodeSoapRequest">
+            <part name="parameters" element="tns:ListOfCountryNamesByCode">
+            </part>
+          </message>
+          <message name="CountriesUsingCurrencySoapResponse">
+            <part name="parameters" element="tns:CountriesUsingCurrencyResponse">
+            </part>
+          </message>
+          <message name="ListOfContinentsByCodeSoapRequest">
+            <part name="parameters" element="tns:ListOfContinentsByCode">
+            </part>
+          </message>
+          <message name="ListOfCurrenciesByCodeSoapResponse">
+            <part name="parameters" element="tns:ListOfCurrenciesByCodeResponse">
+            </part>
+          </message>
+          <message name="FullCountryInfoAllCountriesSoapRequest">
+            <part name="parameters" element="tns:FullCountryInfoAllCountries">
+            </part>
+          </message>
+          <message name="CountryFlagSoapRequest">
+            <part name="parameters" element="tns:CountryFlag">
+            </part>
+          </message>
+          <message name="LanguageISOCodeSoapRequest">
+            <part name="parameters" element="tns:LanguageISOCode">
+            </part>
+          </message>
+          <message name="CountryISOCodeSoapRequest">
+            <part name="parameters" element="tns:CountryISOCode">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesGroupedByContinentSoapResponse">
+            <part name="parameters" element="tns:ListOfCountryNamesGroupedByContinentResponse">
+            </part>
+          </message>
+          <message name="FullCountryInfoAllCountriesSoapResponse">
+            <part name="parameters" element="tns:FullCountryInfoAllCountriesResponse">
+            </part>
+          </message>
+          <message name="CountryCurrencySoapRequest">
+            <part name="parameters" element="tns:CountryCurrency">
+            </part>
+          </message>
+          <message name="CountryIntPhoneCodeSoapRequest">
+            <part name="parameters" element="tns:CountryIntPhoneCode">
+            </part>
+          </message>
+          <message name="ListOfLanguagesByCodeSoapResponse">
+            <part name="parameters" element="tns:ListOfLanguagesByCodeResponse">
+            </part>
+          </message>
+          <message name="ListOfCurrenciesByNameSoapResponse">
+            <part name="parameters" element="tns:ListOfCurrenciesByNameResponse">
+            </part>
+          </message>
+          <message name="CountryIntPhoneCodeSoapResponse">
+            <part name="parameters" element="tns:CountryIntPhoneCodeResponse">
+            </part>
+          </message>
+          <message name="CountriesUsingCurrencySoapRequest">
+            <part name="parameters" element="tns:CountriesUsingCurrency">
+            </part>
+          </message>
+          <message name="CurrencyNameSoapRequest">
+            <part name="parameters" element="tns:CurrencyName">
+            </part>
+          </message>
+          <message name="CountryNameSoapResponse">
+            <part name="parameters" element="tns:CountryNameResponse">
+            </part>
+          </message>
+          <message name="CountryNameSoapRequest">
+            <part name="parameters" element="tns:CountryName">
+            </part>
+          </message>
+          <message name="CountryCurrencySoapResponse">
+            <part name="parameters" element="tns:CountryCurrencyResponse">
+            </part>
+          </message>
+          <message name="FullCountryInfoSoapResponse">
+            <part name="parameters" element="tns:FullCountryInfoResponse">
+            </part>
+          </message>
+          <message name="ListOfContinentsByNameSoapRequest">
+            <part name="parameters" element="tns:ListOfContinentsByName">
+            </part>
+          </message>
+          <message name="ListOfLanguagesByNameSoapResponse">
+            <part name="parameters" element="tns:ListOfLanguagesByNameResponse">
+            </part>
+          </message>
+          <message name="ListOfContinentsByNameSoapResponse">
+            <part name="parameters" element="tns:ListOfContinentsByNameResponse">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesByNameSoapResponse">
+            <part name="parameters" element="tns:ListOfCountryNamesByNameResponse">
+            </part>
+          </message>
+          <message name="CapitalCitySoapResponse">
+            <part name="parameters" element="tns:CapitalCityResponse">
+            </part>
+          </message>
+          <message name="LanguageISOCodeSoapResponse">
+            <part name="parameters" element="tns:LanguageISOCodeResponse">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesByCodeSoapResponse">
+            <part name="parameters" element="tns:ListOfCountryNamesByCodeResponse">
+            </part>
+          </message>
+          <message name="FullCountryInfoSoapRequest">
+            <part name="parameters" element="tns:FullCountryInfo">
+            </part>
+          </message>
+          <message name="ListOfCountryNamesGroupedByContinentSoapRequest">
+            <part name="parameters" element="tns:ListOfCountryNamesGroupedByContinent">
+            </part>
+          </message>
+          <message name="CountryISOCodeSoapResponse">
+            <part name="parameters" element="tns:CountryISOCodeResponse">
+            </part>
+          </message>
+          <portType name="CountryInfoServiceSoapType">
+            <operation name="ListOfContinentsByName">
+              <documentation>Returns a list of continents ordered by name.</documentation>
+              <input message="tns:ListOfContinentsByNameSoapRequest">
+              </input>
+              <output message="tns:ListOfContinentsByNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfContinentsByCode">
+              <documentation>Returns a list of continents ordered by code.</documentation>
+              <input message="tns:ListOfContinentsByCodeSoapRequest">
+              </input>
+              <output message="tns:ListOfContinentsByCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByName">
+              <documentation>Returns a list of currencies ordered by name.</documentation>
+              <input message="tns:ListOfCurrenciesByNameSoapRequest">
+              </input>
+              <output message="tns:ListOfCurrenciesByNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByCode">
+              <documentation>Returns a list of currencies ordered by code.</documentation>
+              <input message="tns:ListOfCurrenciesByCodeSoapRequest">
+              </input>
+              <output message="tns:ListOfCurrenciesByCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="CurrencyName">
+              <documentation>Returns the name of the currency (if found)</documentation>
+              <input message="tns:CurrencyNameSoapRequest">
+              </input>
+              <output message="tns:CurrencyNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByCode">
+              <documentation>Returns a list of all stored counties ordered by ISO code</documentation>
+              <input message="tns:ListOfCountryNamesByCodeSoapRequest">
+              </input>
+              <output message="tns:ListOfCountryNamesByCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByName">
+              <documentation>Returns a list of all stored counties ordered by country name</documentation>
+              <input message="tns:ListOfCountryNamesByNameSoapRequest">
+              </input>
+              <output message="tns:ListOfCountryNamesByNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesGroupedByContinent">
+              <documentation>Returns a list of all stored counties grouped per continent</documentation>
+              <input message="tns:ListOfCountryNamesGroupedByContinentSoapRequest">
+              </input>
+              <output message="tns:ListOfCountryNamesGroupedByContinentSoapResponse">
+              </output>
+            </operation>
+            <operation name="CountryName">
+              <documentation>Searches the database for a country by the passed ISO country code</documentation>
+              <input message="tns:CountryNameSoapRequest">
+              </input>
+              <output message="tns:CountryNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="CountryISOCode">
+              <documentation>This function tries to found a country based on the passed country name.</documentation>
+              <input message="tns:CountryISOCodeSoapRequest">
+              </input>
+              <output message="tns:CountryISOCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="CapitalCity">
+              <documentation>Returns the  name of the captial city for the passed country code</documentation>
+              <input message="tns:CapitalCitySoapRequest">
+              </input>
+              <output message="tns:CapitalCitySoapResponse">
+              </output>
+            </operation>
+            <operation name="CountryCurrency">
+              <documentation>Returns the currency ISO code and name for the passed country ISO code</documentation>
+              <input message="tns:CountryCurrencySoapRequest">
+              </input>
+              <output message="tns:CountryCurrencySoapResponse">
+              </output>
+            </operation>
+            <operation name="CountryFlag">
+              <documentation>Returns a link to a picture of the country flag</documentation>
+              <input message="tns:CountryFlagSoapRequest">
+              </input>
+              <output message="tns:CountryFlagSoapResponse">
+              </output>
+            </operation>
+            <operation name="CountryIntPhoneCode">
+              <documentation>Returns the internation phone code for the passed ISO country code</documentation>
+              <input message="tns:CountryIntPhoneCodeSoapRequest">
+              </input>
+              <output message="tns:CountryIntPhoneCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="FullCountryInfo">
+              <documentation>Returns a struct with all the stored country information. Pass the ISO country code</documentation>
+              <input message="tns:FullCountryInfoSoapRequest">
+              </input>
+              <output message="tns:FullCountryInfoSoapResponse">
+              </output>
+            </operation>
+            <operation name="FullCountryInfoAllCountries">
+              <documentation>Returns an array with all countries and all the language information stored</documentation>
+              <input message="tns:FullCountryInfoAllCountriesSoapRequest">
+              </input>
+              <output message="tns:FullCountryInfoAllCountriesSoapResponse">
+              </output>
+            </operation>
+            <operation name="CountriesUsingCurrency">
+              <documentation>Returns a list of all countries that use the same currency code. Pass a ISO currency code</documentation>
+              <input message="tns:CountriesUsingCurrencySoapRequest">
+              </input>
+              <output message="tns:CountriesUsingCurrencySoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByName">
+              <documentation>Returns an array of languages ordered by name</documentation>
+              <input message="tns:ListOfLanguagesByNameSoapRequest">
+              </input>
+              <output message="tns:ListOfLanguagesByNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByCode">
+              <documentation>Returns an array of languages ordered by code</documentation>
+              <input message="tns:ListOfLanguagesByCodeSoapRequest">
+              </input>
+              <output message="tns:ListOfLanguagesByCodeSoapResponse">
+              </output>
+            </operation>
+            <operation name="LanguageName">
+              <documentation>Find a language name based on the passed ISO language code</documentation>
+              <input message="tns:LanguageNameSoapRequest">
+              </input>
+              <output message="tns:LanguageNameSoapResponse">
+              </output>
+            </operation>
+            <operation name="LanguageISOCode">
+              <documentation>Find a language ISO code based on the passed language name</documentation>
+              <input message="tns:LanguageISOCodeSoapRequest">
+              </input>
+              <output message="tns:LanguageISOCodeSoapResponse">
+              </output>
+            </operation>
+          </portType>
+          <binding name="CountryInfoServiceSoapBinding" type="tns:CountryInfoServiceSoapType">
+            <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+            <operation name="ListOfContinentsByName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfContinentsByCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CurrencyName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesGroupedByContinent">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryISOCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CapitalCity">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryCurrency">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryFlag">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryIntPhoneCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="FullCountryInfo">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="FullCountryInfoAllCountries">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountriesUsingCurrency">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="LanguageName">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="LanguageISOCode">
+              <soap:operation soapAction="" style="document"/>
+              <input>
+                <soap:body use="literal"/>
+              </input>
+              <output>
+                <soap:body use="literal"/>
+              </output>
+            </operation>
+          </binding>
+          <binding name="CountryInfoServiceSoapBinding12" type="tns:CountryInfoServiceSoapType">
+            <soap12:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+            <operation name="ListOfContinentsByName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfContinentsByCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCurrenciesByCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CurrencyName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesByName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfCountryNamesGroupedByContinent">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryISOCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CapitalCity">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryCurrency">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryFlag">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountryIntPhoneCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="FullCountryInfo">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="FullCountryInfoAllCountries">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="CountriesUsingCurrency">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="ListOfLanguagesByCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="LanguageName">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+            <operation name="LanguageISOCode">
+              <soap12:operation soapAction="" style="document"/>
+              <input>
+                <soap12:body use="literal"/>
+              </input>
+              <output>
+                <soap12:body use="literal"/>
+              </output>
+            </operation>
+          </binding>
+          <service name="CountryInfoService">
+            <documentation>This DataFlex Web Service opens up country information. 2 letter ISO codes are used for Country code. There are functions to retrieve the used Currency, Language, Capital City, Continent and Telephone code.</documentation>
+            <port name="CountryInfoServiceSoap12" binding="tns:CountryInfoServiceSoapBinding12">
+              <soap12:address location="http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"/>
+            </port>
+            <port name="CountryInfoServiceSoap" binding="tns:CountryInfoServiceSoapBinding">
+              <soap:address location="http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso"/>
+            </port>
+          </service>
+        </definitions>
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    BasicAuth:
+      type: http
+      scheme: basic
+    GatewayDiscoveryAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+  parameters:
+    ApiId:
+      name: apiId
+      in: path
+      required: true
+      schema:
+        type: string
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+    McpId:
+      name: mcpId
+      in: path
+      required: true
+      schema:
+        type: string
+    ServiceId:
+      name: serviceId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Wso2Error:
+      description: WSO2 error response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Wso2Error'
+        text/plain:
+          schema:
+            type: string
+  schemas:
+    OAuthError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: invalid_client
+        error_description:
+          type: string
+          example: Client credentials are invalid.
+      additionalProperties: true
+    TokenResponse:
+      type: object
+      required:
+        - access_token
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 3600
+        scope:
+          type: string
+      example:
+        access_token: "eyJ4NXQiOiJZMkUxWXpsaU5UUm1PV0kyWkRNNVpqTTVObUV4WVdGaE4yRTNPREEwT0RFek9UTmpNV1JtWW1JMU5qZGpabUZqWm1JNU5qSmxObUU0T0dGa05qVTRPQSIsImtpZCI6IlkyRTFZemxpTlRSbU9XSTJaRE01WmpNNU5tRXhZV0ZoTjJFM09EQTBPREV6T1ROak1XUm1ZbUkxTmpkalptRmpabUk1TmpKbE5tRTRPR0ZrTmpVNE9BX1JTMjU2IiwidHlwIjoiYXQrand0IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiI5YTY0OThlNi1lMmE1LTQ1NmMtODgyNS00MzA5YmQ5Zjg3N2EiLCJhdXQiOiJBUFBMSUNBVElPTiIsImlzcyI6Imh0dHBzOi8vbG9jYWxob3N0Ojk0NDcvb2F1dGgyL3Rva2VuIiwiZW50aXR5X2lkIjoiZnlqWHJ0WUY3ODM0U2Rid0JyXzl0U0dLZ0s4YSIsImNsaWVudF9pZCI6ImZ5alhydFlGNzgzNFNkYndCcl85dFNHS2dLOGEiLCJ1c2lkIjoiOTgzNDdlMjctMDJiOS00ZGRjLTk3YzktZjNkOTNkZDU5ZjU5IiwiYXVkIjoiZnlqWHJ0WUY3ODM0U2Rid0JyXzl0U0dLZ0s4YSIsIm5iZiI6MTc4MTIzNjgxNCwiYXpwIjoiZnlqWHJ0WUY3ODM0U2Rid0JyXzl0U0dLZ0s4YSIsInNjb3BlIjoiYXBpbTphcGlfY3JlYXRlIGFwaW06YXBpX2ltcG9ydF9leHBvcnQgYXBpbTphcGlfcHVibGlzaCBhcGltOmFwaV92aWV3IGFwaW06bGxtX3Byb3ZpZGVyX3JlYWQgYXBpbTptY3Bfc2VydmVyX2NyZWF0ZSBhcGltOm1jcF9zZXJ2ZXJfZ2VuZXJhdGVfa2V5IGFwaW06bWNwX3NlcnZlcl9pbXBvcnRfZXhwb3J0IGFwaW06bWNwX3NlcnZlcl9saXN0X3ZpZXcgYXBpbTptY3Bfc2VydmVyX3B1Ymxpc2ggYXBpbTptY3Bfc2VydmVyX3ZpZXcgYXBpbTpwdWJsaXNoZXJfc2V0dGluZ3MiLCJleHAiOjE3ODEyNDA0MTQsImlhdCI6MTc4MTIzNjgxNCwianRpIjoiYzcyNjM0MTItZmUwZC00NzMwLWI1YjMtOTliOGQxYmQwMzEzIn0.gaWTLNBN_w_EORqy1Dkl9CaoDxVeyUbmgE-YSvAKq0GnwYBIbO_z3m7GzNKUdq5AsBR9WjMMwD3C6yYizvC3_jkI_io2wBv_ld9l62-x5HDG48QU678g7ccu14zHR6w38O0Csuq3HI5_fC1SMWpTSkHihTSiskEXdLc2xQFjhImHhPCj1asFI8E3gphIv82ik2eFFNWQ_Hz3vHTEKVYuR5xzzCnFAXrnPdgdlOSoUJsXeYeQE4YKRUoRXBV2zH8G6shl0noV4kCJraucPlh1fu7JXXebzpzGbduIJJXHo0k9Xsf-He6sH6MTxZKJ8W-O9iHU9IHDDTFaAzh675SnZQ"
+        scope: "apim:api_create apim:api_import_export apim:api_publish apim:api_view apim:llm_provider_read apim:mcp_server_create apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:mcp_server_publish apim:mcp_server_view apim:publisher_settings"
+        token_type: "Bearer"
+        expires_in: 3600
+    ListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        list:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        pagination:
+          type: object
+          properties:
+            offset:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+          additionalProperties: true
+      additionalProperties: true
+    Wso2Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        description:
+          type: string
+        moreInfo:
+          type: string
+      additionalProperties: true
+      example:
+        code: 401
+        message: ""
+        description: "Unauthenticated request"
+        moreInfo: ""
+        error: []
+security:
+  - BearerAuth: []
+
+

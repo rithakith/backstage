@@ -246,6 +246,13 @@ Resulting formatted:
 ${result}
 `));
     });
+
+    it('should format long lines containing braces correctly', () => {
+      const longLine = 'type Query { fieldOne: String, fieldTwo: String, fieldThree: String, fieldFour: String, fieldFive: String }';
+      const result = formatGraphQL(longLine);
+      expect(result).toContain('type Query {');
+      expect(result).toContain('fieldOne: String');
+    });
   });
 
   describe('isAsyncType', () => {

@@ -24,6 +24,35 @@ import { fetchMcpServerList, mapWso2McpToEntity } from './domains/mcp';
 import { fetchServiceList, mapWso2ServiceToEntity } from './domains/service';
 import { discoverGatewayApis, mapDiscoveredApiToEntity, PlatformGateway } from './domains/gateway';
 
+function formatDuration(durationMs: number): string {
+  return `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+}
+
+async function timePhase<T>(
+  logger: LoggerService,
+  label: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  logger.info(`[WSO2 Timing] ${label} started.`);
+  try {
+    const result = await action();
+    logger.info(
+      `[WSO2 Timing] ${label} completed in ${formatDuration(
+        Date.now() - startedAt,
+      )}.`,
+    );
+    return result;
+  } catch (error) {
+    logger.error(
+      `[WSO2 Timing] ${label} failed after ${formatDuration(
+        Date.now() - startedAt,
+      )}: ${error}`,
+    );
+    throw error;
+  }
+}
+
 /**
  * Service responsible for orchestrating the discovery of WSO2 entities.
  */
@@ -43,24 +72,53 @@ export class Wso2DiscoveryService {
     namespace: string;
     providerId: string;
     platformGateways: PlatformGateway[];
+    onPublisherApiProgress?: (progress: {
+      loaded: number;
+      total?: number;
+      message?: string;
+    }) => void;
   }): Promise<Entity[]> {
-    const { namespace, providerId, platformGateways } = options;
+    const discoveryStartedAt = Date.now();
+    const { namespace, providerId, platformGateways, onPublisherApiProgress } =
+      options;
 
     this.logger.info(`[Wso2DiscoveryService] Starting discovery for provider ${providerId}`);
 
     // 1. Fetch raw data from WSO2 domains
-    const globalSettings = await fetchGlobalSettings(this.client, this.logger);
-    const apiList = await fetchApiList(this.client, this.logger);
-    const productList = await fetchApiProductList(this.client, this.logger);
-    const mcpList = await fetchMcpServerList(this.client, this.logger);
-    const serviceList = await fetchServiceList(this.client, this.logger);
-    const discoveredGatewayApis = await discoverGatewayApis(
-      platformGateways,
+    const globalSettings = await timePhase(
       this.logger,
-      this.client.getDispatcher(),
+      'Global settings load',
+      () => fetchGlobalSettings(this.client, this.logger),
+    );
+    const apiList = await timePhase(this.logger, 'Publisher API load', () =>
+      fetchApiList(this.client, this.logger, {
+        onProgress: onPublisherApiProgress,
+      }),
+    );
+    const productList = await timePhase(this.logger, 'API Product load', () =>
+      fetchApiProductList(this.client, this.logger),
+    );
+    const mcpList = await timePhase(this.logger, 'MCP Server load', () =>
+      fetchMcpServerList(this.client, this.logger),
+    );
+    const serviceList = await timePhase(
+      this.logger,
+      'Service Catalog load',
+      () => fetchServiceList(this.client, this.logger),
+    );
+    const discoveredGatewayApis = await timePhase(
+      this.logger,
+      'Gateway API discovery',
+      () =>
+        discoverGatewayApis(
+          platformGateways,
+          this.logger,
+          this.client.getDispatcher(),
+        ),
     );
 
     // 2. Map WSO2 objects to Backstage entities
+    const mappingStartedAt = Date.now();
     const apiEntities = apiList.map(api =>
       mapWso2ApiToEntity(api, namespace, providerId, globalSettings, platformGateways, this.logger),
     );
@@ -91,6 +149,20 @@ export class Wso2DiscoveryService {
 
     this.logger.info(
       `[Wso2DiscoveryService] Discovery complete. Found ${allEntities.length} entities.`,
+    );
+    this.logger.info(
+      `[WSO2 Timing] Entity mapping completed in ${formatDuration(
+        Date.now() - mappingStartedAt,
+      )}. Counts: APIs=${apiEntities.length}, Products=${
+        productEntities.length
+      }, MCP=${mcpEntities.length}, Services=${
+        serviceEntities.length
+      }, Gateway APIs=${discoveredEntities.length}.`,
+    );
+    this.logger.info(
+      `[WSO2 Timing] Full WSO2 discovery completed in ${formatDuration(
+        Date.now() - discoveryStartedAt,
+      )}; total catalog entities=${allEntities.length}.`,
     );
 
     return allEntities;

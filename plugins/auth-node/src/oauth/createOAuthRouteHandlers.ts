@@ -122,6 +122,16 @@ export function createOAuthRouteHandlers<TProfile>(
     cookieManager,
     additionalScopes: options.additionalScopes,
   });
+  const isAsgardeoProvider = providerId === 'asgardeo';
+
+  const formatDuration = (durationMs: number) =>
+    `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+
+  const logAsgardeoTiming = (message: string) => {
+    if (isAsgardeoProvider) {
+      console.info(`[Asgardeo Timing] ${message}`);
+    }
+  };
 
   return {
     async start(
@@ -129,6 +139,7 @@ export function createOAuthRouteHandlers<TProfile>(
       req: express.Request,
       res: express.Response,
     ): Promise<void> {
+      const startedAt = Date.now();
       const env = req.query.env?.toString();
       const origin = req.query.origin?.toString();
       const redirectUrl = req.query.redirectUrl?.toString();
@@ -138,28 +149,85 @@ export function createOAuthRouteHandlers<TProfile>(
         throw new InputError('No env provided in request query parameters');
       }
 
-      const nonce = crypto.randomBytes(16).toString('base64');
-      // set a nonce cookie before redirecting to oauth provider
-      cookieManager.setNonce(res, nonce, origin);
+      let appOrigin = defaultAppOrigin;
+      if (origin) {
+        try {
+          appOrigin = new URL(origin).origin;
+        } catch {
+          throw new NotAllowedError('App origin is invalid, failed to parse');
+        }
+        if (!isOriginAllowed(appOrigin)) {
+          throw new NotAllowedError(`Origin '${appOrigin}' is not allowed`);
+        }
+      }
 
-      const { scope, scopeState } = await scopeManager.start(req);
+      try {
+        const nonce = crypto.randomBytes(16).toString('base64');
+        // set a nonce cookie before redirecting to oauth provider
+        cookieManager.setNonce(res, nonce, origin);
 
-      const state = { nonce, env, origin, redirectUrl, flow, ...scopeState };
-      const { state: transformedState } = await stateTransform(state, { req });
+        const { scope, scopeState } = await scopeManager.start(req);
 
-      const { url, status } = await options.authenticator.start(
-        {
+        const state = {
+          nonce,
+          env,
+          origin,
+          redirectUrl,
+          flow,
+          asgardeoAuthStartedAt: isAsgardeoProvider
+            ? String(startedAt)
+            : undefined,
+          ...scopeState,
+        };
+        const { state: transformedState } = await stateTransform(state, {
           req,
-          scope,
-          state: encodeOAuthState(transformedState),
-        },
-        authenticatorCtx,
-      );
+        });
 
-      res.statusCode = status || 302;
-      res.setHeader('Location', url);
-      res.setHeader('Content-Length', '0');
-      res.end();
+        const { url, status } = await options.authenticator.start(
+          {
+            req,
+            scope,
+            state: encodeOAuthState(transformedState),
+          },
+          authenticatorCtx,
+        );
+
+        res.statusCode = status || 302;
+        res.setHeader('Location', url);
+        res.setHeader('Content-Length', '0');
+        res.end();
+        logAsgardeoTiming(
+          `Sign-in start route completed in ${formatDuration(
+            Date.now() - startedAt,
+          )}; redirected to Asgardeo.`,
+        );
+      } catch (error) {
+        const { name, message } = isError(error)
+          ? error
+          : new Error('Encountered invalid error');
+
+        if (flow === 'redirect' && redirectUrl) {
+          const errorRedirectUrl = new URL(redirectUrl);
+          errorRedirectUrl.searchParams.set('error', message);
+          res.redirect(errorRedirectUrl.toString());
+          logAsgardeoTiming(
+            `Sign-in start route failed after ${formatDuration(
+              Date.now() - startedAt,
+            )}: ${message}`,
+          );
+          return;
+        }
+
+        sendWebMessageResponse(res, appOrigin, {
+          type: 'authorization_response',
+          error: { name, message },
+        });
+        logAsgardeoTiming(
+          `Sign-in start route failed after ${formatDuration(
+            Date.now() - startedAt,
+          )}: ${message}`,
+        );
+      }
     },
 
     async frameHandler(
@@ -167,6 +235,7 @@ export function createOAuthRouteHandlers<TProfile>(
       req: express.Request,
       res: express.Response,
     ): Promise<void> {
+      const startedAt = Date.now();
       let origin = defaultAppOrigin;
       let state;
 
@@ -241,6 +310,21 @@ export function createOAuthRouteHandlers<TProfile>(
             );
           }
           res.redirect(state.redirectUrl);
+          const fullDurationMs =
+            typeof state.asgardeoAuthStartedAt === 'string'
+              ? Date.now() - Number(state.asgardeoAuthStartedAt)
+              : undefined;
+          logAsgardeoTiming(
+            `Callback route completed in ${formatDuration(
+              Date.now() - startedAt,
+            )}${
+              fullDurationMs !== undefined && Number.isFinite(fullDurationMs)
+                ? `; full browser-to-Asgardeo-to-Backstage sign-in took ${formatDuration(
+                    fullDurationMs,
+                  )}`
+                : ''
+            }.`,
+          );
           return;
         }
 
@@ -249,6 +333,21 @@ export function createOAuthRouteHandlers<TProfile>(
           type: 'authorization_response',
           response,
         });
+        const fullDurationMs =
+          typeof state.asgardeoAuthStartedAt === 'string'
+            ? Date.now() - Number(state.asgardeoAuthStartedAt)
+            : undefined;
+        logAsgardeoTiming(
+          `Callback route completed in ${formatDuration(
+            Date.now() - startedAt,
+          )}${
+            fullDurationMs !== undefined && Number.isFinite(fullDurationMs)
+              ? `; full browser-to-Asgardeo-to-Backstage sign-in took ${formatDuration(
+                  fullDurationMs,
+                )}`
+              : ''
+          }.`,
+        );
       } catch (error) {
         const { name, message } = isError(error)
           ? error
@@ -267,6 +366,11 @@ export function createOAuthRouteHandlers<TProfile>(
             error: { name, message },
           });
         }
+        logAsgardeoTiming(
+          `Callback route failed after ${formatDuration(
+            Date.now() - startedAt,
+          )}: ${message}`,
+        );
       }
     },
 
@@ -299,6 +403,7 @@ export function createOAuthRouteHandlers<TProfile>(
       req: express.Request,
       res: express.Response,
     ): Promise<void> {
+      const startedAt = Date.now();
       // We use this as a lightweight CSRF protection
       if (req.header('X-Requested-With') !== 'XMLHttpRequest') {
         throw new AuthenticationError('Invalid X-Requested-With header');
@@ -357,7 +462,17 @@ export function createOAuthRouteHandlers<TProfile>(
         }
 
         res.status(200).json(response);
+        logAsgardeoTiming(
+          `Refresh route completed in ${formatDuration(
+            Date.now() - startedAt,
+          )}.`,
+        );
       } catch (error) {
+        logAsgardeoTiming(
+          `Refresh route failed after ${formatDuration(
+            Date.now() - startedAt,
+          )}: ${isError(error) ? error.message : String(error)}`,
+        );
         throw new AuthenticationError('Refresh failed', error);
       }
     },

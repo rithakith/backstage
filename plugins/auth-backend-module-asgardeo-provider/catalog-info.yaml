@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: backstage-plugin-auth-backend-module-asgardeo-provider
+  title: '@backstage/plugin-auth-backend-module-asgardeo-provider'
+  description: The asgardeo-provider backend module for the auth plugin.
+
+spec:
+  lifecycle: experimental
+  type: backstage-backend-plugin-module
+  owner: wso2

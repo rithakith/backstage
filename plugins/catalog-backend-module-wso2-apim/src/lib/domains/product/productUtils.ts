@@ -18,6 +18,10 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { Wso2Client } from '../../Wso2Client';
 import { Wso2ApiProduct } from './types';
 
+function formatDuration(durationMs: number): string {
+  return `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+}
+
 /**
  * Fetches the definition (Swagger) for an API Product.
  */
@@ -46,6 +50,7 @@ export async function fetchApiProductDetail(
   logger: LoggerService,
   productSummary: any,
 ): Promise<Wso2ApiProduct> {
+  const startedAt = Date.now();
   const productId = productSummary.id;
   const product = { ...productSummary };
 
@@ -68,6 +73,11 @@ export async function fetchApiProductDetail(
     );
   }
 
+  logger.info(
+    `[WSO2 Timing] API Product detail "${
+      product.name || productId
+    }" (${productId}) loaded in ${formatDuration(Date.now() - startedAt)}.`,
+  );
   return product as Wso2ApiProduct;
 }
 
@@ -78,6 +88,7 @@ export async function fetchApiProductList(
   client: Wso2Client,
   logger: LoggerService,
 ): Promise<Wso2ApiProduct[]> {
+  const startedAt = Date.now();
   const basePath = client.getPublisherBasePath();
   logger.info(`[Wso2Fetchers] Fetching API Products from ${basePath}/api-products`);
   try {
@@ -93,6 +104,16 @@ export async function fetchApiProductList(
         await fetchApiProductDetail(client, logger, productSummary),
       );
     }
+    const durationMs = Date.now() - startedAt;
+    logger.info(
+      `[WSO2 Timing] API Products loaded: ${
+        enrichedProducts.length
+      } products in ${formatDuration(durationMs)}; average ${formatDuration(
+        enrichedProducts.length === 0
+          ? 0
+          : Math.round(durationMs / enrichedProducts.length),
+      )} per product.`,
+    );
     return enrichedProducts;
   } catch (error) {
     logger.error(`[Wso2Fetchers] Error fetching API Products: ${error}`);

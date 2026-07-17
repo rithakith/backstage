@@ -32,6 +32,7 @@ export class Wso2Client {
   private readonly publisherBasePath: string;
   private readonly serviceCatalogBasePath: string;
   private readonly scopes: string;
+  private readonly requestTimeoutMs: number;
   private accessToken?: string;
   private tokenExpiresAt?: number;
   private readonly tokenUrl: string;
@@ -54,6 +55,10 @@ export class Wso2Client {
     this.serviceCatalogBasePath = options.config.getOptionalString(
       'wso2ApiManager.serviceCatalogBasePath'
     ) ?? '/api/am/service-catalog/v1';
+    this.requestTimeoutMs =
+      (options.config.getOptionalNumber(
+        'wso2ApiManager.requestTimeoutSeconds',
+      ) ?? 30) * 1000;
     const additionalScopes = options.config.getOptionalStringArray('wso2ApiManager.auth.additionalScopes') || [];
     const baseScopes = [
       'apim:api_view',
@@ -81,6 +86,13 @@ export class Wso2Client {
    */
   async get<T>(path: string): Promise<T> {
     return this.request<T>('GET', path);
+  }
+
+  /**
+   * Performs a resilient GET request returning text.
+   */
+  async getText(path: string): Promise<string> {
+    return this.requestText('GET', path);
   }
 
   /**
@@ -125,6 +137,7 @@ export class Wso2Client {
           },
           body: body ? JSON.stringify(body) : undefined,
           dispatcher: this.dispatcher,
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
         });
 
         if (!response.ok) {
@@ -136,6 +149,83 @@ export class Wso2Client {
         lastError = error;
 
         const status = error.status ?? error.statusCode;
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+          throw new Error(
+            `[Wso2Client] ${method} ${url} timed out after ${
+              this.requestTimeoutMs / 1000
+            }s`,
+          );
+        }
+
+        // Don't retry on 4xx errors (except 401/429)
+        if (
+          status &&
+          status >= 400 &&
+          status < 500 &&
+          status !== 401 &&
+          status !== 429
+        ) {
+          throw error;
+        }
+
+        if (attempt < 3) {
+          const delay = Math.pow(2, attempt) * 1000;
+          const cause = error.cause ? ` (Cause: ${error.cause})` : '';
+          this.logger.warn(
+            `[Wso2Client] Request failed (${error.message}${cause}). Retrying in ${delay}ms... (Attempt ${attempt}/3)`,
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+
+          if (status === 401) {
+            this.accessToken = undefined; // Force token refresh on next attempt
+          }
+        }
+      }
+    }
+
+    throw lastError || new Error(`Request to ${url} failed after 3 attempts`);
+  }
+
+  private async requestText(
+    method: string,
+    path: string,
+    body?: any,
+  ): Promise<string> {
+    const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        this.logger.debug(`[Wso2Client] ${method} ${url}`);
+        const token = await this.getAccessToken();
+        const response = await undiciFetch(url, {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/wsdl+xml, text/xml, application/xml, text/plain, */*',
+            'Content-Type': 'application/json',
+          },
+          body: body ? JSON.stringify(body) : undefined,
+          dispatcher: this.dispatcher,
+          signal: AbortSignal.timeout(this.requestTimeoutMs),
+        });
+
+        if (!response.ok) {
+          throw await ResponseError.fromResponse(response);
+        }
+
+        return await response.text();
+      } catch (error: any) {
+        lastError = error;
+
+        const status = error.status ?? error.statusCode;
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+          throw new Error(
+            `[Wso2Client] ${method} ${url} timed out after ${
+              this.requestTimeoutMs / 1000
+            }s`,
+          );
+        }
 
         // Don't retry on 4xx errors (except 401/429)
         if (
@@ -197,6 +287,7 @@ export class Wso2Client {
       },
       body: params.toString(),
       dispatcher: this.dispatcher,
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
 
     if (!response.ok) {
@@ -209,12 +300,16 @@ export class Wso2Client {
     const data = (await response.json()) as {
       access_token?: string;
       expires_in?: number;
+      scope?: string;
+      token_type?: string;
     };
     if (!data.access_token) {
       throw new Error('WSO2 token grant: no access_token in response');
     }
 
-    this.logger.info(`[Wso2Client] Successfully obtained access token`);
+    this.logger.info(
+      `[Wso2Client] Successfully obtained ${data.token_type ?? 'Bearer'} access token with scopes: ${data.scope ?? this.scopes}`,
+    );
     this.accessToken = data.access_token;
     this.tokenExpiresAt = Date.now() + (data.expires_in ?? 3600) * 1000;
     return this.accessToken;

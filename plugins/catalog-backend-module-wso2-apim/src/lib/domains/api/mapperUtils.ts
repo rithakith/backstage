@@ -87,6 +87,7 @@ export function mapWso2ApiToEntity(
         'wso2.com/api-endpoints': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
         'wso2.com/gateway-endpoints': reconstructGatewayEndpoints(api, globalSettings, logger),
         'wso2.com/raw-endpoint-urls': api.endpointURLs ? JSON.stringify(api.endpointURLs) : '[]',
+        'wso2.com/api-wsdl': api.wsdlDefinition || '',
         ...(platformGateways.length > 0 ? {
           'wso2.com/platform-gateway-endpoints': JSON.stringify(
             platformGateways.map(gw => ({

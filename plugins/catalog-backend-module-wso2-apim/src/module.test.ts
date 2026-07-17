@@ -95,11 +95,12 @@ describe('catalogModuleWso2Apim', () => {
         fn: expect.any(Function),
       }),
     );
+    expect(mockProvider.run).toHaveBeenCalledTimes(1);
 
     // Call the run function to verify it calls provider.run()
     const taskFn = runMock.mock.calls[0][0].fn;
     await taskFn();
-    expect(mockProvider.run).toHaveBeenCalledTimes(1);
+    expect(mockProvider.run).toHaveBeenCalledTimes(2);
 
     console.log(formatTestCaseDoc(`
 === [Backend Catalog Module: APIM Integration with Schedule] ===

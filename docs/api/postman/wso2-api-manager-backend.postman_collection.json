@@ -1,0 +1,226 @@
+{
+  "info": {
+    "name": "WSO2 API Manager Backstage Backend",
+    "description": "Postman collection for the Backstage wso2-api-manager-backend plugin APIs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "backstageBaseUrl",
+      "value": "http://localhost:7007/api/wso2-api-manager"
+    },
+    {
+      "key": "wso2AccessToken",
+      "value": ""
+    },
+    {
+      "key": "apiId",
+      "value": "replace-api-id"
+    },
+    {
+      "key": "serviceId",
+      "value": "replace-service-id"
+    },
+    {
+      "key": "documentId",
+      "value": "replace-document-id"
+    },
+    {
+      "key": "keyName",
+      "value": "backstage-key"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Check WSO2 APIM and gateway health",
+          "request": {
+            "method": "GET",
+            "url": "{{backstageBaseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "Request a catalog refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gateways",
+      "item": [
+        {
+          "name": "List APIM and configured self-hosted gateways",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/gateways"
+          }
+        }
+      ]
+    },
+    {
+      "name": "APIs",
+      "item": [
+        {
+          "name": "Generate an API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keyName\": \"{{keyName}}\"\n}"
+            },
+            "url": "{{backstageBaseUrl}}/apis/{{apiId}}/generate-key"
+          }
+        },
+        {
+          "name": "List API revisions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backstageBaseUrl}}/apis/{{apiId}}/revisions?query=",
+              "host": [
+                "{{backstageBaseUrl}}"
+              ],
+              "path": [
+                "apis",
+                "{{apiId}}",
+                "revisions"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download WSDL",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/apis/{{apiId}}/wsdl"
+          }
+        },
+        {
+          "name": "Download API document",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/apis/{{apiId}}/documents/{{documentId}}/content"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Services",
+      "item": [
+        {
+          "name": "List service catalog services",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backstageBaseUrl}}/services?limit=1000&offset=0",
+              "host": [
+                "{{backstageBaseUrl}}"
+              ],
+              "path": [
+                "services"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "1000"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get service usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/services/{{serviceId}}/usage"
+          }
+        },
+        {
+          "name": "Get service definition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-WSO2-Access-Token",
+                "value": "{{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{backstageBaseUrl}}/services/{{serviceId}}/definition"
+          }
+        }
+      ]
+    }
+  ]
+}

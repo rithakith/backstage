@@ -24,7 +24,6 @@ import { AppRouter, FeatureFlagged, FlatRoutes } from '@backstage/core-app-api';
 import {
   AlertDisplay,
   OAuthRequestDialog,
-  SignInPage,
 } from '@backstage/core-components';
 import { ApiExplorerPage } from '@backstage/plugin-api-docs';
 import { CatalogEntityPage, CatalogIndexPage } from '@backstage/plugin-catalog';
@@ -81,7 +80,7 @@ import { HomePage } from './components/home/HomePage';
 import { BuiThemerPage } from '@backstage/plugin-mui-to-bui';
 
 import { Wso2ApiManagerPage } from '@local/backstage-plugin-wso2-api-manager';
-import { asgardeoAuthApiRef } from './apis';
+import { AsgardeoSignInPage } from './components/AsgardeoSignInPage';
 
 const app = createApp({
   apis,
@@ -97,17 +96,7 @@ const app = createApp({
     },
   ],
   components: {
-    SignInPage: props => (
-      <SignInPage
-        {...props}
-        provider={{
-          id: 'asgardeo',
-          title: 'Asgardeo',
-          message: 'Sign in using Asgardeo',
-          apiRef: asgardeoAuthApiRef,
-        }}
-      />
-    ),
+    SignInPage: AsgardeoSignInPage,
   },
 });
 

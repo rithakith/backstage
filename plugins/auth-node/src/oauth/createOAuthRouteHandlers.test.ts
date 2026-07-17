@@ -222,6 +222,28 @@ describe('createOAuthRouteHandlers', () => {
       );
     });
 
+    it('should post popup errors back to the app when start fails', async () => {
+      const app = wrapInApp(createOAuthRouteHandlers(baseConfig));
+      mockAuthenticator.start.mockRejectedValue(
+        new Error('Outgoing request timed out'),
+      );
+
+      const res = await request(app).get(
+        '/my-provider/start?env=development&scope=my-scope&flow=popup&origin=http%3A%2F%2F127.0.0.1',
+      );
+      const { response, origin } = parseWebMessageResponse(res.text);
+
+      expect(res.status).toBe(200);
+      expect(origin).toBe('http://127.0.0.1');
+      expect(response).toEqual({
+        type: 'authorization_response',
+        error: {
+          name: 'Error',
+          message: 'Outgoing request timed out',
+        },
+      });
+    });
+
     it('should start with additional parameters, transform state, and persist scopes', async () => {
       const agent = request.agent(
         wrapInApp(

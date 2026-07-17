@@ -2,6 +2,8 @@ export interface Config {
   wso2ApiManager?: {
     baseUrl: string;
     publisherBasePath: string;
+    developerBasePath: string;
+    serviceCatalogBasePath?: string;
     tls?: {
       rejectUnauthorized?: boolean;
     };
@@ -11,6 +13,7 @@ export interface Config {
       clientId: string;
       /** @visibility secret */
       clientSecret: string;
+      additionalScopes?: string[];
     };
     /**
      * The timeout in seconds for the catalog synchronization polling.

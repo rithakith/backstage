@@ -2,6 +2,7 @@ import React from 'react';
 // @ts-ignore
 import SwaggerUI from 'swagger-ui-react';
 import 'swagger-ui-react/swagger-ui.css';
+import { Wso2ApiDetail } from '../../../api';
 
 interface Wso2SwaggerConsoleProps {
   swaggerSpec: any;
@@ -9,6 +10,7 @@ interface Wso2SwaggerConsoleProps {
   apiKeyRef: React.MutableRefObject<string | null>;
   externalApiKey: string;
   apiKeyAuthPolicy: any;
+  details?: Wso2ApiDetail;
 }
 
 export const Wso2SwaggerConsole = ({
@@ -17,6 +19,7 @@ export const Wso2SwaggerConsole = ({
   apiKeyRef,
   externalApiKey,
   apiKeyAuthPolicy,
+  details,
 }: Wso2SwaggerConsoleProps) => {
   return (
     <SwaggerUI
@@ -28,7 +31,8 @@ export const Wso2SwaggerConsole = ({
       requestInterceptor={(req: any) => {
         const currentKey = apiKeyRef.current;
         if (currentKey !== null) {
-          req.headers['ApiKey'] = currentKey;
+          const headerName = details?.apiKeyHeader || 'apikey';
+          req.headers[headerName] = currentKey;
         }
         if (externalApiKey && apiKeyAuthPolicy) {
           const { in: location, key } = apiKeyAuthPolicy.params || {};

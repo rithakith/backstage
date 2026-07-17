@@ -66,6 +66,7 @@ import {
 } from '../../api';
 
 // Write permissions are currently disabled and hardcoded to false
+const CATALOG_SYNC_RETRY_MS = 3000;
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 const useStyles = makeStyles(_theme => ({
@@ -627,14 +628,10 @@ function extractGateways(
 }
 
 // ─── Service Detail Panel ──────────────────────────────────────────────────
-const ServiceDetailPanel = ({ service, oauthApi, wso2Api, catalogApis = [] }: any) => {
+const ServiceDetailPanel = ({ service, wso2Api, catalogApis = [] }: any) => {
   const theme = useTheme();
 
   const usageState = useAsync(async () => {
-    const token = await oauthApi.getAccessToken(
-      ['openid', 'profile', 'email', 'apim:api_view'],
-      { optional: true },
-    );
     const actualService = service.rowData || service;
     const id =
       actualService.wso2Id || actualService.id || actualService.serviceKey;
@@ -644,14 +641,10 @@ const ServiceDetailPanel = ({ service, oauthApi, wso2Api, catalogApis = [] }: an
           service,
         )}`,
       );
-    return wso2Api.getServiceUsage(id, token);
-  }, [service, oauthApi, wso2Api]);
+    return wso2Api.getServiceUsage(id);
+  }, [service, wso2Api]);
 
   const definitionState = useAsync(async () => {
-    const token = await oauthApi.getAccessToken(
-      ['openid', 'profile', 'email', 'apim:api_view'],
-      { optional: true },
-    );
     const actualService = service.rowData || service;
     const id =
       actualService.wso2Id || actualService.id || actualService.serviceKey;
@@ -661,8 +654,8 @@ const ServiceDetailPanel = ({ service, oauthApi, wso2Api, catalogApis = [] }: an
           service,
         )}`,
       );
-    return wso2Api.getServiceDefinition(id, token);
-  }, [service, oauthApi, wso2Api]);
+    return wso2Api.getServiceDefinition(id);
+  }, [service, wso2Api]);
 
   const formattedDefinition = useMemo(() => {
     if (!definitionState.value) return '';
@@ -810,6 +803,14 @@ export const Wso2ApiManagerPage = () => {
       console.error('❌ [WSO2-Frontend] Failed to fetch gateways:', error);
       throw error;
     }
+  }, [wso2Api, oauthApi]);
+
+  const catalogSyncState = useAsyncRetry(async () => {
+    const token = await oauthApi.getAccessToken(
+      ['openid', 'profile', 'email'],
+      { optional: true },
+    );
+    return await wso2Api.getCatalogSyncStatus(token);
   }, [wso2Api, oauthApi]);
 
   const catalogState = useAsyncRetry(async () => {
@@ -1063,11 +1064,7 @@ export const Wso2ApiManagerPage = () => {
 
   const servicesListState = useAsyncRetry(async () => {
     try {
-      const token = await oauthApi.getAccessToken(
-        ['openid', 'profile', 'email', 'apim:api_view'],
-        { optional: true },
-      );
-      const res = await wso2Api.getServices({ token, limit: 1000, offset: 0 });
+      const res = await wso2Api.getServices({ limit: 1000, offset: 0 });
       
       const catalogServices = catalogState.value?.services || [];
       const mergedList = res.list.map((svc: any) => {
@@ -1130,6 +1127,53 @@ export const Wso2ApiManagerPage = () => {
     }
     return apis;
   }, [apiListState.value?.apis, selectedGateway, selectedApiType]);
+
+  const apiCount = apiListState.value?.apis?.length ?? 0;
+  const publisherApiCount =
+    apiListState.value?.apis?.filter(
+      api => api.source !== 'Gateway' && api.source !== 'Gateway (Live)',
+    ).length ?? 0;
+  const syncStatus = catalogSyncState.value;
+  const isCatalogSyncRunning =
+    syncStatus?.phase === 'fetching' ||
+    syncStatus?.phase === 'mapping' ||
+    syncStatus?.phase === 'applying';
+  const isCatalogSyncComplete = syncStatus?.phase === 'complete';
+  const publisherProgressLoaded = syncStatus?.publisherApis.loaded ?? 0;
+  const publisherProgressTotal = syncStatus?.publisherApis.total;
+  const syncStatusUpdatedAt = syncStatus?.updatedAt
+    ? Date.parse(syncStatus.updatedAt)
+    : undefined;
+  const isCatalogSyncRecentlyUpdated =
+    syncStatusUpdatedAt !== undefined &&
+    Date.now() - syncStatusUpdatedAt <= syncTimeout * 1000;
+  const shouldSuppressLocalSyncTimeout =
+    isCatalogSyncRunning ||
+    (isCatalogSyncComplete && isCatalogSyncRecentlyUpdated);
+  const isSyncEffectivelyTimedOut =
+    isTimedOut && !shouldSuppressLocalSyncTimeout;
+  const shouldWaitForCatalogSync =
+    !apiListState.error &&
+    !isSyncEffectivelyTimedOut &&
+    (isCatalogSyncRunning ||
+      (isCatalogSyncComplete && apiCount === 0) ||
+      (apiCount === 0 && offlineGateways.length === 0));
+  const shouldShowCatalogSyncEmptyState =
+    shouldWaitForCatalogSync && apiCount === 0;
+  const shouldShowCatalogSyncBanner =
+    isCatalogSyncRunning && apiCount > 0 && publisherApiCount === 0;
+  const shouldPollCatalogSync =
+    shouldWaitForCatalogSync ||
+    shouldShowCatalogSyncEmptyState ||
+    shouldShowCatalogSyncBanner;
+
+  useEffect(() => {
+    if (isTimedOut && shouldSuppressLocalSyncTimeout) {
+      setIsTimedOut(false);
+      setSyncStartTime(Date.now());
+      setElapsedSeconds(0);
+    }
+  }, [isTimedOut, shouldSuppressLocalSyncTimeout]);
 
   // Filter API Products based on selected gateway
   const filteredApiProducts = useMemo(() => {
@@ -1221,9 +1265,7 @@ export const Wso2ApiManagerPage = () => {
 
   // Real-time progress bar ticker for catalog synchronization
   useEffect(() => {
-    const hasApis =
-      apiListState.value?.apis && apiListState.value.apis.length > 0;
-    if (hasApis || isTimedOut) {
+    if (!shouldWaitForCatalogSync || isSyncEffectivelyTimedOut) {
       setElapsedSeconds(0);
       return;
     }
@@ -1231,7 +1273,7 @@ export const Wso2ApiManagerPage = () => {
     const timer = setInterval(() => {
       const sec = Math.round((Date.now() - syncStartTime) / 1000);
       setElapsedSeconds(sec);
-      if (sec > syncTimeout) {
+      if (sec > syncTimeout && !shouldSuppressLocalSyncTimeout) {
         setIsTimedOut(true);
       }
     }, 1000);
@@ -1240,59 +1282,82 @@ export const Wso2ApiManagerPage = () => {
   }, [
     syncStartTime,
     syncTimeout,
-    isTimedOut,
-    apiListState.value?.apis?.length,
+    isSyncEffectivelyTimedOut,
+    shouldWaitForCatalogSync,
+    shouldSuppressLocalSyncTimeout,
   ]);
 
-  const progressPercent = Math.min(
-    100,
-    Math.round((elapsedSeconds / syncTimeout) * 100),
-  );
+  const progressPercent =
+    publisherProgressTotal && publisherProgressTotal > 0
+      ? Math.min(
+          100,
+          Math.round((publisherProgressLoaded / publisherProgressTotal) * 100),
+        )
+      : Math.min(100, Math.round((elapsedSeconds / syncTimeout) * 100));
+  const syncProgressStageLabel =
+    syncStatus?.message || 'Discovering Publisher APIs...';
+  const syncProgressCountLabel =
+    publisherProgressTotal && publisherProgressTotal > 0
+      ? `${publisherProgressLoaded}/${publisherProgressTotal} Publisher APIs loaded`
+      : undefined;
 
-  // Automatically retry fetching if the list is empty (polling every 15 seconds)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    const hasApis =
-      apiListState.value?.apis && apiListState.value.apis.length > 0;
-    const hasOfflineGateways = offlineGateways.length > 0;
+    if (!shouldPollCatalogSync) {
+      return () => {};
+    }
 
-    // Only poll if there's no error, no APIs found yet, no offline gateways, and we haven't timed out
-    // If a gateway is offline, we should stop the infinite polling and show the current APIM APIs or error state.
-    if (
-      !apiListState.loading &&
-      !apiListState.error &&
-      !hasApis &&
-      !isTimedOut &&
-      !hasOfflineGateways
-    ) {
-      interval = setInterval(() => {
+    const timer = setInterval(() => {
+      catalogSyncState.retry();
+      catalogState.retry();
+      apiListState.retry();
+    }, CATALOG_SYNC_RETRY_MS);
+
+    return () => clearInterval(timer);
+  }, [
+    apiListState,
+    catalogState,
+    catalogSyncState,
+    shouldPollCatalogSync,
+  ]);
+
+  // Automatically retry while the first catalog sync is still materializing.
+  useEffect(() => {
+    let timer: NodeJS.Timeout | undefined;
+
+    if (!apiListState.loading && shouldWaitForCatalogSync) {
+      timer = setTimeout(() => {
         const elapsed = (Date.now() - syncStartTime) / 1000;
-        if (elapsed > syncTimeout) {
+        if (elapsed > syncTimeout && !shouldSuppressLocalSyncTimeout) {
           console.warn(
             `🛑 [WSO2-Frontend] Catalog sync timed out after ${syncTimeout}s`,
           );
           setIsTimedOut(true);
-        } else {
-          console.log(
-            `🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(
-              elapsed,
-            )}s elapsed)...`,
-          );
-          apiListState.retry();
+          return;
         }
-      }, 15000);
+
+        console.log(
+          `🔄 [WSO2-Frontend] Auto-retrying catalog fetch (${Math.round(
+            elapsed,
+          )}s elapsed)...`,
+        );
+        apiListState.retry();
+      }, CATALOG_SYNC_RETRY_MS);
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (timer) {
+        clearTimeout(timer);
+      }
     };
   }, [
     apiListState.loading,
     apiListState.error,
-    apiListState.value?.apis?.length,
-    isTimedOut,
+    apiCount,
+    shouldWaitForCatalogSync,
     syncTimeout,
     syncStartTime,
     offlineGateways.length,
+    shouldSuppressLocalSyncTimeout,
   ]);
 
   const mcpColumns = useMemo<TableColumn<Wso2McpSummary>[]>(
@@ -1437,23 +1502,45 @@ export const Wso2ApiManagerPage = () => {
                   </Box>
                 </Box>
               )}
-            {apiListState.loading &&
-              apiListState.value?.apis &&
-              apiListState.value.apis.length > 0 && (
-                <Box mb={2}>
-                  <LinearProgress
-                    color="primary"
-                    style={{ height: 3, borderRadius: 2 }}
-                  />
-                </Box>
-              )}
             {apiListState.error && (
               <WarningPanel
                 title="Failed to load APIs"
                 message={apiListState.error.message}
               />
             )}
-            {isTimedOut && !apiListState.error && (
+            {shouldShowCatalogSyncBanner && (
+              <Box mb={2}>
+                <InfoCard title="Publisher Catalog Sync In Progress">
+                  <Typography variant="body2" color="textSecondary">
+                    {syncProgressStageLabel}
+                  </Typography>
+                  {syncProgressCountLabel && (
+                    <Typography variant="body2" color="textSecondary">
+                      {syncProgressCountLabel}
+                    </Typography>
+                  )}
+                  <Box mt={1}>
+                    <LinearProgress
+                      variant={
+                        publisherProgressTotal ? 'determinate' : 'indeterminate'
+                      }
+                      value={progressPercent}
+                      style={{ height: 6, borderRadius: 3 }}
+                    />
+                  </Box>
+                  <Box mt={1}>
+                    <Typography variant="caption" color="textSecondary">
+                      Gateway-discovered APIs are visible now. WSO2 Publisher
+                      APIs will appear automatically when catalog ingestion
+                      completes.
+                    </Typography>
+                  </Box>
+                </InfoCard>
+              </Box>
+            )}
+            {isSyncEffectivelyTimedOut &&
+              !apiListState.error &&
+              apiCount === 0 && (
               <WarningPanel
                 title="Sync Timed Out"
                 message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't find any APIs in the catalog. Please check your WSO2 backend logs or verify your provider configuration.`}
@@ -1473,98 +1560,63 @@ export const Wso2ApiManagerPage = () => {
                 </Button>
               </WarningPanel>
             )}
-            {!apiListState.loading &&
-              !isTimedOut &&
-              offlineGateways.length === 0 &&
-              (!apiListState.value?.apis ||
-                apiListState.value.apis.length === 0) && (
-                <Box
-                  display="flex"
-                  flexDirection="column"
-                  alignItems="center"
-                  justifyContent="center"
-                  my={10}
-                  textAlign="center"
-                >
-                  <CircularProgress
-                    size={60}
-                    thickness={2}
-                    style={{
-                      color: '#ff5000',
-                      opacity: 0.6,
-                      marginBottom: '24px',
-                    }}
-                  />
-                  <Box mt={3} maxWidth={500} width="100%" px={3}>
-                    <Typography
-                      variant="h5"
-                      gutterBottom
-                      style={{ fontWeight: 600, color: '#1a202c' }}
-                    >
-                      Synchronizing Catalog...
+            {!apiListState.loading && shouldShowCatalogSyncEmptyState && (
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                my={10}
+              >
+                <CircularProgress
+                  size={50}
+                  thickness={4}
+                  style={{ color: '#ff5000' }}
+                />
+                <Box mt={2} textAlign="center" maxWidth={520}>
+                  <Typography variant="h6" color="textSecondary">
+                    Synchronizing Catalog...
+                  </Typography>
+                  <Box my={2}>
+                    <LinearProgress
+                      variant={
+                        publisherProgressTotal ? 'determinate' : 'indeterminate'
+                      }
+                      value={progressPercent}
+                      style={{ height: 6, borderRadius: 3 }}
+                    />
+                  </Box>
+                  <Typography variant="body2" color="textSecondary">
+                    {syncProgressStageLabel}
+                  </Typography>
+                  {syncProgressCountLabel && (
+                    <Typography variant="body2" color="textSecondary">
+                      {syncProgressCountLabel}
                     </Typography>
-                    <Box my={3}>
-                      <LinearProgress
-                        variant="determinate"
-                        value={progressPercent}
-                        style={{
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor: '#e2e8f0',
-                        }}
-                      />
-                      <Box display="flex" justifyContent="space-between" mt={1}>
-                        <Typography variant="caption" color="textSecondary">
-                          {elapsedSeconds}s elapsed
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          color="textSecondary"
-                          style={{ fontWeight: 'bold' }}
-                        >
-                          Timeout: {syncTimeout}s
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Typography
-                      variant="body1"
-                      color="textSecondary"
-                      style={{ marginBottom: '16px' }}
+                  )}
+                  <Typography variant="caption" color="textSecondary">
+                    We're currently discovering APIs from your WSO2 API Manager.
+                    Results will appear here automatically.
+                  </Typography>
+                  <Box mt={2}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => apiListState.retry()}
+                      startIcon={<RefreshIcon />}
+                      disabled={apiListState.loading}
                     >
-                      We're currently discovering APIs from your WSO2
-                      environments and populating the Backstage Catalog. This
-                      page will update automatically once the catalog sync
-                      completes.
-                    </Typography>
-                    <Box mt={2}>
-                      <Button
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => apiListState.retry()}
-                        startIcon={<RefreshIcon />}
-                        disabled={apiListState.loading}
-                      >
-                        Refresh Now
-                      </Button>
-                    </Box>
-                    <Box mt={2}>
-                      <Typography
-                        variant="caption"
-                        color="textSecondary"
-                        style={{ fontStyle: 'italic' }}
-                      >
-                        Tip: You can monitor the progress in your backend logs
-                        for "[WSO2-DISCOVERY]" messages.
-                      </Typography>
-                    </Box>
+                      Refresh Now
+                    </Button>
                   </Box>
                 </Box>
-              )}
+              </Box>
+            )}
             {!apiListState.loading &&
-              !isTimedOut &&
+              !shouldWaitForCatalogSync &&
+              !isSyncEffectivelyTimedOut &&
               offlineGateways.length > 0 &&
-              (!apiListState.value?.apis ||
-                apiListState.value.apis.length === 0) && (
+              apiCount === 0 && (
                 <Box
                   display="flex"
                   flexDirection="column"
@@ -1597,26 +1649,22 @@ export const Wso2ApiManagerPage = () => {
                         Refresh Now
                       </Button>
                     </Box>
-                    <Box mt={2}>
-                      <Typography
-                        variant="caption"
-                        color="textSecondary"
-                        style={{ fontStyle: 'italic' }}
-                      >
-                        Tip: You can monitor the progress in your backend logs
-                        for "[WSO2-DISCOVERY]" messages.
-                      </Typography>
-                    </Box>
                   </Box>
                 </Box>
               )}
-            {apiListState.value?.apis && apiListState.value.apis.length > 0 && (
-              <Table
-                options={{ paging: false, search: true }}
-                columns={columns}
-                data={filteredApis}
-              />
-            )}
+            {apiListState.value?.apis &&
+              (!shouldShowCatalogSyncEmptyState || apiCount > 0) && (
+                <Table
+                  options={{
+                    paging: true,
+                    search: true,
+                    pageSize: 20,
+                    pageSizeOptions: [20, 50, 100],
+                  }}
+                  columns={columns}
+                  data={filteredApis}
+                />
+              )}
           </>
         )}
 
@@ -1651,7 +1699,7 @@ export const Wso2ApiManagerPage = () => {
             {apiProductListState.loading &&
               apiProductListState.value?.apiProducts &&
               apiProductListState.value.apiProducts.length === 0 &&
-              isTimedOut && (
+              isSyncEffectivelyTimedOut && (
                 <WarningPanel
                   title="Sync Timed Out"
                   message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load API Products. Please check your WSO2 backend logs or verify your provider configuration.`}
@@ -1704,7 +1752,12 @@ export const Wso2ApiManagerPage = () => {
             {apiProductListState.value?.apiProducts &&
               apiProductListState.value.apiProducts.length > 0 && (
                 <Table
-                  options={{ paging: false, search: true }}
+                  options={{
+                    paging: true,
+                    search: true,
+                    pageSize: 20,
+                    pageSizeOptions: [20, 50, 100],
+                  }}
                   columns={productColumns}
                   data={filteredApiProducts}
                 />
@@ -1742,7 +1795,7 @@ export const Wso2ApiManagerPage = () => {
             )}
             {mcpListState.loading &&
               !mcpListState.value?.mcpServers &&
-              isTimedOut && (
+              isSyncEffectivelyTimedOut && (
                 <WarningPanel
                   title="Sync Timed Out"
                   message={`The catalog synchronization took longer than the configured timeout (${syncTimeout}s). We couldn't load MCP Servers. Please check your WSO2 backend logs or verify your provider configuration.`}
@@ -1796,7 +1849,12 @@ export const Wso2ApiManagerPage = () => {
             {mcpListState.value?.mcpServers &&
               mcpListState.value.mcpServers.length > 0 && (
                 <Table
-                  options={{ paging: false, search: true }}
+                  options={{
+                    paging: true,
+                    search: true,
+                    pageSize: 20,
+                    pageSizeOptions: [20, 50, 100],
+                  }}
                   columns={mcpColumns}
                   data={mcpListState.value.mcpServers}
                 />
@@ -1844,7 +1902,6 @@ export const Wso2ApiManagerPage = () => {
                   detailPanel={rowData => (
                     <ServiceDetailPanel
                       service={rowData}
-                      oauthApi={oauthApi}
                       wso2Api={wso2Api}
                       catalogApis={apiListState.value?.apis || []}
                     />

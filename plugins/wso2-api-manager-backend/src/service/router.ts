@@ -27,6 +27,7 @@ import {
   Wso2ApiManagerClient,
   readWso2ApiManagerConfig
 } from './wso2Client';
+import { getWso2ApimSyncStatus } from '@local/backstage-plugin-catalog-backend-module-wso2-apim';
 
 export interface RouterOptions {
   logger: LoggerService;
@@ -82,6 +83,15 @@ export async function createRouter(
       // we'll just log it and return a message. 
       // In a real scenario, we might use an event bus or a shared service.
       res.json({ message: 'Catalog refresh triggered. This may take a few moments to reflect in the catalog.' });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  router.get('/catalog-sync/status', async (req, res) => {
+    try {
+      await ensureAuthenticated(req);
+      res.json(getWso2ApimSyncStatus());
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -200,10 +210,13 @@ export async function createRouter(
 
   router.get('/apis/:apiId/wsdl', async (req, res) => {
     const { apiId } = req.params;
+    logger.info(`[WSO2-Backend] WSDL request received for API: ${apiId}`);
     try {
       const token = await ensureAuthenticated(req);
+      logger.info(`[WSO2-Backend] Fetching WSDL stream from APIM for API: ${apiId}`);
       const response = await client.getApiWsdlStream(apiId, token);
 
+      logger.info(`[WSO2-Backend] APIM responded with status: ${response.status} for API WSDL: ${apiId}`);
       if (!response.ok) {
         let errBody = '';
         try {
@@ -211,6 +224,7 @@ export async function createRouter(
         } catch {
           errBody = response.statusText;
         }
+        logger.error(`[WSO2-Backend] Failed to fetch WSDL from APIM for API ${apiId}: status ${response.status}, error: ${errBody}`);
         res.status(response.status).send(errBody);
         return;
       }
@@ -218,26 +232,30 @@ export async function createRouter(
       const contentType = response.headers.get('content-type') || 'application/xml';
       const disposition = response.headers.get('content-disposition') || `attachment; filename="${apiId}-wsdl"`;
 
+      logger.info(`[WSO2-Backend] WSDL content info for ${apiId} - Content-Type: ${contentType}, Content-Disposition: ${disposition}`);
+
       if (contentType) res.setHeader('Content-Type', contentType);
       if (disposition) res.setHeader('Content-Disposition', disposition);
 
       if (!response.body) {
+        logger.warn(`[WSO2-Backend] WSDL response body is empty for API: ${apiId}`);
         res.status(204).send();
         return;
       }
 
+      logger.info(`[WSO2-Backend] Streaming WSDL content to client for API: ${apiId}`);
       const { Readable } = require('stream');
       const nodeStream = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
 
       nodeStream.on('error', (err: any) => {
-        logger.error(`Stream reading error: ${err.message}`, err);
+        logger.error(`[WSO2-Backend] Stream reading error for API ${apiId}: ${err.message}`, err);
         if (!res.headersSent) {
           res.status(500).send('Error streaming WSDL content');
         }
       });
       nodeStream.pipe(res);
     } catch (e: any) {
-      logger.error(`Failed to stream WSDL content: ${e.message}`, e);
+      logger.error(`[WSO2-Backend] Failed to stream WSDL content for API ${apiId}: ${e.message}`, e);
       res.status(500).send(e.message);
     }
   });

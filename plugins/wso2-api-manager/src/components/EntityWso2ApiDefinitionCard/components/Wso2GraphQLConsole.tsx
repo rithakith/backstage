@@ -31,6 +31,7 @@ import { Alert } from '@material-ui/lab';
 import { GraphiQL } from 'graphiql';
 import { buildSchema } from 'graphql';
 import 'graphiql/graphiql.css';
+import { Wso2ApiDetail } from '../../../api';
 
 interface Wso2GraphQLConsoleProps {
   definition: string;
@@ -39,6 +40,7 @@ interface Wso2GraphQLConsoleProps {
   externalApiKey: string;
   apiKeyAuthPolicy: any;
   isDeployed?: boolean;
+  details?: Wso2ApiDetail;
 }
 
 export const Wso2GraphQLConsole = ({
@@ -48,6 +50,7 @@ export const Wso2GraphQLConsole = ({
   externalApiKey,
   apiKeyAuthPolicy,
   isDeployed = true,
+  details,
 }: Wso2GraphQLConsoleProps) => {
   const [selectedUrl, setSelectedUrl] = useState('');
   const [customUrl, setCustomUrl] = useState('');
@@ -70,7 +73,8 @@ export const Wso2GraphQLConsole = ({
 
       const currentKey = apiKeyRef.current;
       if (currentKey !== null) {
-        headers['ApiKey'] = currentKey;
+        const headerName = details?.apiKeyHeader || 'apikey';
+        headers[headerName] = currentKey;
       }
 
       if (externalApiKey && apiKeyAuthPolicy) {

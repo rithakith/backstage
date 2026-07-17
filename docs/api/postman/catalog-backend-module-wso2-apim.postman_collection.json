@@ -1,0 +1,360 @@
+{
+  "info": {
+    "name": "WSO2 APIM Catalog Backend Module Dependencies",
+    "description": "Postman collection for WSO2 APIs consumed by catalog-backend-module-wso2-apim.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "wso2BaseUrl",
+      "value": "https://localhost:9447"
+    },
+    {
+      "key": "gatewayDiscoveryBaseUrl",
+      "value": "https://fab4-14-1-78-245.ngrok-free.app"
+    },
+    {
+      "key": "clientId",
+      "value": ""
+    },
+    {
+      "key": "clientSecret",
+      "value": ""
+    },
+    {
+      "key": "wso2AccessToken",
+      "value": ""
+    },
+    {
+      "key": "gatewayDiscoveryBasicToken",
+      "value": ""
+    },
+    {
+      "key": "apiId",
+      "value": "replace-api-id"
+    },
+    {
+      "key": "productId",
+      "value": "replace-product-id"
+    },
+    {
+      "key": "mcpId",
+      "value": "replace-mcp-id"
+    },
+    {
+      "key": "serviceId",
+      "value": "replace-service-id"
+    }
+  ],
+  "item": [
+    {
+      "name": "OAuth",
+      "item": [
+        {
+          "name": "Exchange client credentials for a WSO2 access token",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{clientId}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{clientSecret}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials"
+                },
+                {
+                  "key": "scope",
+                  "value": "apim:api_view apim:publisher_settings apim:api_create apim:api_publish apim:api_import_export apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:llm_provider_read"
+                }
+              ]
+            },
+            "url": "{{wso2BaseUrl}}/oauth2/token",
+            "description": "Exchanges client credentials for a WSO2 access token. The client credentials must belong to an application owned/subscribed by a user with administrative or publisher roles to authorize the requested scopes.\n\nScopes categorized by task:\n- Core API Ingestion: `apim:api_view apim:publisher_settings`\n- Advanced Ingestion & Publishing: `apim:api_create apim:api_publish apim:api_import_export`\n- MCP Server Ingestion: `apim:mcp_server_view apim:mcp_server_create apim:mcp_server_publish apim:mcp_server_generate_key apim:mcp_server_import_export apim:mcp_server_list_view apim:llm_provider_read`"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Publisher",
+      "item": [
+        {
+          "name": "Get global Publisher settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/settings"
+          }
+        },
+        {
+          "name": "List APIs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/apis?limit=1000"
+          }
+        },
+        {
+          "name": "Get API details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/apis/{{apiId}}"
+          }
+        },
+        {
+          "name": "Get API OpenAPI definition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/apis/{{apiId}}/swagger"
+          }
+        },
+        {
+          "name": "Get API AsyncAPI definition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/apis/{{apiId}}/asyncapi"
+          }
+        },
+        {
+          "name": "List API documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/apis/{{apiId}}/documents"
+          }
+        },
+        {
+          "name": "List API products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/api-products"
+          }
+        },
+        {
+          "name": "Get API product details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/api-products/{{productId}}"
+          }
+        },
+        {
+          "name": "Get API product OpenAPI definition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/api-products/{{productId}}/swagger"
+          }
+        },
+        {
+          "name": "List MCP servers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/mcp-servers"
+          }
+        },
+        {
+          "name": "Get MCP server details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/mcp-servers/{{mcpId}}"
+          }
+        },
+        {
+          "name": "List MCP server documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/publisher/v4/mcp-servers/{{mcpId}}/documents"
+          }
+        }
+      ]
+    },
+    {
+      "name": "DevPortal",
+      "item": [
+        {
+          "name": "Generate API key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"keyType\": \"PRODUCTION\",\n  \"keyManager\": \"Resident Key Manager\",\n  \"keyName\": \"backstage-key\"\n}"
+            },
+            "url": "{{wso2BaseUrl}}/api/am/devportal/v3/apis/{{apiId}}/api-keys/generate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service Catalog",
+      "item": [
+        {
+          "name": "List services",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/service-catalog/v1/services?limit=1000&offset=0"
+          }
+        },
+        {
+          "name": "Get service usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/service-catalog/v1/services/{{serviceId}}/usage"
+          }
+        },
+        {
+          "name": "Get service definition",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{wso2AccessToken}}"
+              }
+            ],
+            "url": "{{wso2BaseUrl}}/api/am/service-catalog/v1/services/{{serviceId}}/definition"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gateway Discovery",
+      "item": [
+        {
+          "name": "Discover APIs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{gatewayDiscoveryBasicToken}}"
+              }
+            ],
+            "url": "{{gatewayDiscoveryBaseUrl}}/rest-apis"
+          }
+        },
+        {
+          "name": "Discover API details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Basic {{gatewayDiscoveryBasicToken}}"
+              }
+            ],
+            "url": "{{gatewayDiscoveryBaseUrl}}/rest-apis/{{apiId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -53,7 +53,38 @@ export const useWso2ApiDefinition = (options: {
 
   const details = useMemo(() => {
     const type = entity.metadata.annotations?.[API_TYPE_ANNOTATION];
-    return type ? ({ type } as Wso2ApiDetail) : undefined;
+    if (!type) return undefined;
+
+    let policies: string[] | undefined;
+    try {
+      const policiesStr = entity.metadata.annotations?.['wso2.com/api-policies'];
+      if (policiesStr) {
+        policies = JSON.parse(policiesStr);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    let securityScheme: string[] | undefined;
+    try {
+      const schemeStr = entity.metadata.annotations?.['wso2.com/api-security-scheme'];
+      if (schemeStr) {
+        securityScheme = JSON.parse(schemeStr);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    const apiKeyHeader = entity.metadata.annotations?.['wso2.com/api-key-header'];
+    const authorizationHeader = entity.metadata.annotations?.['wso2.com/api-authorization-header'];
+
+    return {
+      type,
+      policies,
+      securityScheme,
+      apiKeyHeader,
+      authorizationHeader,
+    } as Wso2ApiDetail;
   }, [entity.metadata.annotations]);
 
   const definitionState = useMemo(() => {

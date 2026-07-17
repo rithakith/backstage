@@ -23,6 +23,7 @@ import {
   createBackendFeatureLoader,
 } from '@backstage/backend-plugin-api';
 
+const backendStartTime = Date.now();
 const backend = createBackend();
 
 // An example of how to group together and load multiple features. You can also
@@ -86,4 +87,17 @@ backend.add(
     '@backstage/plugin-scaffolder-backend-module-my-scaffolder-backend-module'
   ),
 );
-backend.start();
+void backend
+  .start()
+  .then(() => {
+    const durationMs = Date.now() - backendStartTime;
+    console.info(
+      `[Backstage Timing] Backend startup completed in ${durationMs}ms (${(
+        durationMs / 1000
+      ).toFixed(2)}s). App backend is ready for localhost:3000 requests.`,
+    );
+  })
+  .catch(error => {
+    console.error('[Backstage Timing] Backend startup failed.', error);
+    throw error;
+  });

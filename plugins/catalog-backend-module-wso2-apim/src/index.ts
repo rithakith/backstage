@@ -16,3 +16,4 @@
 
 export { default } from './module';
 export * from './providers/Wso2ApiEntityProvider';
+export * from './lib/syncStatus';

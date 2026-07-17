@@ -41,4 +41,5 @@ export interface Wso2Api {
   }>;
   visibility?: string;
   initiatedFromGateway?: boolean;
+  wsdlDefinition?: string;
 }

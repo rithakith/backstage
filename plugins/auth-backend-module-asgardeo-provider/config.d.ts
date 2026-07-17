@@ -24,6 +24,7 @@ export interface Config {
           clientSecret: string;
           metadataUrl: string;
           additionalScopes?: string;
+          timeout?: string | { seconds?: number; minutes?: number };
           prompt?: string;
           signIn?: {
             resolvers?: Array<

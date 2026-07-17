@@ -18,6 +18,10 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { Wso2Client } from '../../Wso2Client';
 import { Wso2McpServer } from './types';
 
+function formatDuration(durationMs: number): string {
+  return `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+}
+
 /**
  * Fetches the documents associated with an MCP Server.
  */
@@ -48,6 +52,7 @@ export async function fetchMcpServerDetail(
   logger: LoggerService,
   mcpSummary: any,
 ): Promise<Wso2McpServer> {
+  const startedAt = Date.now();
   const mcpId = mcpSummary.id;
   const mcp = { ...mcpSummary };
 
@@ -72,6 +77,11 @@ export async function fetchMcpServerDetail(
     );
   }
 
+  logger.info(
+    `[WSO2 Timing] MCP Server detail "${
+      mcp.name || mcpId
+    }" (${mcpId}) loaded in ${formatDuration(Date.now() - startedAt)}.`,
+  );
   return mcp as Wso2McpServer;
 }
 
@@ -82,6 +92,7 @@ export async function fetchMcpServerList(
   client: Wso2Client,
   logger: LoggerService,
 ): Promise<Wso2McpServer[]> {
+  const startedAt = Date.now();
   const basePath = client.getPublisherBasePath();
   logger.info(`[Wso2Fetchers] Fetching MCP Servers from ${basePath}/mcp-servers`);
   try {
@@ -95,6 +106,16 @@ export async function fetchMcpServerList(
     for (const mcpSummary of mcpList) {
       enrichedMcps.push(await fetchMcpServerDetail(client, logger, mcpSummary));
     }
+    const durationMs = Date.now() - startedAt;
+    logger.info(
+      `[WSO2 Timing] MCP Servers loaded: ${
+        enrichedMcps.length
+      } servers in ${formatDuration(durationMs)}; average ${formatDuration(
+        enrichedMcps.length === 0
+          ? 0
+          : Math.round(durationMs / enrichedMcps.length),
+      )} per MCP server.`,
+    );
     return enrichedMcps;
   } catch (error) {
     logger.error(`[Wso2Fetchers] Error fetching MCP Servers: ${error}`);

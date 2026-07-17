@@ -258,6 +258,7 @@ ${JSON.stringify(parsed[0].urls, null, 2)}
             'wso2.com/api-endpoints': '[]',
             'wso2.com/gateway-endpoints': '[]',
             'wso2.com/raw-endpoint-urls': '[]',
+            'wso2.com/api-wsdl': '',
             'wso2.com/platform-gateway-endpoints': JSON.stringify([
               {
                 environmentName: 'MyGate',
@@ -299,6 +300,7 @@ Resulting Backstage Entity Lifecycle: "${entity.spec.lifecycle}"
         name: 'GraphQL API',
         context: 'gql',
         version: '1.0.0',
+        provider: 'admin-team',
         type: 'GRAPHQL',
         lifeCycleStatus: 'CREATED',
         definition: 'type Query { ... }',
@@ -321,6 +323,7 @@ Resulting Backstage Entity Lifecycle: "${entity.spec.lifecycle}"
         name: 'WS API',
         context: 'ws',
         version: '1.0.0',
+        provider: 'admin-team',
         type: 'WS',
         lifeCycleStatus: 'PUBLISHED',
       };
@@ -336,10 +339,37 @@ Resulting Backstage Entity Lifecycle: "${entity.spec.lifecycle}"
 
       expect(wsEntity.spec.type).toBe('ws');
 
+      const soapApi: Wso2Api = {
+        id: 'soap-api',
+        name: 'SOAP API',
+        context: 'soap',
+        version: '1.0.0',
+        provider: 'admin-team',
+        type: 'SOAP',
+        lifeCycleStatus: 'PUBLISHED',
+        wsdlDefinition: '<?xml version="1.0"?><wsdl:definitions></wsdl:definitions>',
+      };
+
+      const soapEntity = mapWso2ApiToEntity(
+        soapApi,
+        'default',
+        'provider-id',
+        undefined,
+        [],
+        logger,
+      );
+
+      expect(soapEntity.spec.type).toBe('soap');
+      expect(soapEntity.metadata.annotations?.['wso2.com/api-wsdl']).toBe(
+        '<?xml version="1.0"?><wsdl:definitions></wsdl:definitions>',
+      );
+
       console.log(formatTestCaseDoc(`
 === [Mapper Utility: API Spec Type Fallbacks] ===
 GraphQL Input -> Backstage Spec Type: "${entity.spec.type}" (Lifecycle: ${entity.spec.lifecycle})
 WS Input -> Backstage Spec Type: "${wsEntity.spec.type}"
+SOAP Input -> Backstage Spec Type: "${soapEntity.spec.type}"
+WSDL Annotation: "${soapEntity.metadata.annotations?.['wso2.com/api-wsdl']}"
 `));
     });
   });

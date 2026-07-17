@@ -1,0 +1,536 @@
+openapi: 3.0.3
+info:
+  title: WSO2 API Manager Backstage Plugin API Collection
+  version: 1.0.0
+  description: >
+    Internal Backstage backend API exposed by the wso2-api-manager-backend
+    plugin. The frontend wso2-api-manager plugin consumes these endpoints.
+
+    Direct OpenAPI YAML: [wso2-api-manager-backend.yaml](./wso2-api-manager-backend.yaml)
+
+    Postman collection: [wso2-api-manager-backend.postman_collection.json](../postman/wso2-api-manager-backend.postman_collection.json)
+servers:
+  - url: http://localhost:7007/api/wso2-api-manager
+    description: Local Backstage backend URL from BACKEND_BASE_URL plus the WSO2 API Manager plugin route.
+  - url: /api/wso2-api-manager
+    description: Relative Backstage discovery base URL for the WSO2 API Manager backend plugin.
+security:
+  - Wso2AccessTokenAuth: []
+  - {}
+tags:
+  - name: Health
+  - name: Catalog
+  - name: Gateways
+  - name: APIs
+  - name: Services
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Check WSO2 APIM and gateway health
+      operationId: getWso2Health
+      x-codeSamples:
+        - lang: curl
+          label: Check health
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/health'
+      responses:
+        '200':
+          description: WSO2 APIM and configured gateway status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2HealthReport'
+  /refresh:
+    post:
+      tags:
+        - Catalog
+      summary: Request a catalog refresh
+      operationId: refreshWso2Catalog
+      x-codeSamples:
+        - lang: curl
+          label: Refresh catalog
+          source: |
+            curl -X POST 'http://localhost:7007/api/wso2-api-manager/refresh' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: Refresh request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              examples:
+                accepted:
+                  value:
+                    message: Catalog refresh triggered. This may take a few moments to reflect in the catalog.
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /gateways:
+    get:
+      tags:
+        - Gateways
+      summary: List APIM and configured self-hosted gateways
+      operationId: listWso2Gateways
+      x-codeSamples:
+        - lang: curl
+          label: List gateways
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/gateways' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: Gateway list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Wso2Gateway'
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /apis/{apiId}/generate-key:
+    post:
+      tags:
+        - APIs
+      summary: Generate an API key
+      operationId: generateWso2ApiKey
+      x-codeSamples:
+        - lang: curl
+          label: Generate API key
+          source: |
+            curl -X POST 'http://localhost:7007/api/wso2-api-manager/apis/{apiId}/generate-key' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{"keyName":"backstage-key"}'
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateApiKeyRequest'
+            examples:
+              namedKey:
+                value:
+                  keyName: backstage-key
+      responses:
+        '200':
+          description: API key generation response returned by WSO2 DevPortal.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /apis/{apiId}/revisions:
+    get:
+      tags:
+        - APIs
+      summary: List API revisions
+      operationId: listWso2ApiRevisions
+      x-codeSamples:
+        - lang: curl
+          label: List API revisions
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/apis/{apiId}/revisions?query=' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+        - $ref: '#/components/parameters/Wso2AccessToken'
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional WSO2 Publisher search query.
+      responses:
+        '200':
+          description: API revisions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wso2ApiRevisionsResponse'
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /services:
+    get:
+      tags:
+        - Services
+      summary: List service catalog services
+      operationId: listWso2Services
+      x-codeSamples:
+        - lang: curl
+          label: List services
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/services?limit=1000&offset=0' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/Wso2AccessToken'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: WSO2 Service Catalog service list.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /services/{serviceId}/usage:
+    get:
+      tags:
+        - Services
+      summary: Get service usage
+      operationId: getWso2ServiceUsage
+      x-codeSamples:
+        - lang: curl
+          label: Get service usage
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/services/{serviceId}/usage' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: Service usage returned by WSO2 Service Catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '500':
+          $ref: '#/components/responses/JsonError'
+  /services/{serviceId}/definition:
+    get:
+      tags:
+        - Services
+      summary: Get a service definition
+      operationId: getWso2ServiceDefinition
+      x-codeSamples:
+        - lang: curl
+          label: Get service definition
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/services/{serviceId}/definition' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN"
+      parameters:
+        - $ref: '#/components/parameters/ServiceId'
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: Raw service definition content.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/yaml:
+              schema:
+                type: string
+            text/plain:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/TextError'
+  /apis/{apiId}/wsdl:
+    get:
+      tags:
+        - APIs
+      summary: Stream an API WSDL document
+      operationId: getWso2ApiWsdl
+      x-codeSamples:
+        - lang: curl
+          label: Download WSDL
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/apis/{apiId}/wsdl' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN" \
+              -o '{apiId}-wsdl'
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: WSDL content or archive streamed from WSO2 Publisher.
+          content:
+            application/xml:
+              schema:
+                type: string
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            text/xml:
+              schema:
+                type: string
+        '204':
+          description: WSO2 returned no response body.
+        '4XX':
+          description: Error response proxied from WSO2.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/TextError'
+  /apis/{apiId}/documents/{documentId}/content:
+    get:
+      tags:
+        - APIs
+      summary: Stream API document content
+      operationId: getWso2ApiDocumentContent
+      x-codeSamples:
+        - lang: curl
+          label: Download API document
+          source: |
+            curl 'http://localhost:7007/api/wso2-api-manager/apis/{apiId}/documents/{documentId}/content' \
+              -H "X-WSO2-Access-Token: $WSO2_ACCESS_TOKEN" \
+              -o 'document-{documentId}'
+      parameters:
+        - $ref: '#/components/parameters/ApiId'
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Wso2AccessToken'
+      responses:
+        '200':
+          description: API document content. Inline WSO2 documents may be returned as text.
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/markdown:
+              schema:
+                type: string
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '204':
+          description: WSO2 returned no response body.
+        '404':
+          description: Document content was not found and no inline fallback was available.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '4XX':
+          description: Error response proxied from WSO2.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/TextError'
+components:
+  securitySchemes:
+    Wso2AccessTokenAuth:
+      type: apiKey
+      in: header
+      name: X-WSO2-Access-Token
+      description: Optional WSO2 access token. If omitted, the backend may use the configured service account token.
+  parameters:
+    ApiId:
+      name: apiId
+      in: path
+      required: true
+      schema:
+        type: string
+    ServiceId:
+      name: serviceId
+      in: path
+      required: true
+      schema:
+        type: string
+    Wso2AccessToken:
+      name: X-WSO2-Access-Token
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional WSO2 access token. If omitted, the backend may use the configured service account token.
+  responses:
+    JsonError:
+      description: Request failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            failed:
+              value:
+                message: 'WSO2 API request failed [401]: Unauthorized'
+    TextError:
+      description: Request failed.
+      content:
+        text/plain:
+          schema:
+            type: string
+          examples:
+            failed:
+              value: Error streaming document content
+  schemas:
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+    GenerateApiKeyRequest:
+      type: object
+      properties:
+        keyName:
+          type: string
+    Wso2HealthStatus:
+      type: string
+      enum:
+        - Online
+        - Offline
+    Wso2HealthReport:
+      type: object
+      required:
+        - apim
+        - platform
+        - services
+      properties:
+        apim:
+          type: object
+          required:
+            - baseUrl
+            - status
+          properties:
+            baseUrl:
+              type: string
+            status:
+              $ref: '#/components/schemas/Wso2HealthStatus'
+        platform:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              urls:
+                type: array
+                items:
+                  type: string
+              type:
+                type: string
+              status:
+                $ref: '#/components/schemas/Wso2HealthStatus'
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              url:
+                type: string
+              status:
+                $ref: '#/components/schemas/Wso2HealthStatus'
+    Wso2Gateway:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        gatewayType:
+          type: string
+        description:
+          type: string
+        source:
+          type: string
+          enum:
+            - APIM
+            - Config
+        urls:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: '#/components/schemas/Wso2HealthStatus'
+        discoveredApis:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    Wso2ApiRevision:
+      type: object
+      required:
+        - id
+        - displayName
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        createdTime:
+          type: string
+        deploymentInfo:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - vhost
+              - displayOnDevportal
+              - deployedTime
+            properties:
+              name:
+                type: string
+              vhost:
+                type: string
+              displayOnDevportal:
+                type: boolean
+              deployedTime:
+                type: string
+    Wso2ApiRevisionsResponse:
+      type: object
+      required:
+        - count
+        - list
+      properties:
+        count:
+          type: integer
+        list:
+          type: array
+          items:
+            $ref: '#/components/schemas/Wso2ApiRevision'

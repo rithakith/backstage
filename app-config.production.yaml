@@ -1,0 +1,5 @@
+wso2ApiManager:
+  tls:
+    # Production should verify the WSO2 API Manager certificate chain.
+    rejectUnauthorized: true
+

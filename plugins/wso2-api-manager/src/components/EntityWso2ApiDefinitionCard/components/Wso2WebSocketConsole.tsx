@@ -36,6 +36,8 @@ import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
 import FileCopyIcon from '@material-ui/icons/FileCopy';
 import CheckIcon from '@material-ui/icons/Check';
 
+import { Wso2ApiDetail } from '../../../api';
+
 interface Wso2WebSocketConsoleProps {
   operations: any[];
   gatewayUrls: Array<{ environmentName: string; url: string; environmentType?: string; description?: string }>;
@@ -43,6 +45,7 @@ interface Wso2WebSocketConsoleProps {
   externalApiKey: string;
   apiKeyAuthPolicy: any;
   isDeployed?: boolean;
+  details?: Wso2ApiDetail;
 }
 
 export const Wso2WebSocketConsole = ({
@@ -52,6 +55,7 @@ export const Wso2WebSocketConsole = ({
   externalApiKey,
   apiKeyAuthPolicy,
   isDeployed = true,
+  details,
 }: Wso2WebSocketConsoleProps) => {
   const [selectedUrl, setSelectedUrl] = useState('');
   const [customUrl, setCustomUrl] = useState('');
@@ -90,7 +94,8 @@ export const Wso2WebSocketConsole = ({
     const currentKey = apiKeyRef.current;
     
     if (apiKeyAuthPolicy || currentKey !== null) {
-      headers.push({ name: 'apikey', value: currentKey || 'undefined' });
+      const headerName = details?.apiKeyHeader || 'apikey';
+      headers.push({ name: headerName, value: currentKey || 'undefined' });
     } else {
       // In case key is not fetched yet, keep placeholder matching standard WSO2 console style
       headers.push({ name: 'Authorization', value: `Bearer ${currentKey || 'undefined'}` });

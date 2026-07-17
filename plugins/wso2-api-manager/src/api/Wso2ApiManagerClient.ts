@@ -16,6 +16,7 @@
 
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 import {
+  Wso2CatalogSyncStatus,
   Wso2ApiRevisionsResponse,
   Wso2ApiManagerApi,
 } from './types';
@@ -118,11 +119,24 @@ export class Wso2ApiManagerClient implements Wso2ApiManagerApi {
     return this.request<any>('/health', { token });
   }
 
+  async getCatalogSyncStatus(token?: string): Promise<Wso2CatalogSyncStatus> {
+    return this.request<Wso2CatalogSyncStatus>('/catalog-sync/status', {
+      token,
+    });
+  }
+
   async refreshCatalog(token?: string): Promise<{ message: string }> {
     return this.request<{ message: string }>('/refresh', {
       method: 'POST',
       token,
     });
+  }
+
+  async getApis(options?: { offset?: number; limit?: number; token?: string }): Promise<any> {
+    const query = new URLSearchParams();
+    if (options?.offset !== undefined) query.append('offset', options.offset.toString());
+    if (options?.limit !== undefined) query.append('limit', options.limit.toString());
+    return this.request<any>('/apis', { token: options?.token, query });
   }
 
   async getServices(options?: { offset?: number; limit?: number; token?: string }): Promise<any> {

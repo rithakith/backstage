@@ -227,12 +227,45 @@ export const Wso2PublisherPoliciesList = ({
     : (details?.operations || []);
 
   const hasApiPolicies = (apiPolicies.request?.length > 0) || (apiPolicies.response?.length > 0) || (apiPolicies.fault?.length > 0);
+  const subscriptionPolicies = useMemo(
+    () =>
+      (details?.policies || []).map((policy: string) => ({
+        policyName: policy,
+        policyVersion: 'N/A',
+      })),
+    [details?.policies],
+  );
+  const hasSubscriptionPolicies = subscriptionPolicies.length > 0;
 
   const totalOpPages = Math.ceil(operations.length / opsPerPage);
   const paginatedOperations = operations.slice((opPage - 1) * opsPerPage, opPage * opsPerPage);
 
   return (
     <Box p={2}>
+      {hasSubscriptionPolicies && (
+        <Box mb={4}>
+          <Box display="flex" alignItems="center" mb={1}>
+            <Typography
+              variant="subtitle1"
+              style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}
+            >
+              Subscription Policies
+            </Typography>
+            <Tooltip title="Publisher subscription policies available for this API." arrow>
+              <InfoIcon style={{ fontSize: '1rem', marginLeft: '8px', cursor: 'pointer', opacity: 0.6 }} />
+            </Tooltip>
+          </Box>
+          <Box p={0.5}>
+            <Wso2PolicyFlowList
+              flowType="Subscription"
+              policies={subscriptionPolicies}
+              classes={classes}
+              hideLabel
+            />
+          </Box>
+        </Box>
+      )}
+
       {hasApiPolicies && (
         <Box mb={4}>
           <Box display="flex" alignItems="center" mb={1}>

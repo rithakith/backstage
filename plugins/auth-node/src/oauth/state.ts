@@ -30,6 +30,7 @@ export type OAuthState = {
   redirectUrl?: string;
   flow?: string;
   audience?: string;
+  asgardeoAuthStartedAt?: string;
 };
 
 /** @public */

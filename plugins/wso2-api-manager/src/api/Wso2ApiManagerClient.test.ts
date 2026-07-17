@@ -249,4 +249,112 @@ Outcome: Sync successfully triggered: "Catalog Sync Triggered"
 `));
     });
   });
+
+  describe('getServices and service catalog operations', () => {
+    it('should getServices list successfully with offset and limit parameters', async () => {
+      const mockResult = { list: [] };
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: true,
+        text: jest.fn().mockResolvedValueOnce(JSON.stringify(mockResult)),
+      } as any);
+
+      const result = await client.getServices({ offset: 0, limit: 10, token: 'user-token' });
+
+      expect(mockFetchApi.fetch).toHaveBeenCalledWith(
+        'https://wso2-api-manager.backend/services?offset=0&limit=10',
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            'X-WSO2-Access-Token': 'user-token',
+          }),
+        }),
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should getServiceUsage successfully', async () => {
+      const mockResult = { usage: [] };
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: true,
+        text: jest.fn().mockResolvedValueOnce(JSON.stringify(mockResult)),
+      } as any);
+
+      const result = await client.getServiceUsage('svc-1', 'user-token');
+
+      expect(mockFetchApi.fetch).toHaveBeenCalledWith(
+        'https://wso2-api-manager.backend/services/svc-1/usage',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-WSO2-Access-Token': 'user-token',
+          }),
+        }),
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should getServiceDefinition successfully', async () => {
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: true,
+        text: jest.fn().mockResolvedValueOnce('swagger-definition-text'),
+      } as any);
+
+      const result = await client.getServiceDefinition('svc-1', 'user-token');
+
+      expect(mockFetchApi.fetch).toHaveBeenCalledWith(
+        'https://wso2-api-manager.backend/services/svc-1/definition',
+        expect.objectContaining({
+          headers: {
+            'X-WSO2-Access-Token': 'user-token',
+          },
+        }),
+      );
+      expect(result).toBe('swagger-definition-text');
+    });
+
+    it('should throw error on getServiceDefinition failure', async () => {
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Error',
+        text: jest.fn().mockRejectedValueOnce(new Error('fail text')),
+      } as any);
+
+      await expect(client.getServiceDefinition('svc-1')).rejects.toThrow(
+        'WSO2 API request failed [500]: Internal Error'
+      );
+    });
+
+    it('should getApiWsdl successfully', async () => {
+      const mockBlob = {};
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: true,
+        blob: jest.fn().mockResolvedValueOnce(mockBlob),
+      } as any);
+
+      const result = await client.getApiWsdl('api-123', 'user-token');
+
+      expect(mockFetchApi.fetch).toHaveBeenCalledWith(
+        'https://wso2-api-manager.backend/apis/api-123/wsdl',
+        expect.objectContaining({
+          headers: {
+            'X-WSO2-Access-Token': 'user-token',
+          },
+        }),
+      );
+      expect(result).toBe(mockBlob);
+    });
+
+    it('should throw error on getApiWsdl failure', async () => {
+      mockFetchApi.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: jest.fn().mockRejectedValueOnce(new Error('fail text')),
+      } as any);
+
+      await expect(client.getApiWsdl('api-123')).rejects.toThrow(
+        'WSO2 API request failed [400]: Bad Request'
+      );
+    });
+  });
 });

@@ -15,6 +15,7 @@
  */
 
 module.exports = {
+  rootDir: '.',
   testEnvironment: 'node',
   transform: {
     '^.+\\.tsx?$': ['@backstage/cli/config/jestSwcTransform.js']

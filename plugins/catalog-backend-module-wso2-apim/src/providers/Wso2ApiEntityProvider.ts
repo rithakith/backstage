@@ -24,6 +24,11 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { Wso2Client } from '../lib/Wso2Client';
 import { Wso2DiscoveryService } from '../lib/Wso2DiscoveryService';
 import { PlatformGateway } from '../lib/domains/gateway';
+import { updateWso2ApimSyncStatus } from '../lib/syncStatus';
+
+function formatDuration(durationMs: number): string {
+  return `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+}
 
 /**
  * Provides API entities from WSO2 Publisher API.
@@ -70,6 +75,7 @@ export class Wso2ApiEntityProvider implements EntityProvider {
   }
 
   async run(): Promise<void> {
+    const runStartedAt = Date.now();
     if (!this.connection) {
       throw new Error(`${this.getProviderName()} entity provider is not initialized`);
     }
@@ -78,14 +84,50 @@ export class Wso2ApiEntityProvider implements EntityProvider {
 
     const namespace = this.config.getOptionalString('catalog.providers.wso2Apim.namespace') || 'default';
     const platformGateways = this.parsePlatformGateways();
+    const startedAt = new Date().toISOString();
+
+    updateWso2ApimSyncStatus({
+      providerId: this.id,
+      phase: 'fetching',
+      message: 'Preparing WSO2 Publisher catalog synchronization.',
+      startedAt,
+      completedAt: undefined,
+      error: undefined,
+      publisherApis: { loaded: 0, total: undefined },
+      totals: {},
+    });
 
     try {
+      const discoveryStartedAt = Date.now();
       const allEntities = await this.discoveryService.discoverAll({
         namespace,
         providerId: this.id,
         platformGateways,
+        onPublisherApiProgress: ({ loaded, total, message }) => {
+          updateWso2ApimSyncStatus({
+            phase: 'fetching',
+            message:
+              message ??
+              (total === undefined
+                ? `Loading Publisher APIs (${loaded} loaded).`
+                : `Loading Publisher APIs (${loaded}/${total} loaded).`),
+            publisherApis: { loaded, total },
+          });
+        },
+      });
+      this.logger.info(
+        `[WSO2 Timing] ${this.getProviderName()} discovery returned ${
+          allEntities.length
+        } entities in ${formatDuration(Date.now() - discoveryStartedAt)}.`,
+      );
+
+      updateWso2ApimSyncStatus({
+        phase: 'applying',
+        message: 'Applying WSO2 entities to the Backstage catalog.',
+        totals: { catalogEntities: allEntities.length },
       });
 
+      const applyStartedAt = Date.now();
       await this.connection.applyMutation({
         type: 'full',
         entities: allEntities.map(entity => ({
@@ -93,10 +135,39 @@ export class Wso2ApiEntityProvider implements EntityProvider {
           locationKey: this.getProviderName(),
         })),
       });
+      this.logger.info(
+        `[WSO2 Timing] Applied ${allEntities.length} entities to Backstage catalog in ${formatDuration(
+          Date.now() - applyStartedAt,
+        )}.`,
+      );
+
+      updateWso2ApimSyncStatus({
+        phase: 'complete',
+        message: `Catalog sync complete. Ingested ${allEntities.length} entities.`,
+        completedAt: new Date().toISOString(),
+        totals: { catalogEntities: allEntities.length },
+      });
 
       this.logger.info(`[WSO2 Provider] Successfully ingested ${allEntities.length} entities.`);
+      this.logger.info(
+        `[WSO2 Timing] ${this.getProviderName()} catalog sync finished in ${formatDuration(
+          Date.now() - runStartedAt,
+        )}.`,
+      );
     } catch (error) {
-      this.logger.error(`[WSO2 Provider] Sync Error: ${error instanceof Error ? error.message : error}`);
+      const message = error instanceof Error ? error.message : String(error);
+      updateWso2ApimSyncStatus({
+        phase: 'failed',
+        message: `Catalog sync failed: ${message}`,
+        error: message,
+        completedAt: new Date().toISOString(),
+      });
+      this.logger.error(`[WSO2 Provider] Sync Error: ${message}`);
+      this.logger.error(
+        `[WSO2 Timing] ${this.getProviderName()} catalog sync failed after ${formatDuration(
+          Date.now() - runStartedAt,
+        )}.`,
+      );
     }
   }
 

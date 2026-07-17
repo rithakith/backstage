@@ -45,6 +45,14 @@ export const catalogModuleWso2Apim = createBackendModule({
                 // Add the provider to the catalog
                 catalog.addEntityProvider(provider);
 
+                void provider.run().catch(error => {
+                    logger.warn(
+                        `Initial WSO2 API catalog sync failed: ${
+                            error instanceof Error ? error.message : String(error)
+                        }`,
+                    );
+                });
+
                 // Schedule the provider to run periodically
                 const schedule = scheduler.createScheduledTaskRunner(
                     readSchedulerServiceTaskScheduleDefinitionFromConfig(

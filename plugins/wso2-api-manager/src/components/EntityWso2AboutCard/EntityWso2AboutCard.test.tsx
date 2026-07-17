@@ -262,4 +262,28 @@ Outcome: Component mounted safely with Name ("test-api") and Display Name ("test
     expect(screen.getByText('Description from catalog metadata')).toBeDefined();
 
   });
+
+  it('should support array, string, and invalid JSON values for api-security-scheme', () => {
+    // 1. Array case
+    mockEntity.metadata.annotations = {
+      'wso2.com/api-security-scheme': JSON.stringify(['OAuth2', 'APIKey']),
+    };
+    const { rerender } = render(<EntityWso2AboutCard />);
+    expect(screen.getByText('Security Scheme')).toBeDefined();
+    expect(screen.getByText('OAuth2, APIKey')).toBeDefined();
+
+    // 2. String case
+    mockEntity.metadata.annotations = {
+      'wso2.com/api-security-scheme': JSON.stringify('MutualSSL'),
+    };
+    rerender(<EntityWso2AboutCard />);
+    expect(screen.getByText('MutualSSL')).toBeDefined();
+
+    // 3. Invalid JSON case
+    mockEntity.metadata.annotations = {
+      'wso2.com/api-security-scheme': '{invalid-json',
+    };
+    rerender(<EntityWso2AboutCard />);
+    expect(screen.queryByText('Security Scheme')).toBeNull();
+  });
 });

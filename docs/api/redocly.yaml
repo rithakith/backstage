@@ -1,0 +1,13 @@
+apis:
+  wso2-api-manager-backend@v1:
+    root: ./wso2-api-manager-backend/openapi.yaml
+  catalog-backend-module-wso2-apim@v1:
+    root: ./catalog-backend-module-wso2-apim/openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  operation-operationId: error
+  operation-summary: warn
+  no-unused-components: warn

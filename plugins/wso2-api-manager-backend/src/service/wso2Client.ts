@@ -252,6 +252,15 @@ export class Wso2ApiManagerClient {
     return await this.requestServiceCatalog<any>(`/services${query}`, {}, options?.token);
   }
 
+  async getApis(options?: { offset?: number; limit?: number; token?: string }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.offset !== undefined) params.set('offset', options.offset.toString());
+    if (options?.limit !== undefined) params.set('limit', options.limit.toString());
+
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return await this.requestPublisher<any>(`/apis${query}`, {}, options?.token);
+  }
+
   async getServiceUsage(serviceId: string, token?: string): Promise<any> {
     return await this.requestServiceCatalog<any>(`/services/${serviceId}/usage`, {}, token);
   }
@@ -348,7 +357,7 @@ export class Wso2ApiManagerClient {
       // If it's an array, we can log the count
       if (Array.isArray(data)) {
         this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Successfully discovered ${data.length} APIs (Array) from gateway: ${discoveryUrl}`);
-        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] API Names: ${data.map((a: any) => a.name || a.id).join(', ')}`);
+        this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] API Names: ${data.map((a: any) => a.name || a.id).join(', ')}`);
         return data;
       }
       
@@ -360,9 +369,9 @@ export class Wso2ApiManagerClient {
       this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Response keys: ${Object.keys(data).join(', ')}`);
       
       if (Array.isArray(list)) {
-        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Full API Details: ${JSON.stringify(list, null, 2)}`);
+        this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] API Details: ${JSON.stringify(list, null, 2)}`);
       } else {
-        this.logger.info(`[WSO2-GATEWAY-DISCOVERY] Raw Response snippet: ${JSON.stringify(data).substring(0, 1000)}`);
+        this.logger.debug(`[WSO2-GATEWAY-DISCOVERY] Raw Response snippet: ${JSON.stringify(data).substring(0, 1000)}`);
       }
       
       return Array.isArray(list) ? list : [data]; // Fallback to wrapping the object in an array
@@ -409,6 +418,8 @@ export class Wso2ApiManagerClient {
     const data = (await response.json()) as {
       access_token?: string;
       expires_in?: number;
+      scope?: string;
+      token_type?: string;
     };
 
     if (!data.access_token) {
@@ -417,6 +428,9 @@ export class Wso2ApiManagerClient {
 
     this.cachedAccessToken = data.access_token;
     this.tokenExpiryTime = Date.now() + (data.expires_in || 3600) * 1000;
+    this.logger.info(
+      `[WSO2-Client] Successfully obtained ${data.token_type ?? 'Bearer'} service-account token with scopes: ${data.scope ?? 'not returned'}`,
+    );
     return data.access_token;
   }
 

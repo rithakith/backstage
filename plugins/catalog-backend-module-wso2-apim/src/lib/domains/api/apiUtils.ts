@@ -18,6 +18,36 @@ import { LoggerService } from '@backstage/backend-plugin-api';
 import { Wso2Client } from '../../Wso2Client';
 import { Wso2Api } from './types';
 
+const API_LIST_PAGE_SIZE = 1000;
+const API_DETAIL_CONCURRENCY = 10;
+
+function formatDuration(durationMs: number): string {
+  return `${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`;
+}
+
+async function mapWithConcurrency<TInput, TOutput>(
+  items: TInput[],
+  concurrency: number,
+  mapper: (item: TInput) => Promise<TOutput>,
+): Promise<TOutput[]> {
+  const results = new Array<TOutput>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await mapper(items[currentIndex]);
+      }
+    },
+  );
+
+  await Promise.all(workers);
+  return results;
+}
+
 /**
  * Fetches the API definition (Swagger or AsyncAPI).
  */
@@ -64,6 +94,28 @@ export async function fetchApiDocuments(
 }
 
 /**
+ * Fetches the WSDL definition if it is a SOAP/SOAPTOREST API.
+ */
+export async function fetchApiWsdl(
+  client: Wso2Client,
+  apiId: string,
+): Promise<string | undefined> {
+  const basePath = client.getPublisherBasePath();
+  const wsdlUrl = `${basePath}/apis/${apiId}/wsdl`;
+
+  try {
+    const data = await client.getText(wsdlUrl);
+    // If the fetched data is binary (e.g. starts with ZIP file magic header 'PK'), skip it.
+    if (data.startsWith('PK')) {
+      return undefined;
+    }
+    return data;
+  } catch (error: any) {
+    return undefined;
+  }
+}
+
+/**
  * Fetches the detailed metadata for a single API.
  */
 export async function fetchApiDetail(
@@ -71,6 +123,7 @@ export async function fetchApiDetail(
   logger: LoggerService,
   apiSummary: any,
 ): Promise<Wso2Api> {
+  const startedAt = Date.now();
   const apiId = apiSummary.id;
   const apiName = apiSummary.name || apiId;
   logger.info(`[Wso2Fetchers] Fetching detail for API "${apiName}" (${apiId})`);
@@ -84,11 +137,27 @@ export async function fetchApiDetail(
 
     // Fetch documents and definitions
     api.documents = await fetchApiDocuments(client, apiId);
-    api.definition = await fetchApiDefinition(client, apiId, api.type, api.name);
+    api.definition = await fetchApiDefinition(
+      client,
+      apiId,
+      api.type,
+      api.name,
+    );
+
+    if (['SOAP', 'SOAPTOREST'].includes(api.type)) {
+      api.wsdlDefinition = await fetchApiWsdl(client, apiId);
+    }
   } catch (error) {
-    logger.error(`[Wso2Fetchers] Error fetching detail for API ${apiId}: ${error}`);
+    logger.error(
+      `[Wso2Fetchers] Error fetching detail for API ${apiId}: ${error}`,
+    );
   }
 
+  logger.info(
+    `[WSO2 Timing] API detail "${apiName}" (${apiId}) loaded in ${formatDuration(
+      Date.now() - startedAt,
+    )}.`,
+  );
   return api as Wso2Api;
 }
 
@@ -98,18 +167,121 @@ export async function fetchApiDetail(
 export async function fetchApiList(
   client: Wso2Client,
   logger: LoggerService,
+  options?: {
+    onProgress?: (progress: {
+      loaded: number;
+      total?: number;
+      message?: string;
+    }) => void;
+  },
 ): Promise<Wso2Api[]> {
+  const startedAt = Date.now();
   const basePath = client.getPublisherBasePath();
   logger.info(`[Wso2Fetchers] Fetching APIs from ${basePath}/apis`);
+  options?.onProgress?.({
+    loaded: 0,
+    total: undefined,
+    message: 'Connecting to WSO2 Publisher portal.',
+  });
 
-  const data = await client.get<any>(`${basePath}/apis?limit=1000`);
-  const apiList = data.list || [];
-  logger.info(`[Wso2Fetchers] Retrieved ${apiList.length} APIs from Publisher.`);
+  const apiList: any[] = [];
+  let offset = 0;
+  let total: number | undefined;
+  let hasMore = false;
 
-  const enrichedApis: Wso2Api[] = [];
-  for (const apiSummary of apiList) {
-    enrichedApis.push(await fetchApiDetail(client, logger, apiSummary));
-  }
+  do {
+    options?.onProgress?.({
+      loaded: 0,
+      total,
+      message:
+        offset === 0
+          ? 'Determining Publisher API count.'
+          : `Loading Publisher API list (${apiList.length}${
+              total === undefined ? '' : `/${total}`
+            } discovered).`,
+    });
+    const data = await client.get<any>(
+      `${basePath}/apis?limit=${API_LIST_PAGE_SIZE}&offset=${offset}`,
+    );
+    const page = data.list || [];
+    apiList.push(...page);
 
+    total =
+      typeof data.pagination?.total === 'number'
+        ? data.pagination.total
+        : undefined;
+    options?.onProgress?.({
+      loaded: 0,
+      total,
+      message:
+        total === undefined
+          ? `Discovered ${apiList.length} Publisher APIs so far.`
+          : `Publisher API count determined: ${total}.`,
+    });
+    offset += page.length;
+    hasMore =
+      total === undefined ? page.length === API_LIST_PAGE_SIZE : offset < total;
+
+    logger.info(
+      `[Wso2Fetchers] Retrieved API page with ${
+        page.length
+      } APIs. Total so far: ${apiList.length}${
+        total === undefined ? '' : `/${total}`
+      }.`,
+    );
+  } while (hasMore);
+
+  logger.info(
+    `[Wso2Fetchers] Retrieved ${apiList.length} APIs from Publisher.`,
+  );
+
+  let loaded = 0;
+  options?.onProgress?.({
+    loaded,
+    total: total ?? apiList.length,
+    message: `Loading details for ${total ?? apiList.length} Publisher APIs.`,
+  });
+
+  const detailStartedAt = Date.now();
+  const detailDurationsMs: number[] = [];
+  const enrichedApis = await mapWithConcurrency(
+    apiList,
+    API_DETAIL_CONCURRENCY,
+    async apiSummary => {
+      const apiStartedAt = Date.now();
+      const api = await fetchApiDetail(client, logger, apiSummary);
+      detailDurationsMs.push(Date.now() - apiStartedAt);
+      loaded += 1;
+      options?.onProgress?.({
+        loaded,
+        total: total ?? apiList.length,
+        message: `Loading Publisher API details (${loaded}/${
+          total ?? apiList.length
+        }).`,
+      });
+      return api;
+    },
+  );
+  const detailDurationMs = Date.now() - detailStartedAt;
+  logger.info(
+    `[WSO2 Timing] API catalog load completed: ${
+      enrichedApis.length
+    } APIs in ${formatDuration(
+      Date.now() - startedAt,
+    )}; API detail phase ${formatDuration(
+      detailDurationMs,
+    )}; average individual API detail ${formatDuration(
+      detailDurationsMs.length === 0
+        ? 0
+        : Math.round(
+            detailDurationsMs.reduce((sum, value) => sum + value, 0) /
+              detailDurationsMs.length,
+          ),
+    )}; throughput average ${formatDuration(
+      enrichedApis.length === 0
+        ? 0
+        : Math.round(detailDurationMs / enrichedApis.length),
+    )} per API at concurrency ${API_DETAIL_CONCURRENCY}.`,
+  );
   return enrichedApis;
 }

@@ -15,6 +15,7 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { useAsync } from 'react-use';
 import {
   InfoCard,
   WarningPanel,
@@ -51,6 +52,8 @@ import { Wso2GatewayUrlDisplay } from './components/Wso2GatewayUrlDisplay';
 import { Wso2SwaggerConsole } from './components/Wso2SwaggerConsole';
 import { Wso2GraphQLConsole } from './components/Wso2GraphQLConsole';
 import { Wso2WebSocketConsole } from './components/Wso2WebSocketConsole';
+import { Wso2WebSubConsole } from './components/Wso2WebSubConsole';
+import { Wso2SseConsole } from './components/Wso2SseConsole';
 
 const WSO2_API_ID_ANNOTATION = 'wso2.com/api-id';
 const DISCOVERY_TYPE_ANNOTATION = 'wso2.com/api-discovery-type';
@@ -123,6 +126,7 @@ export const EntityWso2ApiDefinitionCard = () => {
   const showPublisherPoliciesTab =
     (isPublisherApi || skipKeyGeneration) &&
     (details?.apiPolicies ||
+      (details?.policies && details.policies.length > 0) ||
       (details?.operations && details.operations.length > 0) ||
       (gatewayApiPolicies && (gatewayApiPolicies as any).request?.length > 0) ||
       (gatewayOperations && gatewayOperations.length > 0));
@@ -148,6 +152,29 @@ export const EntityWso2ApiDefinitionCard = () => {
   const [externalApiKey, setExternalApiKey] = useState('');
   const [isWsdlDownloading, setIsWsdlDownloading] = useState(false);
 
+  const wsdlContentState = useAsync(async () => {
+    if (!hasWsdlTab || !apiId) return undefined;
+    const annotationWsdl = entity.metadata.annotations?.['wso2.com/api-wsdl'];
+    if (annotationWsdl) {
+      return { isZip: false, text: annotationWsdl };
+    }
+    
+    try {
+      const blob = await apiClient.getApiWsdl(apiId, token || undefined);
+      if (blob.type === 'application/zip') {
+        return { isZip: true, text: undefined };
+      }
+      const text = await blob.text();
+      if (text.startsWith('PK')) {
+        return { isZip: true, text: undefined };
+      }
+      return { isZip: false, text };
+    } catch (err) {
+      console.error('Failed to dynamically load WSDL content:', err);
+      return { isZip: false, text: undefined, error: err };
+    }
+  }, [apiId, token, hasWsdlTab, entity.metadata.annotations]);
+
   const handleDownloadWsdl = async () => {
     setIsWsdlDownloading(true);
     try {
@@ -171,7 +198,7 @@ export const EntityWso2ApiDefinitionCard = () => {
     if (!details) return true;
     
     // Check the official WSO2 securityScheme array if present
-    const securityScheme = (details as any).securityScheme;
+    const securityScheme = details.securityScheme;
     if (Array.isArray(securityScheme) && securityScheme.length > 0) {
       return securityScheme.includes('api_key');
     }
@@ -221,6 +248,10 @@ export const EntityWso2ApiDefinitionCard = () => {
       setActiveTab('graphql');
     } else if (details?.type === 'WS') {
       setActiveTab('websocket');
+    } else if (details?.type === 'WEBSUB') {
+      setActiveTab('websub');
+    } else if (details?.type === 'SSE') {
+      setActiveTab('sse');
     } else if (!hasSwaggerTab) {
       if (showPublisherPoliciesTab) {
         setActiveTab('policies');
@@ -384,6 +415,22 @@ export const EntityWso2ApiDefinitionCard = () => {
                   className={classes.tabRoot}
                 />
               )}
+              {details?.type === 'WEBSUB' && (
+                <Tab
+                  id="tab-websub-console"
+                  label="WebSub Console"
+                  value="websub"
+                  className={classes.tabRoot}
+                />
+              )}
+              {details?.type === 'SSE' && (
+                <Tab
+                  id="tab-sse-console"
+                  label="SSE Console"
+                  value="sse"
+                  className={classes.tabRoot}
+                />
+              )}
               {showPublisherPoliciesTab && (
                 <Tab
                   id="tab-policies"
@@ -466,6 +513,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                     apiKeyRef={apiKeyRef}
                     externalApiKey={externalApiKey}
                     apiKeyAuthPolicy={apiKeyAuthPolicy}
+                    details={details}
                   />
                 </Box>
               )}
@@ -504,6 +552,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                 externalApiKey={externalApiKey}
                 apiKeyAuthPolicy={apiKeyAuthPolicy}
                 isDeployed={isDeployed}
+                details={details}
               />
             </div>
           )}
@@ -529,8 +578,6 @@ export const EntityWso2ApiDefinitionCard = () => {
                     isKeyLoading={isKeyLoading}
                   />
                 )}
-
-
               </Box>
 
               <Wso2WebSocketConsole
@@ -540,6 +587,77 @@ export const EntityWso2ApiDefinitionCard = () => {
                 externalApiKey={externalApiKey}
                 apiKeyAuthPolicy={apiKeyAuthPolicy}
                 isDeployed={isDeployed}
+                details={details}
+              />
+            </div>
+          )}
+
+          {/* Tab Content: WebSub Console */}
+          {activeTab === 'websub' && details?.type === 'WEBSUB' && (
+            <div className={classes.root}>
+              <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                {/* API Key Display and Regeneration */}
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasSubscriptionlessPolicies && hasApiKeyHeader && (
+                  <Wso2ApiAuthSection
+                    manualKeyInput={manualKeyInput}
+                    setManualKeyInput={setManualKeyInput}
+                    applyManualKey={applyManualKey}
+                    isModalOpen={isModalOpen}
+                    setIsModalOpen={setIsModalOpen}
+                    customKeyName={customKeyName}
+                    setCustomKeyName={setCustomKeyName}
+                    generatedKey={generatedKey}
+                    setGeneratedKey={setGeneratedKey}
+                    apiClient={apiClient}
+                    apiId={apiId!}
+                    isKeyLoading={isKeyLoading}
+                  />
+                )}
+              </Box>
+
+              <Wso2WebSubConsole
+                operations={gatewayOperations}
+                gatewayUrls={gatewayUrls}
+                apiKeyRef={apiKeyRef}
+                externalApiKey={externalApiKey}
+                apiKeyAuthPolicy={apiKeyAuthPolicy}
+                isDeployed={isDeployed}
+                details={details}
+              />
+            </div>
+          )}
+
+          {/* Tab Content: SSE Console */}
+          {activeTab === 'sse' && details?.type === 'SSE' && (
+            <div className={classes.root}>
+              <Box style={{ paddingLeft: '8px', paddingRight: '8px' }}>
+                {/* API Key Display and Regeneration */}
+                {isDeployed && !isDiscovered && !skipKeyGeneration && hasSubscriptionlessPolicies && hasApiKeyHeader && (
+                  <Wso2ApiAuthSection
+                    manualKeyInput={manualKeyInput}
+                    setManualKeyInput={setManualKeyInput}
+                    applyManualKey={applyManualKey}
+                    isModalOpen={isModalOpen}
+                    setIsModalOpen={setIsModalOpen}
+                    customKeyName={customKeyName}
+                    setCustomKeyName={setCustomKeyName}
+                    generatedKey={generatedKey}
+                    setGeneratedKey={setGeneratedKey}
+                    apiClient={apiClient}
+                    apiId={apiId!}
+                    isKeyLoading={isKeyLoading}
+                  />
+                )}
+              </Box>
+
+              <Wso2SseConsole
+                operations={gatewayOperations}
+                gatewayUrls={gatewayUrls}
+                apiKeyRef={apiKeyRef}
+                externalApiKey={externalApiKey}
+                apiKeyAuthPolicy={apiKeyAuthPolicy}
+                isDeployed={isDeployed}
+                details={details}
               />
             </div>
           )}
@@ -555,6 +673,7 @@ export const EntityWso2ApiDefinitionCard = () => {
                   apiKeyRef={apiKeyRef}
                   externalApiKey={externalApiKey}
                   apiKeyAuthPolicy={apiKeyAuthPolicy}
+                  details={details}
                 />
               </div>
             </div>
@@ -576,22 +695,46 @@ export const EntityWso2ApiDefinitionCard = () => {
 
           {/* Tab Content: WSDL View */}
           {activeTab === 'wsdl' && hasWsdlTab && (
-            <Box p={4} display="flex" flexDirection="column" alignItems="center" justifyContent="center">
-              <Typography variant="h6" gutterBottom>
-                WSDL Definition
-              </Typography>
-              <Typography variant="body2" color="textSecondary" paragraph align="center">
-                Download the WSDL definition for this SOAP API. The downloaded file may be a single WSDL file or a ZIP archive containing multiple schema files.
-              </Typography>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleDownloadWsdl}
-                disabled={isWsdlDownloading}
-                startIcon={isWsdlDownloading ? <CircularProgress size={20} /> : undefined}
-              >
-                {isWsdlDownloading ? 'Downloading...' : 'Download WSDL'}
-              </Button>
+            <Box p={2}>
+              {wsdlContentState.loading && (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress size={30} />
+                </Box>
+              )}
+
+              {!wsdlContentState.loading && wsdlContentState.value?.text && (
+                <Box mt={1}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="h6">WSDL Definition</Typography>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={() => {
+                        const blob = new Blob([wsdlContentState.value.text!], { type: 'application/wsdl+xml' });
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `${apiId}.wsdl`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.parentNode?.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Download WSDL
+                    </Button>
+                  </Box>
+                  <SwaggerEditorPanel value={wsdlContentState.value.text} readOnly />
+                </Box>
+              )}
+
+              {!wsdlContentState.loading && !wsdlContentState.value?.text && (
+                <Box p={4} border={1} borderColor="divider" borderRadius={4} textAlign="center" bgcolor="background.default">
+                  <Typography variant="body2" color="textSecondary">
+                    WSDL text definition is not available for this API.
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
         </>

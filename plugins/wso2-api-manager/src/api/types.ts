@@ -17,6 +17,7 @@ export type Wso2ApiSummary = {
   lifeCycleStatus?: string;
   type?: string;
   isDiscovered?: boolean;
+  source?: string;
   gateways?: Wso2GatewayInfo[];
 };
 export type Wso2ApiProductSummary = {
@@ -111,6 +112,10 @@ export type Wso2ApiDetail = Wso2ApiSummary & {
     accessControlAllowHeaders?: string[];
     accessControlAllowMethods?: string[];
   };
+  policies?: string[];
+  securityScheme?: string[];
+  apiKeyHeader?: string;
+  authorizationHeader?: string;
 };
 
 export type Wso2ApiDocument = {
@@ -162,6 +167,27 @@ export type Wso2HealthReport = {
   }>;
 };
 
+export type Wso2CatalogSyncStatus = {
+  providerId?: string;
+  phase: 'idle' | 'fetching' | 'mapping' | 'applying' | 'complete' | 'failed';
+  message: string;
+  startedAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  error?: string;
+  publisherApis: {
+    loaded: number;
+    total?: number;
+  };
+  totals: {
+    catalogEntities?: number;
+    apiProducts?: number;
+    mcpServers?: number;
+    services?: number;
+    gatewayApis?: number;
+  };
+};
+
 export interface Wso2ApiManagerApi {
   generateApiKey(apiId: string, options?: { keyName?: string }): Promise<any>;
   getRevisions(
@@ -170,7 +196,9 @@ export interface Wso2ApiManagerApi {
   ): Promise<Wso2ApiRevisionsResponse>;
   getGateways(token?: string): Promise<any[]>;
   getHealth(token?: string): Promise<Wso2HealthReport>;
+  getCatalogSyncStatus(token?: string): Promise<Wso2CatalogSyncStatus>;
   refreshCatalog(token?: string): Promise<{ message: string }>;
+  getApis(options?: { offset?: number; limit?: number; token?: string }): Promise<any>;
   getServices(options?: { offset?: number; limit?: number; token?: string }): Promise<any>;
   getServiceUsage(serviceId: string, token?: string): Promise<any>;
   getServiceDefinition(serviceId: string, token?: string): Promise<string>;
